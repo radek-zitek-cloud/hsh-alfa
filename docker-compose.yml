@@ -20,7 +20,7 @@ services:
     depends_on:
       - redis
     networks:
-      - home-network
+      - proxy
       - traefik-network
     labels:
       - "traefik.enable=true"
@@ -61,7 +61,7 @@ services:
 networks:
   home-network:
     driver: bridge
-  traefik-network:
+  proxy:
     external: true
 
 volumes:
