@@ -1,9 +1,21 @@
-import React from 'react'
-import { Sun, Moon } from 'lucide-react'
+import React, { useState } from 'react'
+import { Sun, Moon, Plus } from 'lucide-react'
 import BookmarkGrid from './BookmarkGrid'
 import WidgetGrid from './WidgetGrid'
+import BookmarkModal from './BookmarkModal'
+import BookmarkForm from './BookmarkForm'
+import Toast from './Toast'
+import { useToast } from '../hooks/useToast'
 
 const Dashboard = ({ theme, toggleTheme }) => {
+  const [isAddModalOpen, setIsAddModalOpen] = useState(false)
+  const { toasts, showToast, hideToast } = useToast()
+
+  const handleBookmarkSuccess = (message) => {
+    setIsAddModalOpen(false)
+    showToast(message, 'success')
+  }
+
   return (
     <div className="min-h-screen p-4 md:p-6 lg:p-8">
       {/* Header */}
@@ -22,10 +34,19 @@ const Dashboard = ({ theme, toggleTheme }) => {
 
       {/* Bookmarks Section */}
       <section className="mb-8">
-        <h2 className="text-xl font-semibold mb-4 text-[var(--text-primary)]">
-          Bookmarks
-        </h2>
-        <BookmarkGrid />
+        <div className="flex justify-between items-center mb-4">
+          <h2 className="text-xl font-semibold text-[var(--text-primary)]">
+            Bookmarks
+          </h2>
+          <button
+            onClick={() => setIsAddModalOpen(true)}
+            className="flex items-center gap-2 px-4 py-2 bg-[var(--accent-color)] text-white rounded-lg hover:opacity-90 transition-opacity"
+          >
+            <Plus size={18} />
+            Add Bookmark
+          </button>
+        </div>
+        <BookmarkGrid onToast={showToast} />
       </section>
 
       {/* Widgets Section */}
@@ -35,6 +56,28 @@ const Dashboard = ({ theme, toggleTheme }) => {
         </h2>
         <WidgetGrid />
       </section>
+
+      {/* Add Bookmark Modal */}
+      <BookmarkModal
+        isOpen={isAddModalOpen}
+        onClose={() => setIsAddModalOpen(false)}
+        title="Add New Bookmark"
+      >
+        <BookmarkForm
+          onSuccess={handleBookmarkSuccess}
+          onCancel={() => setIsAddModalOpen(false)}
+        />
+      </BookmarkModal>
+
+      {/* Toast Notifications */}
+      {toasts.map((toast) => (
+        <Toast
+          key={toast.id}
+          message={toast.message}
+          type={toast.type}
+          onClose={() => hideToast(toast.id)}
+        />
+      ))}
     </div>
   )
 }

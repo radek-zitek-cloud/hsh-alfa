@@ -3,7 +3,8 @@ from datetime import datetime
 from typing import Optional, List
 from sqlalchemy import String, Integer, DateTime, Text
 from sqlalchemy.orm import Mapped, mapped_column
-from pydantic import BaseModel
+from pydantic import BaseModel, field_validator, ValidationError
+from urllib.parse import urlparse
 
 from app.services.database import Base
 
@@ -51,6 +52,83 @@ class BookmarkCreate(BaseModel):
     tags: Optional[List[str]] = None
     position: int = 0
 
+    @field_validator('url')
+    @classmethod
+    def validate_url(cls, v: str) -> str:
+        """Validate URL and prevent malicious schemes."""
+        if not v or not v.strip():
+            raise ValueError('URL is required')
+
+        v = v.strip()
+
+        # Check for malicious schemes
+        malicious_schemes = ['javascript:', 'data:', 'vbscript:', 'file:']
+        lower_url = v.lower()
+
+        for scheme in malicious_schemes:
+            if lower_url.startswith(scheme):
+                raise ValueError(f'Invalid URL scheme: {scheme} is not allowed')
+
+        # Parse and validate URL
+        try:
+            parsed = urlparse(v)
+
+            # Require absolute URLs with http or https
+            if not parsed.scheme:
+                raise ValueError('URL must include a protocol (e.g., https://)')
+
+            if parsed.scheme not in ['http', 'https']:
+                raise ValueError(f'Only HTTP and HTTPS protocols are allowed, got {parsed.scheme}')
+
+            if not parsed.netloc:
+                raise ValueError('URL must have a valid domain')
+
+        except Exception as e:
+            raise ValueError(f'Invalid URL format: {str(e)}')
+
+        return v
+
+    @field_validator('favicon')
+    @classmethod
+    def validate_favicon(cls, v: Optional[str]) -> Optional[str]:
+        """Validate favicon URL if provided."""
+        if not v or not v.strip():
+            return None
+
+        v = v.strip()
+
+        # Check for malicious schemes
+        malicious_schemes = ['javascript:', 'data:', 'vbscript:', 'file:']
+        lower_url = v.lower()
+
+        for scheme in malicious_schemes:
+            if lower_url.startswith(scheme):
+                raise ValueError(f'Invalid favicon URL scheme: {scheme} is not allowed')
+
+        # Parse and validate URL
+        try:
+            parsed = urlparse(v)
+
+            if parsed.scheme and parsed.scheme not in ['http', 'https']:
+                raise ValueError(f'Only HTTP and HTTPS protocols are allowed for favicon, got {parsed.scheme}')
+
+        except Exception as e:
+            raise ValueError(f'Invalid favicon URL format: {str(e)}')
+
+        return v
+
+    @field_validator('tags')
+    @classmethod
+    def validate_tags(cls, v: Optional[List[str]]) -> Optional[List[str]]:
+        """Validate and clean tags."""
+        if not v:
+            return None
+
+        # Remove empty strings and trim whitespace
+        cleaned = [tag.strip() for tag in v if tag and tag.strip()]
+
+        return cleaned if cleaned else None
+
 
 class BookmarkUpdate(BaseModel):
     """Schema for updating a bookmark."""
@@ -61,6 +139,83 @@ class BookmarkUpdate(BaseModel):
     category: Optional[str] = None
     tags: Optional[List[str]] = None
     position: Optional[int] = None
+
+    @field_validator('url')
+    @classmethod
+    def validate_url(cls, v: Optional[str]) -> Optional[str]:
+        """Validate URL and prevent malicious schemes."""
+        if not v or not v.strip():
+            return None
+
+        v = v.strip()
+
+        # Check for malicious schemes
+        malicious_schemes = ['javascript:', 'data:', 'vbscript:', 'file:']
+        lower_url = v.lower()
+
+        for scheme in malicious_schemes:
+            if lower_url.startswith(scheme):
+                raise ValueError(f'Invalid URL scheme: {scheme} is not allowed')
+
+        # Parse and validate URL
+        try:
+            parsed = urlparse(v)
+
+            # Require absolute URLs with http or https
+            if not parsed.scheme:
+                raise ValueError('URL must include a protocol (e.g., https://)')
+
+            if parsed.scheme not in ['http', 'https']:
+                raise ValueError(f'Only HTTP and HTTPS protocols are allowed, got {parsed.scheme}')
+
+            if not parsed.netloc:
+                raise ValueError('URL must have a valid domain')
+
+        except Exception as e:
+            raise ValueError(f'Invalid URL format: {str(e)}')
+
+        return v
+
+    @field_validator('favicon')
+    @classmethod
+    def validate_favicon(cls, v: Optional[str]) -> Optional[str]:
+        """Validate favicon URL if provided."""
+        if not v or not v.strip():
+            return None
+
+        v = v.strip()
+
+        # Check for malicious schemes
+        malicious_schemes = ['javascript:', 'data:', 'vbscript:', 'file:']
+        lower_url = v.lower()
+
+        for scheme in malicious_schemes:
+            if lower_url.startswith(scheme):
+                raise ValueError(f'Invalid favicon URL scheme: {scheme} is not allowed')
+
+        # Parse and validate URL
+        try:
+            parsed = urlparse(v)
+
+            if parsed.scheme and parsed.scheme not in ['http', 'https']:
+                raise ValueError(f'Only HTTP and HTTPS protocols are allowed for favicon, got {parsed.scheme}')
+
+        except Exception as e:
+            raise ValueError(f'Invalid favicon URL format: {str(e)}')
+
+        return v
+
+    @field_validator('tags')
+    @classmethod
+    def validate_tags(cls, v: Optional[List[str]]) -> Optional[List[str]]:
+        """Validate and clean tags."""
+        if not v:
+            return None
+
+        # Remove empty strings and trim whitespace
+        cleaned = [tag.strip() for tag in v if tag and tag.strip()]
+
+        return cleaned if cleaned else None
 
 
 class BookmarkResponse(BaseModel):
