@@ -63,6 +63,8 @@ networks:
     driver: bridge
   proxy:
     external: true
+  traefik-network:
+    external: true
 
 volumes:
   redis-data:
