@@ -42,7 +42,7 @@ services:
       - "traefik.docker.network=proxy"
       - "traefik.http.routers.home.rule=Host(`${DOMAIN:-home.zitek.cloud}`)"
       - "traefik.http.routers.home.entrypoints=websecure"
-      - "traefik.http.routers.home.tls.certresolver=letsencrypt"
+      - "traefik.http.routers.home.tls.certresolver=lehttp"
       - "traefik.http.services.home.loadbalancer.server.port=80"
     restart: unless-stopped
 
