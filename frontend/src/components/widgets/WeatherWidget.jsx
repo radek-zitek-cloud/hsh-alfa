@@ -105,8 +105,8 @@ const WeatherWidget = ({ widgetId, config }) => {
         {weatherData.forecast && weatherData.forecast.length > 0 && (
           <div className="mt-4 pt-4 border-t border-[var(--border-color)]">
             <div className="grid grid-cols-5 gap-1 text-xs">
-              {weatherData.forecast.slice(0, 5).map((day, idx) => (
-                <div key={idx} className="text-center">
+              {weatherData.forecast.slice(0, 5).map((day) => (
+                <div key={day.date} className="text-center">
                   <p className="text-[var(--text-secondary)] mb-1">
                     {new Date(day.date).toLocaleDateString('en-US', { weekday: 'short' })}
                   </p>
