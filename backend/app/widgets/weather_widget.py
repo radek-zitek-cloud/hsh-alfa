@@ -44,14 +44,16 @@ class WeatherWidget(BaseWidget):
         show_forecast = self.config.get("show_forecast", True)
 
         # Build API URL for current weather
-        current_url = (
-            f"https://api.openweathermap.org/data/2.5/weather"
-            f"?q={location}&units={units}&appid={api_key}"
-        )
+        current_url = "https://api.openweathermap.org/data/2.5/weather"
+        current_params = {
+            "q": location,
+            "units": units,
+            "appid": api_key
+        }
 
         async with aiohttp.ClientSession() as session:
             # Fetch current weather
-            async with session.get(current_url) as response:
+            async with session.get(current_url, params=current_params) as response:
                 if response.status != 200:
                     error_text = await response.text()
                     raise Exception(f"Weather API error: {response.status} - {error_text}")
@@ -65,12 +67,15 @@ class WeatherWidget(BaseWidget):
                 lat = current_data["coord"]["lat"]
                 lon = current_data["coord"]["lon"]
 
-                forecast_url = (
-                    f"https://api.openweathermap.org/data/2.5/forecast"
-                    f"?lat={lat}&lon={lon}&units={units}&appid={api_key}"
-                )
+                forecast_url = "https://api.openweathermap.org/data/2.5/forecast"
+                forecast_params = {
+                    "lat": lat,
+                    "lon": lon,
+                    "units": units,
+                    "appid": api_key
+                }
 
-                async with session.get(forecast_url) as response:
+                async with session.get(forecast_url, params=forecast_params) as response:
                     if response.status == 200:
                         forecast_data = await response.json()
 
