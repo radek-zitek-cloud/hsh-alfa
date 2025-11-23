@@ -22,7 +22,7 @@ services:
       - home-network
     labels:
       - "traefik.enable=true"
-      - "traefik.docker.network=traefik-network"
+      - "traefik.docker.network=proxy"
       - "traefik.http.routers.home-api.rule=Host(`${DOMAIN:-home.zitek.cloud}`) && PathPrefix(`/api`)"
       - "traefik.http.routers.home-api.entrypoints=websecure"
       - "traefik.http.routers.home-api.tls.certresolver=letsencrypt"
@@ -39,7 +39,7 @@ services:
       - proxy
     labels:
       - "traefik.enable=true"
-      - "traefik.docker.network=traefik-network"
+      - "traefik.docker.network=proxy"
       - "traefik.http.routers.home.rule=Host(`${DOMAIN:-home.zitek.cloud}`)"
       - "traefik.http.routers.home.entrypoints=websecure"
       - "traefik.http.routers.home.tls.certresolver=letsencrypt"
