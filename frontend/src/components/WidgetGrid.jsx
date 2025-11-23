@@ -5,6 +5,7 @@ import { widgetsApi } from '../services/api'
 import { Loader } from 'lucide-react'
 import WeatherWidget from './widgets/WeatherWidget'
 import ExchangeRateWidget from './widgets/ExchangeRateWidget'
+import NewsWidget from './widgets/NewsWidget'
 import 'react-grid-layout/css/styles.css'
 
 const ResponsiveGridLayout = WidthProvider(Responsive)
@@ -13,6 +14,7 @@ const ResponsiveGridLayout = WidthProvider(Responsive)
 const WIDGET_COMPONENTS = {
   weather: WeatherWidget,
   exchange_rate: ExchangeRateWidget,
+  news: NewsWidget,
 }
 
 const WidgetGrid = () => {

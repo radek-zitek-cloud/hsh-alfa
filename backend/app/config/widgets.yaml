@@ -62,6 +62,32 @@ widgets:
       units: "metric"
       show_forecast: true
 
+  # News/RSS Widget Example
+  - id: "tech-news"
+    type: "news"
+    enabled: true
+    position:
+      row: 2
+      col: 0
+      width: 3
+      height: 3
+    refresh_interval: 1800  # 30 minutes
+    config:
+      # RSS Feeds (optional)
+      rss_feeds:
+        - "https://hnrss.org/frontpage"  # Hacker News
+        - "https://www.reddit.com/r/programming/.rss"  # Reddit Programming
+      # News API settings (optional)
+      use_news_api: false
+      # If use_news_api is true, configure these:
+      # api_key will use NEWS_API_KEY from environment if not specified
+      # query: "technology"  # Search query (for everything endpoint)
+      # category: "technology"  # Category: business, entertainment, general, health, science, sports, technology
+      # country: "us"  # Country code (for top-headlines)
+      # language: "en"  # Language code
+      max_articles: 10
+      description_length: 200
+
 # Add more widgets as needed
-# Available widget types: weather, exchange_rate
-# Coming soon: news, market_data, system_monitor
+# Available widget types: weather, exchange_rate, news
+# Coming soon: market_data, system_monitor
