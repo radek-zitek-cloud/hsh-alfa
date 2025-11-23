@@ -31,6 +31,20 @@ widgets:
       show_forecast: true
       # api_key will use WEATHER_API_KEY from environment if not specified
 
+  - id: "weather-ostrava"
+    type: "weather"
+    enabled: true
+    position:
+      row: 0
+      col: 0
+      width: 2
+      height: 2
+    refresh_interval: 1800  # 30 minutes
+    config:
+      location: "Zlin, CZ"
+      units: "metric"  # metric, imperial, or standard
+      show_forecast: true
+
   # Exchange Rate Widget Example
   - id: "eur-czk-rate"
     type: "exchange_rate"
@@ -42,8 +56,8 @@ widgets:
       height: 2
     refresh_interval: 3600  # 1 hour
     config:
-      base_currency: "EUR"
-      target_currencies: ["CZK", "USD", "GBP"]
+      base_currency: "CZK"
+      target_currencies: ["EUR", "USD", "GBP"]
       show_trend: false
       # Leave api_key empty to use free ECB data
 
