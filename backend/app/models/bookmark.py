@@ -3,7 +3,8 @@ from datetime import datetime
 from typing import Optional, List
 from sqlalchemy import String, Integer, DateTime, Text
 from sqlalchemy.orm import Mapped, mapped_column
-from pydantic import BaseModel
+from pydantic import BaseModel, field_validator, ValidationError
+from urllib.parse import urlparse
 
 from app.services.database import Base
 
@@ -51,6 +52,60 @@ class BookmarkCreate(BaseModel):
     tags: Optional[List[str]] = None
     position: int = 0
 
+    @field_validator('url')
+    @classmethod
+    def validate_url(cls, v: str) -> str:
+        """Validate URL and block dangerous schemes."""
+        if not v:
+            raise ValueError('URL is required')
+
+        try:
+            parsed = urlparse(v)
+            # Block dangerous URL schemes
+            dangerous_schemes = ['javascript', 'data', 'vbscript', 'file']
+            if parsed.scheme.lower() in dangerous_schemes:
+                raise ValueError(f'URL scheme "{parsed.scheme}" is not allowed. Please use http or https')
+
+            # Ensure URL has a valid scheme
+            if parsed.scheme.lower() not in ['http', 'https']:
+                raise ValueError('URL must use http or https scheme')
+
+            # Ensure URL has a netloc (domain)
+            if not parsed.netloc:
+                raise ValueError('URL must have a valid domain')
+
+        except ValueError:
+            raise
+        except Exception:
+            raise ValueError('Invalid URL format')
+
+        return v
+
+    @field_validator('favicon')
+    @classmethod
+    def validate_favicon(cls, v: Optional[str]) -> Optional[str]:
+        """Validate favicon URL if provided."""
+        if not v:
+            return v
+
+        try:
+            parsed = urlparse(v)
+            # Block dangerous URL schemes
+            dangerous_schemes = ['javascript', 'data', 'vbscript', 'file']
+            if parsed.scheme.lower() in dangerous_schemes:
+                raise ValueError(f'Favicon URL scheme "{parsed.scheme}" is not allowed. Please use http or https')
+
+            # Ensure URL has a valid scheme
+            if parsed.scheme.lower() not in ['http', 'https']:
+                raise ValueError('Favicon URL must use http or https scheme')
+
+        except ValueError:
+            raise
+        except Exception:
+            raise ValueError('Invalid favicon URL format')
+
+        return v
+
 
 class BookmarkUpdate(BaseModel):
     """Schema for updating a bookmark."""
@@ -61,6 +116,60 @@ class BookmarkUpdate(BaseModel):
     category: Optional[str] = None
     tags: Optional[List[str]] = None
     position: Optional[int] = None
+
+    @field_validator('url')
+    @classmethod
+    def validate_url(cls, v: Optional[str]) -> Optional[str]:
+        """Validate URL and block dangerous schemes."""
+        if not v:
+            return v
+
+        try:
+            parsed = urlparse(v)
+            # Block dangerous URL schemes
+            dangerous_schemes = ['javascript', 'data', 'vbscript', 'file']
+            if parsed.scheme.lower() in dangerous_schemes:
+                raise ValueError(f'URL scheme "{parsed.scheme}" is not allowed. Please use http or https')
+
+            # Ensure URL has a valid scheme
+            if parsed.scheme.lower() not in ['http', 'https']:
+                raise ValueError('URL must use http or https scheme')
+
+            # Ensure URL has a netloc (domain)
+            if not parsed.netloc:
+                raise ValueError('URL must have a valid domain')
+
+        except ValueError:
+            raise
+        except Exception:
+            raise ValueError('Invalid URL format')
+
+        return v
+
+    @field_validator('favicon')
+    @classmethod
+    def validate_favicon(cls, v: Optional[str]) -> Optional[str]:
+        """Validate favicon URL if provided."""
+        if not v:
+            return v
+
+        try:
+            parsed = urlparse(v)
+            # Block dangerous URL schemes
+            dangerous_schemes = ['javascript', 'data', 'vbscript', 'file']
+            if parsed.scheme.lower() in dangerous_schemes:
+                raise ValueError(f'Favicon URL scheme "{parsed.scheme}" is not allowed. Please use http or https')
+
+            # Ensure URL has a valid scheme
+            if parsed.scheme.lower() not in ['http', 'https']:
+                raise ValueError('Favicon URL must use http or https scheme')
+
+        except ValueError:
+            raise
+        except Exception:
+            raise ValueError('Invalid favicon URL format')
+
+        return v
 
 
 class BookmarkResponse(BaseModel):
