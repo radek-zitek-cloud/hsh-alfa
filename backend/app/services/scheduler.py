@@ -1,7 +1,5 @@
 """Background scheduler for widget updates."""
 import logging
-import asyncio
-from typing import Dict
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.triggers.interval import IntervalTrigger
 

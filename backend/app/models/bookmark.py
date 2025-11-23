@@ -3,7 +3,7 @@ from datetime import datetime
 from typing import Optional, List
 from sqlalchemy import String, Integer, DateTime, Text
 from sqlalchemy.orm import Mapped, mapped_column
-from pydantic import BaseModel, HttpUrl
+from pydantic import BaseModel
 
 from app.services.database import Base
 

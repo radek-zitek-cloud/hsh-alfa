@@ -60,9 +60,9 @@ const BookmarkCard = ({ bookmark }) => {
           </div>
           {bookmark.tags && bookmark.tags.length > 0 && (
             <div className="flex gap-1 mt-2 flex-wrap">
-              {bookmark.tags.slice(0, 3).map((tag, idx) => (
+              {bookmark.tags.slice(0, 3).map((tag) => (
                 <span
-                  key={idx}
+                  key={tag}
                   className="text-xs px-2 py-1 bg-[var(--bg-primary)] border border-[var(--border-color)] rounded"
                 >
                   {tag}
