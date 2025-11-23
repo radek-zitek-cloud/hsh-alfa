@@ -6,7 +6,6 @@ import { Loader } from 'lucide-react'
 import WeatherWidget from './widgets/WeatherWidget'
 import ExchangeRateWidget from './widgets/ExchangeRateWidget'
 import 'react-grid-layout/css/styles.css'
-import 'react-grid-layout/css/resizable.css'
 
 const ResponsiveGridLayout = WidthProvider(Responsive)
 
