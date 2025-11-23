@@ -7,6 +7,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.bookmark import Bookmark, BookmarkCreate, BookmarkUpdate, BookmarkResponse
 from app.services.database import get_db
+from app.services.favicon import fetch_favicon
 
 logger = logging.getLogger(__name__)
 
@@ -71,6 +72,8 @@ async def create_bookmark(
     """
     Create a new bookmark.
 
+    Automatically fetches favicon from the URL if not provided.
+
     Args:
         bookmark_data: Bookmark data
         db: Database session
@@ -83,10 +86,23 @@ async def create_bookmark(
     if bookmark_data.tags:
         tags_str = ",".join(bookmark_data.tags)
 
+    # Automatically fetch favicon if not provided
+    favicon_url = bookmark_data.favicon
+    if not favicon_url:
+        try:
+            favicon_url = await fetch_favicon(bookmark_data.url)
+            if favicon_url:
+                logger.info(f"Automatically fetched favicon for {bookmark_data.url}: {favicon_url}")
+            else:
+                logger.warning(f"Could not fetch favicon for {bookmark_data.url}")
+        except Exception as e:
+            logger.error(f"Error fetching favicon for {bookmark_data.url}: {e}")
+            # Continue without favicon if fetching fails
+
     bookmark = Bookmark(
         title=bookmark_data.title,
         url=bookmark_data.url,
-        favicon=bookmark_data.favicon,
+        favicon=favicon_url,
         description=bookmark_data.description,
         category=bookmark_data.category,
         tags=tags_str,
@@ -111,6 +127,8 @@ async def update_bookmark(
     """
     Update an existing bookmark.
 
+    Automatically fetches favicon if URL is changed and favicon is not provided.
+
     Args:
         bookmark_id: Bookmark ID
         bookmark_data: Updated bookmark data
@@ -127,6 +145,20 @@ async def update_bookmark(
 
     # Update fields if provided
     update_data = bookmark_data.model_dump(exclude_unset=True)
+
+    # If URL is being updated and favicon is not explicitly provided, fetch new favicon
+    if "url" in update_data and "favicon" not in update_data:
+        try:
+            new_url = update_data["url"]
+            favicon_url = await fetch_favicon(new_url)
+            if favicon_url:
+                update_data["favicon"] = favicon_url
+                logger.info(f"Automatically fetched favicon for updated URL {new_url}: {favicon_url}")
+            else:
+                logger.warning(f"Could not fetch favicon for updated URL {new_url}")
+        except Exception as e:
+            logger.error(f"Error fetching favicon for updated URL: {e}")
+            # Continue without updating favicon if fetching fails
 
     for field, value in update_data.items():
         if field == "tags" and value is not None:

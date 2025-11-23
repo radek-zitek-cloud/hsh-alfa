@@ -223,6 +223,7 @@ const BookmarkForm = ({ bookmark, onSuccess, onCancel }) => {
           placeholder="https://example.com/favicon.ico"
           disabled={isLoading}
         />
+        <p className="text-xs text-[var(--text-secondary)] mt-1">Leave blank to auto-fetch from the URL</p>
       </div>
 
       {/* Submit Error */}
