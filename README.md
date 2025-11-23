@@ -195,10 +195,14 @@ Then access:
 
 ### With Traefik
 
-Ensure the `traefik-network` exists:
+**⚠️ Important: Standard Traefik Network Name**
+
+This project uses **`proxy`** as the standard Traefik network name. Always use this network name for consistency.
+
+Ensure the `proxy` network exists:
 
 ```bash
-docker network create traefik-network
+docker network create proxy
 ```
 
 The provided `docker-compose.yml` includes Traefik labels for automatic HTTPS.
