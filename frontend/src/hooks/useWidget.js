@@ -1,5 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
-import { widgetsApi } from '../services/api';
+import { widgetsApi, bookmarksApi } from '../services/api';
 
 export const useWidget = (widgetId, options = {}) => {
   return useQuery({
