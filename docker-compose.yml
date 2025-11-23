@@ -1,0 +1,68 @@
+version: '3.8'
+
+services:
+  backend:
+    build: ./backend
+    container_name: home-sweet-home-backend
+    env_file:
+      - .env
+    environment:
+      - DATABASE_URL=sqlite+aiosqlite:////data/home.db
+      - REDIS_URL=redis://redis:6379
+      - SECRET_KEY=${SECRET_KEY}
+      - WEATHER_API_KEY=${WEATHER_API_KEY}
+      - EXCHANGE_RATE_API_KEY=${EXCHANGE_RATE_API_KEY}
+      - NEWS_API_KEY=${NEWS_API_KEY}
+      - DEBUG=${DEBUG:-false}
+    volumes:
+      - ./data:/data
+      - ./backend/app/config:/app/config:ro
+    depends_on:
+      - redis
+    networks:
+      - home-network
+      - traefik-network
+    labels:
+      - "traefik.enable=true"
+      - "traefik.docker.network=traefik-network"
+      - "traefik.http.routers.home-api.rule=Host(`${DOMAIN:-home.zitek.cloud}`) && PathPrefix(`/api`)"
+      - "traefik.http.routers.home-api.entrypoints=websecure"
+      - "traefik.http.routers.home-api.tls.certresolver=letsencrypt"
+      - "traefik.http.services.home-api.loadbalancer.server.port=8000"
+    restart: unless-stopped
+
+  frontend:
+    build: ./frontend
+    container_name: home-sweet-home-frontend
+    depends_on:
+      - backend
+    networks:
+      - home-network
+      - traefik-network
+    labels:
+      - "traefik.enable=true"
+      - "traefik.docker.network=traefik-network"
+      - "traefik.http.routers.home.rule=Host(`${DOMAIN:-home.zitek.cloud}`)"
+      - "traefik.http.routers.home.entrypoints=websecure"
+      - "traefik.http.routers.home.tls.certresolver=letsencrypt"
+      - "traefik.http.services.home.loadbalancer.server.port=80"
+    restart: unless-stopped
+
+  redis:
+    image: redis:7-alpine
+    container_name: home-sweet-home-redis
+    command: redis-server --appendonly yes
+    volumes:
+      - redis-data:/data
+    networks:
+      - home-network
+    restart: unless-stopped
+
+networks:
+  home-network:
+    driver: bridge
+  traefik-network:
+    external: true
+
+volumes:
+  redis-data:
