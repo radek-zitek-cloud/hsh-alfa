@@ -1,0 +1,67 @@
+# Home Sweet Home - Widget Configuration
+#
+# This file defines all widgets displayed on your homepage.
+# Each widget has the following structure:
+#
+# - id: unique identifier for the widget
+#   type: widget type (weather, exchange_rate, news, etc.)
+#   enabled: true/false to enable/disable the widget
+#   position:
+#     row: grid row position (0-indexed)
+#     col: grid column position (0-indexed)
+#     width: number of columns to span
+#     height: number of rows to span
+#   refresh_interval: seconds between data updates
+#   config: widget-specific configuration
+
+widgets:
+  # Weather Widget Example
+  - id: "weather-ostrava"
+    type: "weather"
+    enabled: true
+    position:
+      row: 0
+      col: 0
+      width: 2
+      height: 2
+    refresh_interval: 1800  # 30 minutes
+    config:
+      location: "Ostrava, CZ"
+      units: "metric"  # metric, imperial, or standard
+      show_forecast: true
+      # api_key will use WEATHER_API_KEY from environment if not specified
+
+  # Exchange Rate Widget Example
+  - id: "eur-czk-rate"
+    type: "exchange_rate"
+    enabled: true
+    position:
+      row: 0
+      col: 2
+      width: 1
+      height: 2
+    refresh_interval: 3600  # 1 hour
+    config:
+      base_currency: "EUR"
+      target_currencies: ["CZK", "USD", "GBP"]
+      show_trend: false
+      # Leave api_key empty to use free ECB data
+
+  # Additional Weather Widget (Different Location)
+  - id: "weather-prague"
+    type: "weather"
+    enabled: false  # Disabled by default
+    position:
+      row: 0
+      col: 3
+      width: 2
+      height: 2
+    refresh_interval: 1800
+    config:
+      location: "Prague, CZ"
+      units: "metric"
+      show_forecast: true
+
+# Add more widgets as needed
+# Available widget types: weather, exchange_rate
+# Coming soon: news, market_data, system_monitor
