@@ -55,9 +55,9 @@ const ExchangeRateWidget = ({ widgetId, config }) => {
 
         {/* Rates */}
         <div className="space-y-3 flex-1">
-          {rateData.rates.map((rate, idx) => (
+          {rateData.rates.map((rate) => (
             <div
-              key={idx}
+              key={rate.currency}
               className="flex items-center justify-between p-2 bg-[var(--bg-primary)] rounded border border-[var(--border-color)]"
             >
               <div className="flex items-center gap-2">
