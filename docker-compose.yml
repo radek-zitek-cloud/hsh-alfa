@@ -35,8 +35,8 @@ services:
     depends_on:
       - backend
     networks:
-      - home-network
       - proxy
+      - home-network
     labels:
       - "traefik.enable=true"
       - "traefik.docker.network=proxy"
