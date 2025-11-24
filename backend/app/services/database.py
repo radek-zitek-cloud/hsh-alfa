@@ -51,3 +51,19 @@ async def init_db():
         from app.models import section  # noqa: F401
         await conn.run_sync(Base.metadata.create_all)
     logger.info("Database tables created")
+
+    # Run migrations
+    logger.info("Running database migrations...")
+    await run_migrations()
+    logger.info("Database migrations completed")
+
+
+async def run_migrations():
+    """Run all database migrations."""
+    from app.migrations.add_clicks_to_bookmarks import migrate as migrate_clicks
+
+    try:
+        await migrate_clicks()
+    except Exception as e:
+        logger.error(f"Error running migrations: {e}")
+        raise
