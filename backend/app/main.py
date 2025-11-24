@@ -27,6 +27,16 @@ async def lifespan(app: FastAPI):
     await init_db()
     logger.info("Database initialized")
 
+    # Run migrations
+    try:
+        from app.services.database import engine
+        from app.migrations.add_clicks_to_bookmarks import run_migration
+        await run_migration(engine)
+    except Exception as e:
+        logger.error(f"Migration failed: {e}")
+        # Continue startup even if migration fails
+        # This prevents breaking the application if migration has issues
+
     # Initialize default sections
     async for db in get_db():
         try:
