@@ -1,0 +1,218 @@
+name: CI/CD Pipeline
+
+on:
+  push:
+    branches: [main, develop, claude/**]
+  pull_request:
+    branches: [main, develop]
+
+jobs:
+  backend-lint:
+    name: Backend Linting
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+
+      - name: Install dependencies
+        run: |
+          cd backend
+          pip install -r requirements.txt -r requirements-dev.txt
+
+      - name: Run Black
+        run: |
+          cd backend
+          black --check app/
+
+      - name: Run isort
+        run: |
+          cd backend
+          isort --check app/
+
+      - name: Run Flake8
+        run: |
+          cd backend
+          flake8 app/
+
+  backend-test:
+    name: Backend Tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+
+      - name: Install dependencies
+        run: |
+          cd backend
+          pip install -r requirements.txt -r requirements-dev.txt
+
+      - name: Run tests with coverage
+        env:
+          SECRET_KEY: test-secret-key-for-ci-pipeline-only
+        run: |
+          cd backend
+          pytest tests/ --cov=app --cov-report=xml --cov-report=term-missing
+
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v3
+        with:
+          files: ./backend/coverage.xml
+          flags: backend
+          fail_ci_if_error: false
+
+  frontend-lint:
+    name: Frontend Linting
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+          cache: 'npm'
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install dependencies
+        run: |
+          cd frontend
+          npm ci
+
+      - name: Run ESLint
+        run: |
+          cd frontend
+          npm run lint
+
+      - name: Run Prettier check
+        run: |
+          cd frontend
+          npm run format:check
+
+  frontend-build:
+    name: Frontend Build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+          cache: 'npm'
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install dependencies
+        run: |
+          cd frontend
+          npm ci
+
+      - name: Build application
+        run: |
+          cd frontend
+          npm run build
+
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v3
+        with:
+          name: frontend-build
+          path: frontend/dist
+          retention-days: 7
+
+  security-scan:
+    name: Security Scan
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+
+      - name: Install safety
+        run: pip install safety
+
+      - name: Run Python security scan
+        run: |
+          cd backend
+          safety check -r requirements.txt --output json || true
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+
+      - name: Run npm audit
+        run: |
+          cd frontend
+          npm audit --production --audit-level=moderate || true
+
+  docker-build:
+    name: Docker Build Test
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/develop')
+    needs: [backend-test, frontend-build]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build backend image
+        uses: docker/build-push-action@v5
+        with:
+          context: ./backend
+          push: false
+          tags: home-sweet-home-backend:test
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Build frontend image
+        uses: docker/build-push-action@v5
+        with:
+          context: ./frontend
+          push: false
+          tags: home-sweet-home-frontend:test
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Test Docker Compose
+        env:
+          SECRET_KEY: test-secret-key-for-docker-compose-test
+        run: |
+          docker-compose up -d
+          sleep 15
+          curl -f http://localhost:8000/health || exit 1
+          docker-compose down
+
+  code-quality:
+    name: Code Quality Report
+    runs-on: ubuntu-latest
+    needs: [backend-lint, backend-test, frontend-lint, frontend-build, security-scan]
+    if: always()
+    steps:
+      - name: Check job results
+        run: |
+          echo "Backend Lint: ${{ needs.backend-lint.result }}"
+          echo "Backend Test: ${{ needs.backend-test.result }}"
+          echo "Frontend Lint: ${{ needs.frontend-lint.result }}"
+          echo "Frontend Build: ${{ needs.frontend-build.result }}"
+          echo "Security Scan: ${{ needs.security-scan.result }}"
+
+          if [[ "${{ needs.backend-lint.result }}" == "failure" ]] || \
+             [[ "${{ needs.backend-test.result }}" == "failure" ]] || \
+             [[ "${{ needs.frontend-lint.result }}" == "failure" ]] || \
+             [[ "${{ needs.frontend-build.result }}" == "failure" ]]; then
+            echo "One or more critical jobs failed"
+            exit 1
+          fi
