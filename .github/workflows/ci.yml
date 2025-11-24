@@ -189,11 +189,14 @@ jobs:
       - name: Test Docker Compose
         env:
           SECRET_KEY: test-secret-key-for-docker-compose-test
+          WEATHER_API_KEY: test-api-key
+          EXCHANGE_RATE_API_KEY: test-api-key
+          NEWS_API_KEY: test-api-key
         run: |
-          docker-compose up -d
+          docker-compose -f docker-compose.yml -f docker-compose.ci.yml up -d
           sleep 15
           curl -f http://localhost:8000/health || exit 1
-          docker-compose down
+          docker-compose -f docker-compose.yml -f docker-compose.ci.yml down
 
   code-quality:
     name: Code Quality Report

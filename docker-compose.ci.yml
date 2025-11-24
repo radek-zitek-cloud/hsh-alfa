@@ -1,0 +1,22 @@
+# Docker Compose override for CI/CD environments
+# This file removes external dependencies and configures services for testing
+
+services:
+  backend:
+    env_file: []  # Remove .env file dependency for CI
+    labels: []
+    networks:
+      - home-network
+    ports:
+      - "8000:8000"
+
+  frontend:
+    labels: []
+    networks:
+      - home-network
+    ports:
+      - "8080:8080"
+
+networks:
+  home-network:
+    driver: bridge
