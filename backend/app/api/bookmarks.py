@@ -2,12 +2,14 @@
 import logging
 from typing import List, Optional
 from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi.responses import Response
 from sqlalchemy import select, or_
 from sqlalchemy.ext.asyncio import AsyncSession
+import aiohttp
 
 from app.models.bookmark import Bookmark, BookmarkCreate, BookmarkUpdate, BookmarkResponse
 from app.services.database import get_db
-from app.services.favicon import fetch_favicon
+from app.services.favicon import fetch_favicon, is_safe_url
 
 logger = logging.getLogger(__name__)
 
@@ -229,3 +231,65 @@ async def search_bookmarks(
     bookmarks = result.scalars().all()
 
     return [BookmarkResponse(**bookmark.to_dict()) for bookmark in bookmarks]
+
+
+@router.get("/favicon/proxy")
+async def proxy_favicon(
+    url: str = Query(..., description="Favicon URL to proxy")
+):
+    """
+    Proxy favicon requests to avoid CORS issues.
+
+    This endpoint fetches the favicon from the external URL and serves it
+    through the backend, allowing the frontend to display favicons from
+    any domain without CORS restrictions.
+
+    Args:
+        url: The favicon URL to proxy
+
+    Returns:
+        The favicon image with appropriate content type
+    """
+    # Validate URL for security
+    if not is_safe_url(url):
+        raise HTTPException(status_code=400, detail="Invalid or unsafe URL")
+
+    try:
+        # Set User-Agent header to avoid being blocked
+        headers = {
+            'User-Agent': 'Mozilla/5.0 (compatible; FaviconFetcher/1.0)'
+        }
+
+        async with aiohttp.ClientSession(
+            timeout=aiohttp.ClientTimeout(total=10),
+            headers=headers
+        ) as session:
+            async with session.get(url, allow_redirects=True) as response:
+                if response.status != 200:
+                    raise HTTPException(
+                        status_code=response.status,
+                        detail=f"Failed to fetch favicon: HTTP {response.status}"
+                    )
+
+                # Get content type from response
+                content_type = response.headers.get('content-type', 'image/x-icon')
+
+                # Read the image data
+                image_data = await response.read()
+
+                # Return the image with appropriate headers
+                return Response(
+                    content=image_data,
+                    media_type=content_type,
+                    headers={
+                        'Cache-Control': 'public, max-age=86400',  # Cache for 24 hours
+                        'Access-Control-Allow-Origin': '*'
+                    }
+                )
+
+    except aiohttp.ClientError as e:
+        logger.error(f"Error proxying favicon {url}: {e}")
+        raise HTTPException(status_code=502, detail="Failed to fetch favicon from external source")
+    except Exception as e:
+        logger.error(f"Unexpected error proxying favicon {url}: {e}")
+        raise HTTPException(status_code=500, detail="Internal server error")

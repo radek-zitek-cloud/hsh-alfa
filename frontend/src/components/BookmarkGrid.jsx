@@ -9,6 +9,7 @@ const BookmarkCard = ({ bookmark }) => {
   const queryClient = useQueryClient()
   const [isEditModalOpen, setIsEditModalOpen] = useState(false)
   const [isDeleting, setIsDeleting] = useState(false)
+  const [faviconError, setFaviconError] = useState(false)
 
   const handleClick = () => {
     window.open(bookmark.url, '_blank', 'noopener,noreferrer')
@@ -51,6 +52,14 @@ const BookmarkCard = ({ bookmark }) => {
     }
   }
 
+  // Get proxied favicon URL to avoid CORS issues
+  const getFaviconUrl = (faviconUrl) => {
+    if (!faviconUrl) return null
+    // Use proxy endpoint to serve favicons through backend
+    const apiBaseUrl = import.meta.env.VITE_API_BASE_URL || '/api'
+    return `${apiBaseUrl}/bookmarks/favicon/proxy?url=${encodeURIComponent(faviconUrl)}`
+  }
+
   return (
     <>
       <div
@@ -85,13 +94,13 @@ const BookmarkCard = ({ bookmark }) => {
         <div className="flex items-start gap-3">
           {/* Favicon */}
           <div className="flex-shrink-0">
-            {bookmark.favicon ? (
+            {bookmark.favicon && !faviconError ? (
               <img
-                src={bookmark.favicon}
+                src={getFaviconUrl(bookmark.favicon)}
                 alt=""
-                className="w-8 h-8"
-                onError={(e) => {
-                  e.target.style.display = 'none'
+                className="w-8 h-8 object-contain"
+                onError={() => {
+                  setFaviconError(true)
                 }}
               />
             ) : (
