@@ -5,12 +5,14 @@ import { Loader } from 'lucide-react'
 import WeatherWidget from './widgets/WeatherWidget'
 import ExchangeRateWidget from './widgets/ExchangeRateWidget'
 import NewsWidget from './widgets/NewsWidget'
+import MarketWidget from './widgets/MarketWidget'
 
 // Map widget types to components
 const WIDGET_COMPONENTS = {
   weather: WeatherWidget,
   exchange_rate: ExchangeRateWidget,
   news: NewsWidget,
+  market: MarketWidget,
 }
 
 const WidgetGrid = () => {
