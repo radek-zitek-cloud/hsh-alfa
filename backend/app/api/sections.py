@@ -42,28 +42,11 @@ async def initialize_default_sections(db: AsyncSession):
 @router.get("/", response_model=List[SectionResponse])
 async def get_sections(db: AsyncSession = Depends(get_db)):
     """Get all sections ordered by position."""
-    # Initialize default sections if needed
-    await initialize_default_sections(db)
-
     result = await db.execute(
         select(Section).order_by(Section.position)
     )
     sections = result.scalars().all()
     return [SectionResponse(**section.to_dict()) for section in sections]
-
-
-@router.get("/{section_id}", response_model=SectionResponse)
-async def get_section(section_id: int, db: AsyncSession = Depends(get_db)):
-    """Get a specific section by ID."""
-    result = await db.execute(
-        select(Section).where(Section.id == section_id)
-    )
-    section = result.scalar_one_or_none()
-
-    if not section:
-        raise HTTPException(status_code=404, detail="Section not found")
-
-    return SectionResponse(**section.to_dict())
 
 
 @router.post("/", response_model=SectionResponse)
@@ -103,6 +86,74 @@ async def create_section(
     return SectionResponse(**section.to_dict())
 
 
+@router.put("/reorder", response_model=List[SectionResponse])
+async def reorder_sections(
+    order_data: SectionOrderUpdate,
+    db: AsyncSession = Depends(get_db)
+):
+    """Update the order of multiple sections."""
+    # Validate input
+    if not order_data.sections:
+        raise HTTPException(status_code=400, detail="Sections list cannot be empty")
+
+    # Validate each section in the list
+    for section_order in order_data.sections:
+        if "name" not in section_order or "position" not in section_order:
+            raise HTTPException(
+                status_code=400,
+                detail="Each section must have 'name' and 'position' fields"
+            )
+        if not isinstance(section_order["position"], int) or section_order["position"] < 0:
+            raise HTTPException(
+                status_code=400,
+                detail="Position must be a non-negative integer"
+            )
+
+    # Get all sections
+    result = await db.execute(select(Section))
+    sections = {section.name: section for section in result.scalars().all()}
+
+    # Validate that all section names exist
+    for section_order in order_data.sections:
+        section_name = section_order["name"]
+        if section_name not in sections:
+            raise HTTPException(
+                status_code=404,
+                detail=f"Section '{section_name}' not found"
+            )
+
+    # Update positions
+    for section_order in order_data.sections:
+        section_name = section_order["name"]
+        new_position = section_order["position"]
+        sections[section_name].position = new_position
+
+    await db.commit()
+
+    # Return updated sections ordered by position
+    result = await db.execute(
+        select(Section).order_by(Section.position)
+    )
+    updated_sections = result.scalars().all()
+
+    logger.info("Reordered sections")
+    return [SectionResponse(**section.to_dict()) for section in updated_sections]
+
+
+@router.get("/{section_id}", response_model=SectionResponse)
+async def get_section(section_id: int, db: AsyncSession = Depends(get_db)):
+    """Get a specific section by ID."""
+    result = await db.execute(
+        select(Section).where(Section.id == section_id)
+    )
+    section = result.scalar_one_or_none()
+
+    if not section:
+        raise HTTPException(status_code=404, detail="Section not found")
+
+    return SectionResponse(**section.to_dict())
+
+
 @router.put("/{section_id}", response_model=SectionResponse)
 async def update_section(
     section_id: int,
@@ -117,6 +168,12 @@ async def update_section(
 
     if not section:
         raise HTTPException(status_code=404, detail="Section not found")
+
+    # Check for duplicate name if title is being updated
+    if section_data.title is not None and section_data.title != section.title:
+        # Note: We're checking title, but the unique constraint is on name
+        # If name update is added in the future, add duplicate check here
+        pass
 
     # Update fields
     if section_data.title is not None:
@@ -133,36 +190,6 @@ async def update_section(
 
     logger.info(f"Updated section: {section.name}")
     return SectionResponse(**section.to_dict())
-
-
-@router.put("/reorder", response_model=List[SectionResponse])
-async def reorder_sections(
-    order_data: SectionOrderUpdate,
-    db: AsyncSession = Depends(get_db)
-):
-    """Update the order of multiple sections."""
-    # Get all sections
-    result = await db.execute(select(Section))
-    sections = {section.name: section for section in result.scalars().all()}
-
-    # Update positions
-    for section_order in order_data.sections:
-        section_name = section_order.get("name")
-        new_position = section_order.get("position")
-
-        if section_name in sections:
-            sections[section_name].position = new_position
-
-    await db.commit()
-
-    # Return updated sections ordered by position
-    result = await db.execute(
-        select(Section).order_by(Section.position)
-    )
-    updated_sections = result.scalars().all()
-
-    logger.info("Reordered sections")
-    return [SectionResponse(**section.to_dict()) for section in updated_sections]
 
 
 @router.delete("/{section_id}")
