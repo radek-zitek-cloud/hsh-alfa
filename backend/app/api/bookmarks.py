@@ -3,13 +3,13 @@ import logging
 from typing import List, Optional
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from fastapi.responses import Response
-from sqlalchemy import select, or_
 from sqlalchemy.ext.asyncio import AsyncSession
 import aiohttp
 
-from app.models.bookmark import Bookmark, BookmarkCreate, BookmarkUpdate, BookmarkResponse
+from app.models.bookmark import BookmarkCreate, BookmarkUpdate, BookmarkResponse
 from app.services.database import get_db
-from app.services.favicon import fetch_favicon, is_safe_url
+from app.services.bookmark_service import BookmarkService
+from app.services.favicon import is_safe_url
 from app.services.rate_limit import limiter
 
 logger = logging.getLogger(__name__)
@@ -35,23 +35,8 @@ async def list_bookmarks(
     Returns:
         List of bookmarks
     """
-    query = select(Bookmark)
-
-    if category:
-        query = query.where(Bookmark.category == category)
-
-    # Apply sorting based on sort_by parameter
-    if sort_by == "alphabetical":
-        query = query.order_by(Bookmark.title.asc())
-    elif sort_by == "clicks":
-        query = query.order_by(Bookmark.clicks.desc(), Bookmark.title.asc())
-    else:
-        # Default sorting by position and created date
-        query = query.order_by(Bookmark.position, Bookmark.created)
-
-    result = await db.execute(query)
-    bookmarks = result.scalars().all()
-
+    service = BookmarkService(db)
+    bookmarks = await service.list_bookmarks(category=category, sort_by=sort_by)
     return [BookmarkResponse(**bookmark.to_dict()) for bookmark in bookmarks]
 
 
@@ -70,8 +55,8 @@ async def get_bookmark(
     Returns:
         Bookmark details
     """
-    result = await db.execute(select(Bookmark).where(Bookmark.id == bookmark_id))
-    bookmark = result.scalar_one_or_none()
+    service = BookmarkService(db)
+    bookmark = await service.get_bookmark(bookmark_id)
 
     if not bookmark:
         raise HTTPException(status_code=404, detail="Bookmark not found")
@@ -96,19 +81,11 @@ async def track_bookmark_click(
     Returns:
         Updated bookmark with incremented click count
     """
-    result = await db.execute(select(Bookmark).where(Bookmark.id == bookmark_id))
-    bookmark = result.scalar_one_or_none()
+    service = BookmarkService(db)
+    bookmark = await service.track_click(bookmark_id)
 
     if not bookmark:
         raise HTTPException(status_code=404, detail="Bookmark not found")
-
-    # Increment click count
-    bookmark.clicks += 1
-
-    await db.commit()
-    await db.refresh(bookmark)
-
-    logger.info(f"Tracked click for bookmark: {bookmark.title} ({bookmark.id}), total clicks: {bookmark.clicks}")
 
     return BookmarkResponse(**bookmark.to_dict())
 
@@ -130,40 +107,8 @@ async def create_bookmark(
     Returns:
         Created bookmark
     """
-    # Convert tags list to comma-separated string
-    tags_str = None
-    if bookmark_data.tags:
-        tags_str = ",".join(bookmark_data.tags)
-
-    # Automatically fetch favicon if not provided
-    favicon_url = bookmark_data.favicon
-    if not favicon_url:
-        try:
-            favicon_url = await fetch_favicon(bookmark_data.url)
-            if favicon_url:
-                logger.info(f"Automatically fetched favicon for {bookmark_data.url}: {favicon_url}")
-            else:
-                logger.warning(f"Could not fetch favicon for {bookmark_data.url}")
-        except Exception as e:
-            logger.error(f"Error fetching favicon for {bookmark_data.url}: {e}")
-            # Continue without favicon if fetching fails
-
-    bookmark = Bookmark(
-        title=bookmark_data.title,
-        url=bookmark_data.url,
-        favicon=favicon_url,
-        description=bookmark_data.description,
-        category=bookmark_data.category,
-        tags=tags_str,
-        position=bookmark_data.position
-    )
-
-    db.add(bookmark)
-    await db.commit()
-    await db.refresh(bookmark)
-
-    logger.info(f"Created bookmark: {bookmark.title} ({bookmark.id})")
-
+    service = BookmarkService(db)
+    bookmark = await service.create_bookmark(bookmark_data)
     return BookmarkResponse(**bookmark.to_dict())
 
 
@@ -186,40 +131,11 @@ async def update_bookmark(
     Returns:
         Updated bookmark
     """
-    result = await db.execute(select(Bookmark).where(Bookmark.id == bookmark_id))
-    bookmark = result.scalar_one_or_none()
+    service = BookmarkService(db)
+    bookmark = await service.update_bookmark(bookmark_id, bookmark_data)
 
     if not bookmark:
         raise HTTPException(status_code=404, detail="Bookmark not found")
-
-    # Update fields if provided
-    update_data = bookmark_data.model_dump(exclude_unset=True)
-
-    # If URL is being updated and favicon is not explicitly provided, fetch new favicon
-    if "url" in update_data and "favicon" not in update_data:
-        try:
-            new_url = update_data["url"]
-            favicon_url = await fetch_favicon(new_url)
-            if favicon_url:
-                update_data["favicon"] = favicon_url
-                logger.info(f"Automatically fetched favicon for updated URL {new_url}: {favicon_url}")
-            else:
-                logger.warning(f"Could not fetch favicon for updated URL {new_url}")
-        except Exception as e:
-            logger.error(f"Error fetching favicon for updated URL: {e}")
-            # Continue without updating favicon if fetching fails
-
-    for field, value in update_data.items():
-        if field == "tags" and value is not None:
-            # Convert tags list to comma-separated string
-            setattr(bookmark, field, ",".join(value))
-        else:
-            setattr(bookmark, field, value)
-
-    await db.commit()
-    await db.refresh(bookmark)
-
-    logger.info(f"Updated bookmark: {bookmark.title} ({bookmark.id})")
 
     return BookmarkResponse(**bookmark.to_dict())
 
@@ -236,16 +152,11 @@ async def delete_bookmark(
         bookmark_id: Bookmark ID
         db: Database session
     """
-    result = await db.execute(select(Bookmark).where(Bookmark.id == bookmark_id))
-    bookmark = result.scalar_one_or_none()
+    service = BookmarkService(db)
+    deleted = await service.delete_bookmark(bookmark_id)
 
-    if not bookmark:
+    if not deleted:
         raise HTTPException(status_code=404, detail="Bookmark not found")
-
-    await db.delete(bookmark)
-    await db.commit()
-
-    logger.info(f"Deleted bookmark: {bookmark.title} ({bookmark.id})")
 
 
 @router.get("/search/", response_model=List[BookmarkResponse])
@@ -263,22 +174,8 @@ async def search_bookmarks(
     Returns:
         List of matching bookmarks
     """
-    # Escape SQL wildcards to prevent SQL injection via LIKE patterns
-    sanitized_query = q.replace('\\', '\\\\').replace('%', '\\%').replace('_', '\\_')
-    search_term = f"%{sanitized_query}%"
-
-    query = select(Bookmark).where(
-        or_(
-            Bookmark.title.ilike(search_term),
-            Bookmark.description.ilike(search_term),
-            Bookmark.tags.ilike(search_term),
-            Bookmark.url.ilike(search_term)
-        )
-    ).order_by(Bookmark.position, Bookmark.created)
-
-    result = await db.execute(query)
-    bookmarks = result.scalars().all()
-
+    service = BookmarkService(db)
+    bookmarks = await service.search_bookmarks(q)
     return [BookmarkResponse(**bookmark.to_dict()) for bookmark in bookmarks]
 
 
