@@ -43,4 +43,19 @@ export const widgetsApi = {
   reloadConfig: () => api.post('/widgets/reload-config'),
 };
 
+// Sections API
+export const sectionsApi = {
+  getAll: () => api.get('/sections/'),
+
+  getOne: (id) => api.get(`/sections/${id}`),
+
+  create: (data) => api.post('/sections/', data),
+
+  update: (id, data) => api.put(`/sections/${id}`, data),
+
+  reorder: (sections) => api.put('/sections/reorder', { sections }),
+
+  delete: (id) => api.delete(`/sections/${id}`),
+};
+
 export default api;

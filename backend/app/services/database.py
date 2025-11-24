@@ -48,5 +48,6 @@ async def init_db():
     async with engine.begin() as conn:
         # Import models to register them
         from app.models import bookmark  # noqa: F401
+        from app.models import section  # noqa: F401
         await conn.run_sync(Base.metadata.create_all)
     logger.info("Database tables created")
