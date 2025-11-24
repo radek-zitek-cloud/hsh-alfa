@@ -19,22 +19,33 @@ router = APIRouter()
 @router.get("/", response_model=List[BookmarkResponse])
 async def list_bookmarks(
     category: Optional[str] = None,
+    sort_by: Optional[str] = Query(None, description="Sort by: alphabetical, clicks, or position (default)"),
     db: AsyncSession = Depends(get_db)
 ):
     """
-    List all bookmarks, optionally filtered by category.
+    List all bookmarks, optionally filtered by category and sorted.
 
     Args:
         category: Filter by category (optional)
+        sort_by: Sort method - 'alphabetical', 'clicks', or 'position' (default)
         db: Database session
 
     Returns:
         List of bookmarks
     """
-    query = select(Bookmark).order_by(Bookmark.position, Bookmark.created)
+    query = select(Bookmark)
 
     if category:
         query = query.where(Bookmark.category == category)
+
+    # Apply sorting based on sort_by parameter
+    if sort_by == "alphabetical":
+        query = query.order_by(Bookmark.title.asc())
+    elif sort_by == "clicks":
+        query = query.order_by(Bookmark.clicks.desc(), Bookmark.title.asc())
+    else:
+        # Default sorting by position and created date
+        query = query.order_by(Bookmark.position, Bookmark.created)
 
     result = await db.execute(query)
     bookmarks = result.scalars().all()
@@ -62,6 +73,40 @@ async def get_bookmark(
 
     if not bookmark:
         raise HTTPException(status_code=404, detail="Bookmark not found")
+
+    return BookmarkResponse(**bookmark.to_dict())
+
+
+@router.post("/{bookmark_id}/click", response_model=BookmarkResponse)
+async def track_bookmark_click(
+    bookmark_id: int,
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Track a click on a bookmark.
+
+    Increments the click counter for the specified bookmark.
+
+    Args:
+        bookmark_id: Bookmark ID
+        db: Database session
+
+    Returns:
+        Updated bookmark with incremented click count
+    """
+    result = await db.execute(select(Bookmark).where(Bookmark.id == bookmark_id))
+    bookmark = result.scalar_one_or_none()
+
+    if not bookmark:
+        raise HTTPException(status_code=404, detail="Bookmark not found")
+
+    # Increment click count
+    bookmark.clicks += 1
+
+    await db.commit()
+    await db.refresh(bookmark)
+
+    logger.info(f"Tracked click for bookmark: {bookmark.title} ({bookmark.id}), total clicks: {bookmark.clicks}")
 
     return BookmarkResponse(**bookmark.to_dict())
 

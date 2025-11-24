@@ -21,6 +21,7 @@ class Bookmark(Base):
     category: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
     tags: Mapped[Optional[str]] = mapped_column(Text, nullable=True)  # JSON string
     position: Mapped[int] = mapped_column(Integer, default=0)
+    clicks: Mapped[int] = mapped_column(Integer, default=0)
     created: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
     last_accessed: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
 
@@ -35,6 +36,7 @@ class Bookmark(Base):
             "category": self.category,
             "tags": self.tags.split(",") if self.tags else [],
             "position": self.position,
+            "clicks": self.clicks,
             "created": self.created.isoformat() if self.created else None,
             "last_accessed": self.last_accessed.isoformat() if self.last_accessed else None,
         }
@@ -73,6 +75,7 @@ class BookmarkResponse(BaseModel):
     category: Optional[str] = None
     tags: List[str] = []
     position: int = 0
+    clicks: int = 0
     created: Optional[str] = None
     last_accessed: Optional[str] = None
 

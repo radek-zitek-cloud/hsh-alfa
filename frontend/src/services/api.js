@@ -11,8 +11,10 @@ const api = axios.create({
 
 // Bookmarks API
 export const bookmarksApi = {
-  getAll: (category = null) => {
-    const params = category ? { category } : {};
+  getAll: (category = null, sortBy = null) => {
+    const params = {};
+    if (category) params.category = category;
+    if (sortBy) params.sort_by = sortBy;
     return api.get('/bookmarks/', { params });
   },
 
@@ -25,6 +27,8 @@ export const bookmarksApi = {
   delete: (id) => api.delete(`/bookmarks/${id}`),
 
   search: (query) => api.get('/bookmarks/search/', { params: { q: query } }),
+
+  trackClick: (id) => api.post(`/bookmarks/${id}/click`),
 };
 
 // Widgets API
