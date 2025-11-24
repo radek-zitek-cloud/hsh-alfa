@@ -50,7 +50,7 @@ widgets:
   # Additional Weather Widget (Different Location)
   - id: "weather-prague"
     type: "weather"
-    enabled: false  # Disabled by default
+    enabled: true  # Enable multiple weather widgets
     position:
       row: 0
       col: 3
