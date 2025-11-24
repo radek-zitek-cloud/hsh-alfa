@@ -1,14 +1,10 @@
 import React from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { Responsive, WidthProvider } from 'react-grid-layout'
 import { widgetsApi } from '../services/api'
 import { Loader } from 'lucide-react'
 import WeatherWidget from './widgets/WeatherWidget'
 import ExchangeRateWidget from './widgets/ExchangeRateWidget'
 import NewsWidget from './widgets/NewsWidget'
-import 'react-grid-layout/css/styles.css'
-
-const ResponsiveGridLayout = WidthProvider(Responsive)
 
 // Map widget types to components
 const WIDGET_COMPONENTS = {
@@ -50,47 +46,33 @@ const WidgetGrid = () => {
     )
   }
 
-  // Convert widget configurations to grid layout
-  const layouts = {
-    lg: widgetsData.map((widget, index) => ({
-      i: widget.id,
-      x: widget.position?.col || index % 3,
-      y: widget.position?.row || Math.floor(index / 3),
-      w: widget.position?.width || 1,
-      h: widget.position?.height || 2,
-    })),
-  }
-
   return (
-    <ResponsiveGridLayout
-      className="layout"
-      layouts={layouts}
-      breakpoints={{ lg: 1200, md: 996, sm: 768, xs: 480, xxs: 0 }}
-      cols={{ lg: 4, md: 3, sm: 2, xs: 1, xxs: 1 }}
-      rowHeight={150}
-      isDraggable={false}
-      isResizable={false}
-    >
+    <div className="unified-grid">
       {widgetsData.map((widget) => {
         const WidgetComponent = WIDGET_COMPONENTS[widget.type]
 
+        // Get width from widget configuration (default to 1 bookmark width)
+        const widthMultiple = widget.position?.width || 1
+
         if (!WidgetComponent) {
           return (
-            <div key={widget.id} className="widget-card">
-              <p className="text-[var(--text-secondary)]">
-                Unknown widget type: {widget.type}
-              </p>
+            <div key={widget.id} className={`grid-span-${widthMultiple}`}>
+              <div className="widget-card">
+                <p className="text-[var(--text-secondary)]">
+                  Unknown widget type: {widget.type}
+                </p>
+              </div>
             </div>
           )
         }
 
         return (
-          <div key={widget.id}>
+          <div key={widget.id} className={`grid-span-${widthMultiple}`}>
             <WidgetComponent widgetId={widget.id} config={widget.config} />
           </div>
         )
       })}
-    </ResponsiveGridLayout>
+    </div>
   )
 }
 
