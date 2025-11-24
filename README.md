@@ -388,13 +388,28 @@ widgets:
 - Run behind VPN or firewall for personal use
 - Regular dependency updates
 
+## Code Review & Quality
+
+A comprehensive code review has been conducted to assess code quality, security, and maintainability:
+
+- **[CODE_REVIEW.md](CODE_REVIEW.md)** - Detailed in-depth analysis covering security, code quality, testing, and architecture
+- **[ACTION_ITEMS.md](ACTION_ITEMS.md)** - Prioritized action items with implementation guidance
+
+**Key Recommendations**:
+- Add automated testing infrastructure (currently missing)
+- Implement API rate limiting for security
+- Update dependencies to address vulnerabilities
+- Enhance input validation across all endpoints
+- See documents above for complete findings and roadmap
+
 ## Contributing
 
 Contributions are welcome! Please:
 1. Fork the repository
 2. Create a feature branch
 3. Make your changes
-4. Submit a pull request
+4. Follow the recommendations in [CODE_REVIEW.md](CODE_REVIEW.md)
+5. Submit a pull request
 
 ## License
 
