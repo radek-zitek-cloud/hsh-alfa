@@ -38,8 +38,8 @@ class SchedulerService:
         from app.widgets import register_all_widgets
         register_all_widgets()
 
-        # Load widget configuration
-        registry.load_config()
+        # Load widget configuration from database
+        await registry.load_config_from_db()
 
         # Schedule widget updates
         for widget_id, widget in registry.get_all_widgets().items():

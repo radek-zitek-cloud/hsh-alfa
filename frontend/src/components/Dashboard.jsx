@@ -1,12 +1,15 @@
 import React, { useState } from 'react'
-import { Sun, Moon, Plus } from 'lucide-react'
+import { Sun, Moon, Plus, Settings } from 'lucide-react'
 import BookmarkGrid from './BookmarkGrid'
 import WidgetGrid from './WidgetGrid'
 import BookmarkModal from './BookmarkModal'
 import BookmarkForm from './BookmarkForm'
+import WidgetConfigModal from './WidgetConfigModal'
+import WidgetList from './WidgetList'
 
 const Dashboard = ({ theme, toggleTheme }) => {
   const [isAddModalOpen, setIsAddModalOpen] = useState(false)
+  const [isWidgetConfigOpen, setIsWidgetConfigOpen] = useState(false)
 
   return (
     <div className="min-h-screen p-4 md:p-6 lg:p-8">
@@ -43,9 +46,18 @@ const Dashboard = ({ theme, toggleTheme }) => {
 
       {/* Widgets Section */}
       <section>
-        <h2 className="text-xl font-semibold mb-4 text-[var(--text-primary)]">
-          Widgets
-        </h2>
+        <div className="flex justify-between items-center mb-4">
+          <h2 className="text-xl font-semibold text-[var(--text-primary)]">
+            Widgets
+          </h2>
+          <button
+            onClick={() => setIsWidgetConfigOpen(true)}
+            className="flex items-center gap-2 px-4 py-2 bg-[var(--bg-secondary)] border border-[var(--border-color)] rounded-lg hover:bg-[var(--border-color)] transition-colors"
+          >
+            <Settings size={18} />
+            Configure Widgets
+          </button>
+        </div>
         <WidgetGrid />
       </section>
 
@@ -60,6 +72,15 @@ const Dashboard = ({ theme, toggleTheme }) => {
           onCancel={() => setIsAddModalOpen(false)}
         />
       </BookmarkModal>
+
+      {/* Widget Configuration Modal */}
+      <WidgetConfigModal
+        isOpen={isWidgetConfigOpen}
+        onClose={() => setIsWidgetConfigOpen(false)}
+        title="Configure Widgets"
+      >
+        <WidgetList />
+      </WidgetConfigModal>
     </div>
   )
 }

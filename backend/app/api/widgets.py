@@ -1,33 +1,38 @@
 """Widget API endpoints."""
 import logging
+import json
 from typing import Dict, Any, List
 from fastapi import APIRouter, HTTPException, Depends, Request
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import select
 
 from app.services.widget_registry import get_widget_registry, WidgetRegistry
 from app.services.cache import get_cache_service, CacheService
 from app.services.rate_limit import limiter
+from app.services.database import get_db
+from app.models.widget import Widget, WidgetCreate, WidgetUpdate, WidgetResponse
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
 
-@router.get("/")
+@router.get("/", response_model=List[WidgetResponse])
 async def list_widgets(
-    registry: WidgetRegistry = Depends(get_widget_registry)
+    db: AsyncSession = Depends(get_db)
 ):
     """
-    List all widget configurations.
+    List all widget configurations from database.
 
     Args:
-        registry: Widget registry instance
+        db: Database session
 
     Returns:
         List of widget configurations
     """
-    return {
-        "widgets": registry.list_widgets()
-    }
+    result = await db.execute(select(Widget))
+    widgets = result.scalars().all()
+    return [WidgetResponse(**widget.to_dict()) for widget in widgets]
 
 
 @router.get("/types")
@@ -171,25 +176,220 @@ async def refresh_widget(
     return data
 
 
-@router.post("/reload-config")
-async def reload_widget_config(
+@router.post("/", response_model=WidgetResponse, status_code=201)
+async def create_widget(
+    widget_data: WidgetCreate,
+    db: AsyncSession = Depends(get_db),
     registry: WidgetRegistry = Depends(get_widget_registry)
 ):
     """
-    Reload widget configuration from file.
+    Create a new widget.
+
+    Args:
+        widget_data: Widget creation data
+        db: Database session
+        registry: Widget registry instance
+
+    Returns:
+        Created widget configuration
+    """
+    # Check if widget ID already exists
+    result = await db.execute(
+        select(Widget).where(Widget.widget_id == widget_data.id)
+    )
+    existing = result.scalar_one_or_none()
+
+    if existing:
+        raise HTTPException(status_code=409, detail=f"Widget with ID '{widget_data.id}' already exists")
+
+    # Validate widget type
+    if widget_data.type not in registry.list_widget_types():
+        raise HTTPException(status_code=400, detail=f"Invalid widget type '{widget_data.type}'")
+
+    # Create widget in database
+    widget = Widget(
+        widget_id=widget_data.id,
+        widget_type=widget_data.type,
+        enabled=widget_data.enabled,
+        position_row=widget_data.position.row,
+        position_col=widget_data.position.col,
+        position_width=widget_data.position.width,
+        position_height=widget_data.position.height,
+        refresh_interval=widget_data.refresh_interval,
+        config=json.dumps(widget_data.config)
+    )
+
+    db.add(widget)
+    await db.commit()
+    await db.refresh(widget)
+
+    # Create widget instance in registry
+    config = widget_data.config.copy()
+    config["enabled"] = widget_data.enabled
+    config["refresh_interval"] = widget_data.refresh_interval
+    config["position"] = {
+        "row": widget_data.position.row,
+        "col": widget_data.position.col,
+        "width": widget_data.position.width,
+        "height": widget_data.position.height,
+    }
+    registry.create_widget(widget_data.id, widget_data.type, config)
+
+    logger.info(f"Created widget '{widget_data.id}'")
+
+    return WidgetResponse(**widget.to_dict())
+
+
+@router.put("/{widget_id}", response_model=WidgetResponse)
+async def update_widget(
+    widget_id: str,
+    widget_data: WidgetUpdate,
+    db: AsyncSession = Depends(get_db),
+    registry: WidgetRegistry = Depends(get_widget_registry),
+    cache: CacheService = Depends(get_cache_service)
+):
+    """
+    Update an existing widget.
+
+    Args:
+        widget_id: Widget ID to update
+        widget_data: Widget update data
+        db: Database session
+        registry: Widget registry instance
+        cache: Cache service instance
+
+    Returns:
+        Updated widget configuration
+    """
+    # Find widget
+    result = await db.execute(
+        select(Widget).where(Widget.widget_id == widget_id)
+    )
+    widget = result.scalar_one_or_none()
+
+    if not widget:
+        raise HTTPException(status_code=404, detail=f"Widget '{widget_id}' not found")
+
+    # Update fields
+    if widget_data.type is not None:
+        if widget_data.type not in registry.list_widget_types():
+            raise HTTPException(status_code=400, detail=f"Invalid widget type '{widget_data.type}'")
+        widget.widget_type = widget_data.type
+
+    if widget_data.enabled is not None:
+        widget.enabled = widget_data.enabled
+
+    if widget_data.position is not None:
+        widget.position_row = widget_data.position.row
+        widget.position_col = widget_data.position.col
+        widget.position_width = widget_data.position.width
+        widget.position_height = widget_data.position.height
+
+    if widget_data.refresh_interval is not None:
+        widget.refresh_interval = widget_data.refresh_interval
+
+    if widget_data.config is not None:
+        widget.config = json.dumps(widget_data.config)
+
+    await db.commit()
+    await db.refresh(widget)
+
+    # Update widget instance in registry
+    widget_dict = widget.to_dict()
+    config = widget_dict["config"].copy()
+    config["enabled"] = widget_dict["enabled"]
+    config["refresh_interval"] = widget_dict["refresh_interval"]
+    config["position"] = widget_dict["position"]
+    registry.create_widget(widget_id, widget_dict["type"], config)
+
+    # Clear cache for this widget
+    old_widget = registry.get_widget(widget_id)
+    if old_widget:
+        await cache.delete(old_widget.get_cache_key())
+
+    logger.info(f"Updated widget '{widget_id}'")
+
+    return WidgetResponse(**widget.to_dict())
+
+
+@router.delete("/{widget_id}", status_code=204)
+async def delete_widget(
+    widget_id: str,
+    db: AsyncSession = Depends(get_db),
+    registry: WidgetRegistry = Depends(get_widget_registry),
+    cache: CacheService = Depends(get_cache_service)
+):
+    """
+    Delete a widget.
+
+    Args:
+        widget_id: Widget ID to delete
+        db: Database session
+        registry: Widget registry instance
+        cache: Cache service instance
+
+    Returns:
+        No content (204)
+    """
+    # Find widget
+    result = await db.execute(
+        select(Widget).where(Widget.widget_id == widget_id)
+    )
+    widget = result.scalar_one_or_none()
+
+    if not widget:
+        raise HTTPException(status_code=404, detail=f"Widget '{widget_id}' not found")
+
+    # Clear cache
+    widget_instance = registry.get_widget(widget_id)
+    if widget_instance:
+        await cache.delete(widget_instance.get_cache_key())
+
+    # Remove from registry
+    if widget_id in registry._widget_instances:
+        del registry._widget_instances[widget_id]
+
+    # Delete from database
+    await db.delete(widget)
+    await db.commit()
+
+    logger.info(f"Deleted widget '{widget_id}'")
+
+
+@router.post("/reload-config")
+async def reload_widget_config(
+    registry: WidgetRegistry = Depends(get_widget_registry),
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Reload widget configuration from database.
 
     Args:
         registry: Widget registry instance
+        db: Database session
 
     Returns:
         Status message
     """
-    registry.reload_config()
+    # Clear existing instances
+    registry._widget_instances.clear()
 
-    logger.info("Widget configuration reloaded")
+    # Load all widgets from database
+    result = await db.execute(select(Widget).where(Widget.enabled == True))
+    widgets = result.scalars().all()
+
+    for widget in widgets:
+        widget_dict = widget.to_dict()
+        config = widget_dict["config"].copy()
+        config["enabled"] = widget_dict["enabled"]
+        config["refresh_interval"] = widget_dict["refresh_interval"]
+        config["position"] = widget_dict["position"]
+        registry.create_widget(widget_dict["id"], widget_dict["type"], config)
+
+    logger.info("Widget configuration reloaded from database")
 
     return {
         "status": "success",
-        "message": "Widget configuration reloaded",
-        "widget_count": len(registry.list_widgets())
+        "message": "Widget configuration reloaded from database",
+        "widget_count": len(widgets)
     }
