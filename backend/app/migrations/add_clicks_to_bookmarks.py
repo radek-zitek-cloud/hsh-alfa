@@ -1,16 +1,17 @@
 """Migration: Add clicks column to bookmarks table."""
-import asyncio
 import logging
 from sqlalchemy import text
-from app.services.database import engine
 
-logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 
-async def migrate():
-    """Add clicks column to bookmarks table if it doesn't exist."""
-    logger.info("Starting migration: add clicks column to bookmarks")
+async def run_migration(engine):
+    """Add clicks column to bookmarks table if it doesn't exist.
+
+    Args:
+        engine: SQLAlchemy async engine
+    """
+    logger.info("Migration: Checking for clicks column in bookmarks table")
 
     async with engine.begin() as conn:
         # Check if clicks column already exists
@@ -22,10 +23,6 @@ async def migrate():
             await conn.execute(text("ALTER TABLE bookmarks ADD COLUMN clicks INTEGER DEFAULT 0"))
             logger.info("Clicks column added successfully")
         else:
-            logger.info("Clicks column already exists, skipping migration")
+            logger.debug("Clicks column already exists, skipping migration")
 
-    logger.info("Migration completed")
-
-
-if __name__ == "__main__":
-    asyncio.run(migrate())
+    logger.info("Migration completed: add_clicks_to_bookmarks")
