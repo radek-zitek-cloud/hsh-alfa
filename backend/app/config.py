@@ -22,7 +22,30 @@ class Settings(BaseSettings):
 
     # Security
     SECRET_KEY: str = os.getenv('SECRET_KEY', '')
-    CORS_ORIGINS: list = ["*"]
+
+    # CORS Configuration
+    # Default to localhost for development. In production, set CORS_ORIGINS environment variable
+    # to a comma-separated list of allowed origins (e.g., "https://home.example.com,http://localhost:3000")
+    CORS_ORIGINS: list = []
+
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        # Parse CORS_ORIGINS from environment variable if provided
+        cors_env = os.getenv('CORS_ORIGINS', '')
+        if cors_env:
+            if cors_env == '*':
+                # Allow wildcard only if explicitly set
+                self.CORS_ORIGINS = ['*']
+            else:
+                # Parse comma-separated list
+                self.CORS_ORIGINS = [origin.strip() for origin in cors_env.split(',') if origin.strip()]
+        else:
+            # Default safe origins for development
+            self.CORS_ORIGINS = [
+                'http://localhost:3000',
+                'http://localhost:5173',  # Vite dev server
+                'http://localhost:8080',  # Frontend container
+            ]
 
     # Widget Configuration
     WIDGET_CONFIG_PATH: str = "/app/config/widgets.yaml"
