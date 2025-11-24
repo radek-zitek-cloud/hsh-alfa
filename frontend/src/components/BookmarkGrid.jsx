@@ -11,7 +11,17 @@ const BookmarkCard = ({ bookmark }) => {
   const [isDeleting, setIsDeleting] = useState(false)
   const [faviconError, setFaviconError] = useState(false)
 
+  const trackClickMutation = useMutation({
+    mutationFn: () => bookmarksApi.trackClick(bookmark.id),
+    onSuccess: () => {
+      queryClient.invalidateQueries(['bookmarks'])
+    },
+  })
+
   const handleClick = () => {
+    // Track the click
+    trackClickMutation.mutate()
+    // Open the bookmark
     window.open(bookmark.url, '_blank', 'noopener,noreferrer')
   }
 
@@ -159,10 +169,12 @@ const BookmarkCard = ({ bookmark }) => {
 }
 
 const BookmarkGrid = () => {
+  const [sortBy, setSortBy] = useState('position')
+
   const { data: bookmarks, isLoading, error } = useQuery({
-    queryKey: ['bookmarks'],
+    queryKey: ['bookmarks', sortBy],
     queryFn: async () => {
-      const response = await bookmarksApi.getAll()
+      const response = await bookmarksApi.getAll(null, sortBy === 'position' ? null : sortBy)
       return response.data
     },
   })
@@ -192,10 +204,52 @@ const BookmarkGrid = () => {
   }
 
   return (
-    <div className="unified-grid">
-      {bookmarks.map((bookmark) => (
-        <BookmarkCard key={bookmark.id} bookmark={bookmark} />
-      ))}
+    <div>
+      {/* Sorting Controls */}
+      <div className="mb-4 flex items-center gap-2">
+        <label className="text-sm font-medium text-[var(--text-primary)]">
+          Sort by:
+        </label>
+        <div className="flex gap-2">
+          <button
+            onClick={() => setSortBy('position')}
+            className={`px-3 py-1.5 text-sm rounded border transition-colors ${
+              sortBy === 'position'
+                ? 'bg-[var(--accent-color)] text-white border-[var(--accent-color)]'
+                : 'bg-[var(--bg-primary)] text-[var(--text-primary)] border-[var(--border-color)] hover:bg-[var(--bg-secondary)]'
+            }`}
+          >
+            Default
+          </button>
+          <button
+            onClick={() => setSortBy('alphabetical')}
+            className={`px-3 py-1.5 text-sm rounded border transition-colors ${
+              sortBy === 'alphabetical'
+                ? 'bg-[var(--accent-color)] text-white border-[var(--accent-color)]'
+                : 'bg-[var(--bg-primary)] text-[var(--text-primary)] border-[var(--border-color)] hover:bg-[var(--bg-secondary)]'
+            }`}
+          >
+            Alphabetical
+          </button>
+          <button
+            onClick={() => setSortBy('clicks')}
+            className={`px-3 py-1.5 text-sm rounded border transition-colors ${
+              sortBy === 'clicks'
+                ? 'bg-[var(--accent-color)] text-white border-[var(--accent-color)]'
+                : 'bg-[var(--bg-primary)] text-[var(--text-primary)] border-[var(--border-color)] hover:bg-[var(--bg-secondary)]'
+            }`}
+          >
+            Most Clicked
+          </button>
+        </div>
+      </div>
+
+      {/* Bookmarks Grid */}
+      <div className="unified-grid">
+        {bookmarks.map((bookmark) => (
+          <BookmarkCard key={bookmark.id} bookmark={bookmark} />
+        ))}
+      </div>
     </div>
   )
 }
