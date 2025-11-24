@@ -1,7 +1,7 @@
 """Bookmark API endpoints."""
 import logging
 from typing import List, Optional
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from fastapi.responses import Response
 from sqlalchemy import select, or_
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -10,6 +10,7 @@ import aiohttp
 from app.models.bookmark import Bookmark, BookmarkCreate, BookmarkUpdate, BookmarkResponse
 from app.services.database import get_db
 from app.services.favicon import fetch_favicon, is_safe_url
+from app.services.rate_limit import limiter
 
 logger = logging.getLogger(__name__)
 
@@ -18,6 +19,7 @@ router = APIRouter()
 
 @router.get("/", response_model=List[BookmarkResponse])
 async def list_bookmarks(
+    request: Request,
     category: Optional[str] = None,
     sort_by: Optional[str] = Query(None, description="Sort by: alphabetical, clicks, or position (default)"),
     db: AsyncSession = Depends(get_db)
@@ -279,7 +281,9 @@ async def search_bookmarks(
 
 
 @router.get("/favicon/proxy")
+@limiter.limit("20/minute")
 async def proxy_favicon(
+    request: Request,
     url: str = Query(..., description="Favicon URL to proxy")
 ):
     """
@@ -288,6 +292,8 @@ async def proxy_favicon(
     This endpoint fetches the favicon from the external URL and serves it
     through the backend, allowing the frontend to display favicons from
     any domain without CORS restrictions.
+
+    Rate limited to 20 requests per minute to prevent abuse of external fetching.
 
     Args:
         url: The favicon URL to proxy

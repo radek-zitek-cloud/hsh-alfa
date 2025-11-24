@@ -21,7 +21,7 @@ class Settings(BaseSettings):
     REDIS_ENABLED: bool = True
 
     # Security
-    SECRET_KEY: str = "change-this-in-production"
+    SECRET_KEY: str = os.getenv('SECRET_KEY', '')
     CORS_ORIGINS: list = ["*"]
 
     # Widget Configuration

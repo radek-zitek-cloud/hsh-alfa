@@ -4,6 +4,75 @@ This document contains a prioritized, actionable list of improvements identified
 
 ---
 
+## ✅ RESOLVED ISSUES (November 24, 2025)
+
+The following critical security issues have been addressed and resolved:
+
+### 🔴 Critical Issues - RESOLVED
+
+#### ✅ #1: Hardcoded Secret Key - **RESOLVED**
+- **Status**: ✅ FIXED
+- **Changes Made**:
+  - Removed hardcoded default value from `backend/app/config.py`
+  - Added startup validation in `backend/app/main.py` to prevent app from starting with insecure SECRET_KEY
+  - Updated `README.md` with clear instructions for generating secure keys
+- **Files Modified**:
+  - `backend/app/config.py:24` - Changed to use environment variable without default
+  - `backend/app/main.py:19-24` - Added validation check
+  - `README.md:58-78` - Added SECRET_KEY generation instructions
+
+#### ✅ #2: API Rate Limiting - **RESOLVED**
+- **Status**: ✅ IMPLEMENTED
+- **Changes Made**:
+  - Added `slowapi==0.1.9` to dependencies
+  - Created `backend/app/services/rate_limit.py` for centralized rate limiting configuration
+  - Applied default rate limit of 100 requests/minute to all endpoints
+  - Applied stricter rate limit of 20 requests/minute to favicon proxy endpoint
+  - Applied stricter rate limit of 10 requests/minute to widget refresh endpoint
+  - Applied rate limit of 60 requests/minute to widget data endpoint
+- **Files Modified**:
+  - `backend/requirements.txt` - Added slowapi
+  - `backend/app/services/rate_limit.py` - Created new file
+  - `backend/app/main.py:6,13,82-84` - Configured rate limiter
+  - `backend/app/api/bookmarks.py:4,13,283-284` - Applied rate limits
+  - `backend/app/api/widgets.py:4,8,79-80,125-126` - Applied rate limits
+
+#### ✅ #3: Vulnerable Dependencies - **RESOLVED**
+- **Status**: ✅ UPDATED
+- **Changes Made**:
+  - Removed deprecated `asyncio==3.4.3` package (use built-in Python asyncio)
+  - Updated `aiohttp` from 3.9.1 to 3.9.5 (security fixes for HTTP request smuggling)
+  - Updated `beautifulsoup4` from 4.12.2 to 4.12.3
+  - Updated `fastapi` from 0.104.1 to 0.109.0
+  - Updated `uvicorn` from 0.24.0 to 0.27.0
+  - Updated `sqlalchemy` from 2.0.23 to 2.0.25
+  - Updated `pydantic` from 2.5.0 to 2.5.3
+  - Updated `python-dotenv` from 1.0.0 to 1.0.1
+- **Files Modified**:
+  - `backend/requirements.txt` - Updated all vulnerable dependencies
+
+#### ✅ #4: Automated Test Suite - **RESOLVED**
+- **Status**: ✅ IMPLEMENTED (Foundation)
+- **Changes Made**:
+  - Created complete test infrastructure with pytest
+  - Added test dependencies in `requirements-dev.txt`
+  - Created pytest configuration with coverage requirements
+  - Created test directory structure (unit and integration tests)
+  - Implemented test fixtures for database and HTTP client
+  - Created comprehensive integration tests for bookmark API (11 test cases)
+  - Created unit tests for widget validation (9 test cases)
+  - Created health check endpoint tests
+- **Files Created**:
+  - `backend/requirements-dev.txt` - Test dependencies
+  - `backend/pytest.ini` - Pytest configuration with 70% coverage requirement
+  - `backend/tests/conftest.py` - Test fixtures and configuration
+  - `backend/tests/integration/test_bookmarks.py` - 11 integration tests
+  - `backend/tests/integration/test_health.py` - 2 health check tests
+  - `backend/tests/unit/test_widgets.py` - 9 unit tests
+  - Directory structure: `backend/tests/{unit,integration}/`
+
+---
+
 ## Priority Levels
 
 - 🔴 **CRITICAL**: Security vulnerabilities or data loss risks - Fix immediately
@@ -15,7 +84,7 @@ This document contains a prioritized, actionable list of improvements identified
 
 ## 🔴 Critical Priority
 
-### 1. Remove Hardcoded Secret Key [SECURITY]
+### 1. Remove Hardcoded Secret Key [SECURITY] - ✅ RESOLVED
 
 **Issue**: Default SECRET_KEY value in production could compromise authentication
 
@@ -62,7 +131,7 @@ SECRET_KEY=your-generated-secret-key-here
 
 ---
 
-### 2. Implement API Rate Limiting [SECURITY]
+### 2. Implement API Rate Limiting [SECURITY] - ✅ RESOLVED
 
 **Issue**: No protection against API abuse, DoS attacks, or excessive external API usage
 
@@ -130,7 +199,7 @@ RATE_LIMIT_REFRESH: str = "10/minute"
 
 ---
 
-### 3. Update Vulnerable Dependencies [SECURITY]
+### 3. Update Vulnerable Dependencies [SECURITY] - ✅ RESOLVED
 
 **Issue**: Outdated packages with known security vulnerabilities
 
@@ -184,7 +253,7 @@ updates:
 
 ---
 
-### 4. Create Automated Test Suite [QUALITY]
+### 4. Create Automated Test Suite [QUALITY] - ✅ RESOLVED (Foundation)
 
 **Issue**: Zero test coverage - no safety net for refactoring or bug fixes
 
@@ -925,11 +994,11 @@ Items 16-23 are documented in CODE_REVIEW.md with lower priority.
 
 ## Implementation Roadmap
 
-### Sprint 1 (Week 1-2): Critical Security Issues
-- [ ] Item #1: Remove hardcoded secret key
-- [ ] Item #2: Implement rate limiting
-- [ ] Item #3: Update dependencies
-- [ ] Item #4: Create test suite (foundation)
+### Sprint 1 (Week 1-2): Critical Security Issues - ✅ COMPLETED
+- [x] Item #1: Remove hardcoded secret key - ✅ RESOLVED
+- [x] Item #2: Implement rate limiting - ✅ RESOLVED
+- [x] Item #3: Update dependencies - ✅ RESOLVED
+- [x] Item #4: Create test suite (foundation) - ✅ RESOLVED
 
 ### Sprint 2 (Week 3-4): High Priority Quality
 - [ ] Item #5: Add input validation

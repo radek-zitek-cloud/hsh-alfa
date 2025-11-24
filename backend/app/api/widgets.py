@@ -1,10 +1,11 @@
 """Widget API endpoints."""
 import logging
 from typing import Dict, Any, List
-from fastapi import APIRouter, HTTPException, Depends
+from fastapi import APIRouter, HTTPException, Depends, Request
 
 from app.services.widget_registry import get_widget_registry, WidgetRegistry
 from app.services.cache import get_cache_service, CacheService
+from app.services.rate_limit import limiter
 
 logger = logging.getLogger(__name__)
 
@@ -76,7 +77,9 @@ async def get_widget_config(
 
 
 @router.get("/{widget_id}/data")
+@limiter.limit("60/minute")
 async def get_widget_data(
+    request: Request,
     widget_id: str,
     force_refresh: bool = False,
     registry: WidgetRegistry = Depends(get_widget_registry),
@@ -84,6 +87,8 @@ async def get_widget_data(
 ):
     """
     Get widget data (with caching).
+
+    Rate limited to 60 requests per minute per widget.
 
     Args:
         widget_id: Widget ID
@@ -122,13 +127,17 @@ async def get_widget_data(
 
 
 @router.post("/{widget_id}/refresh")
+@limiter.limit("10/minute")
 async def refresh_widget(
+    request: Request,
     widget_id: str,
     registry: WidgetRegistry = Depends(get_widget_registry),
     cache: CacheService = Depends(get_cache_service)
 ):
     """
     Force refresh widget data.
+
+    Rate limited to 10 requests per minute to prevent excessive external API calls.
 
     Args:
         widget_id: Widget ID
