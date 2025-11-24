@@ -3,7 +3,7 @@ from datetime import datetime
 from typing import Optional, List
 from sqlalchemy import String, Integer, DateTime, Text
 from sqlalchemy.orm import Mapped, mapped_column
-from pydantic import BaseModel
+from pydantic import BaseModel, field_validator, model_validator
 
 from app.services.database import Base
 
@@ -53,6 +53,67 @@ class BookmarkCreate(BaseModel):
     tags: Optional[List[str]] = None
     position: int = 0
 
+    @field_validator('title')
+    @classmethod
+    def validate_title(cls, v: str) -> str:
+        """Validate title length and content."""
+        if not v or len(v.strip()) == 0:
+            raise ValueError('Title cannot be empty')
+        if len(v) > 255:
+            raise ValueError('Title cannot exceed 255 characters')
+        return v
+
+    @field_validator('url')
+    @classmethod
+    def validate_url(cls, v: str) -> str:
+        """Validate URL format and length."""
+        if not v:
+            raise ValueError('URL is required')
+        if len(v) > 2048:
+            raise ValueError('URL cannot exceed 2048 characters')
+        if not v.startswith(('http://', 'https://')):
+            raise ValueError('URL must start with http:// or https://')
+        return v
+
+    @field_validator('favicon')
+    @classmethod
+    def validate_favicon(cls, v: Optional[str]) -> Optional[str]:
+        """Validate favicon URL if provided."""
+        if v is not None:
+            if len(v) > 2048:
+                raise ValueError('Favicon URL cannot exceed 2048 characters')
+            if not v.startswith(('http://', 'https://')):
+                raise ValueError('Favicon URL must start with http:// or https://')
+        return v
+
+    @field_validator('description')
+    @classmethod
+    def validate_description(cls, v: Optional[str]) -> Optional[str]:
+        """Validate description length."""
+        if v is not None and len(v) > 5000:
+            raise ValueError('Description cannot exceed 5000 characters')
+        return v
+
+    @field_validator('category')
+    @classmethod
+    def validate_category(cls, v: Optional[str]) -> Optional[str]:
+        """Validate category length."""
+        if v is not None and len(v) > 100:
+            raise ValueError('Category cannot exceed 100 characters')
+        return v
+
+    @field_validator('tags')
+    @classmethod
+    def validate_tags(cls, v: Optional[List[str]]) -> Optional[List[str]]:
+        """Validate tags count and individual tag length."""
+        if v is not None:
+            if len(v) > 20:
+                raise ValueError('Maximum 20 tags allowed')
+            for tag in v:
+                if len(tag) > 50:
+                    raise ValueError('Each tag cannot exceed 50 characters')
+        return v
+
 
 class BookmarkUpdate(BaseModel):
     """Schema for updating a bookmark."""
@@ -63,6 +124,67 @@ class BookmarkUpdate(BaseModel):
     category: Optional[str] = None
     tags: Optional[List[str]] = None
     position: Optional[int] = None
+
+    @field_validator('title')
+    @classmethod
+    def validate_title(cls, v: Optional[str]) -> Optional[str]:
+        """Validate title length and content."""
+        if v is not None:
+            if len(v.strip()) == 0:
+                raise ValueError('Title cannot be empty')
+            if len(v) > 255:
+                raise ValueError('Title cannot exceed 255 characters')
+        return v
+
+    @field_validator('url')
+    @classmethod
+    def validate_url(cls, v: Optional[str]) -> Optional[str]:
+        """Validate URL format and length."""
+        if v is not None:
+            if len(v) > 2048:
+                raise ValueError('URL cannot exceed 2048 characters')
+            if not v.startswith(('http://', 'https://')):
+                raise ValueError('URL must start with http:// or https://')
+        return v
+
+    @field_validator('favicon')
+    @classmethod
+    def validate_favicon(cls, v: Optional[str]) -> Optional[str]:
+        """Validate favicon URL if provided."""
+        if v is not None and v != '':
+            if len(v) > 2048:
+                raise ValueError('Favicon URL cannot exceed 2048 characters')
+            if not v.startswith(('http://', 'https://')):
+                raise ValueError('Favicon URL must start with http:// or https://')
+        return v
+
+    @field_validator('description')
+    @classmethod
+    def validate_description(cls, v: Optional[str]) -> Optional[str]:
+        """Validate description length."""
+        if v is not None and len(v) > 5000:
+            raise ValueError('Description cannot exceed 5000 characters')
+        return v
+
+    @field_validator('category')
+    @classmethod
+    def validate_category(cls, v: Optional[str]) -> Optional[str]:
+        """Validate category length."""
+        if v is not None and len(v) > 100:
+            raise ValueError('Category cannot exceed 100 characters')
+        return v
+
+    @field_validator('tags')
+    @classmethod
+    def validate_tags(cls, v: Optional[List[str]]) -> Optional[List[str]]:
+        """Validate tags count and individual tag length."""
+        if v is not None:
+            if len(v) > 20:
+                raise ValueError('Maximum 20 tags allowed')
+            for tag in v:
+                if len(tag) > 50:
+                    raise ValueError('Each tag cannot exceed 50 characters')
+        return v
 
 
 class BookmarkResponse(BaseModel):

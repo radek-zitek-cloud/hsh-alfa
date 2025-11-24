@@ -250,20 +250,22 @@ async def delete_bookmark(
 
 @router.get("/search/", response_model=List[BookmarkResponse])
 async def search_bookmarks(
-    q: str = Query(..., min_length=1, description="Search query"),
+    q: str = Query(..., min_length=1, max_length=100, description="Search query"),
     db: AsyncSession = Depends(get_db)
 ):
     """
     Search bookmarks by title, description, or tags.
 
     Args:
-        q: Search query
+        q: Search query (max 100 characters)
         db: Database session
 
     Returns:
         List of matching bookmarks
     """
-    search_term = f"%{q}%"
+    # Escape SQL wildcards to prevent SQL injection via LIKE patterns
+    sanitized_query = q.replace('\\', '\\\\').replace('%', '\\%').replace('_', '\\_')
+    search_term = f"%{sanitized_query}%"
 
     query = select(Bookmark).where(
         or_(
