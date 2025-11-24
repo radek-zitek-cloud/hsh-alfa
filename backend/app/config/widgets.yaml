@@ -88,6 +88,32 @@ widgets:
       max_articles: 10
       description_length: 200
 
+  # Market Information Widget Example
+  - id: "market-overview"
+    type: "market"
+    enabled: false  # Disabled by default
+    position:
+      row: 0
+      col: 3
+      width: 2
+      height: 3
+    refresh_interval: 300  # 5 minutes
+    config:
+      # Stock symbols (use Yahoo Finance format)
+      # Examples: ^GSPC (S&P 500), ^DJI (Dow Jones), ^IXIC (NASDAQ)
+      #           AAPL (Apple), GOOGL (Google), MSFT (Microsoft)
+      stocks:
+        - "^GSPC"   # S&P 500
+        - "^DJI"    # Dow Jones
+        - "AAPL"    # Apple
+        - "GOOGL"   # Google
+      # Cryptocurrency symbols
+      # Supported: BTC, ETH, SOL, ADA, DOT, MATIC, AVAX, LINK, UNI, XRP
+      crypto:
+        - "BTC"     # Bitcoin
+        - "ETH"     # Ethereum
+        - "SOL"     # Solana
+
 # Add more widgets as needed
-# Available widget types: weather, exchange_rate, news
-# Coming soon: market_data, system_monitor
+# Available widget types: weather, exchange_rate, news, market
+# Coming soon: system_monitor
