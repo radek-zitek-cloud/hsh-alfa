@@ -55,22 +55,29 @@ A self-hosted, customizable browser homepage application that serves as your per
    cp .env.example .env
    ```
 
-3. **Edit `.env` and add your API keys**
+3. **Generate a secure SECRET_KEY**
    ```bash
+   python -c 'import secrets; print(secrets.token_urlsafe(32))'
+   ```
+   Copy the generated key for the next step.
+
+4. **Edit `.env` and add your configuration**
+   ```bash
+   # REQUIRED: Secure secret key for session management
+   # Use the key generated in the previous step
+   SECRET_KEY=your-generated-secret-key-here
+
    # Required for weather widget
    WEATHER_API_KEY=your_openweathermap_api_key
 
    # Optional: for exchange rates (uses free ECB if not provided)
    EXCHANGE_RATE_API_KEY=your_api_key
 
-   # Change this in production!
-   SECRET_KEY=your-secret-key-here
-
    # Your domain (for Traefik)
    DOMAIN=home.zitek.cloud
    ```
 
-4. **Configure widgets** (optional)
+5. **Configure widgets** (optional)
 
    Edit `backend/app/config/widgets.yaml` to customize your widgets:
    ```yaml
@@ -83,12 +90,12 @@ A self-hosted, customizable browser homepage application that serves as your per
          units: "metric"
    ```
 
-5. **Start the application**
+6. **Start the application**
    ```bash
    docker-compose up -d
    ```
 
-6. **Access your homepage**
+7. **Access your homepage**
    - With Traefik: `https://home.zitek.cloud`
    - Without Traefik: Configure port mapping in docker-compose.yml
 

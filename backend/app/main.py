@@ -1,13 +1,16 @@
 """Main FastAPI application entry point."""
 import logging
 from contextlib import asynccontextmanager
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
+from slowapi import _rate_limit_exceeded_handler
+from slowapi.errors import RateLimitExceeded
 
 from app.config import settings
 from app.api import bookmarks, widgets, sections
 from app.services.database import init_db, get_db
 from app.services.scheduler import scheduler_service
+from app.services.rate_limit import limiter
 
 # Configure logging
 logging.basicConfig(
@@ -15,6 +18,13 @@ logging.basicConfig(
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
 )
 logger = logging.getLogger(__name__)
+
+# Validate critical configuration on startup
+if not settings.SECRET_KEY or settings.SECRET_KEY == "change-this-in-production":
+    raise ValueError(
+        "SECRET_KEY must be set to a secure random value. "
+        "Generate one with: python -c 'import secrets; print(secrets.token_urlsafe(32))'"
+    )
 
 
 @asynccontextmanager
@@ -68,6 +78,10 @@ app = FastAPI(
     description="Self-hosted customizable browser homepage with widgets",
     lifespan=lifespan
 )
+
+# Configure rate limiting
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
 # Configure CORS
 app.add_middleware(
