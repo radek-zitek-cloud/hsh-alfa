@@ -5,7 +5,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.config import settings
-from app.api import bookmarks, widgets
+from app.api import bookmarks, widgets, sections
 from app.services.database import init_db
 from app.services.scheduler import scheduler_service
 
@@ -61,6 +61,7 @@ app.add_middleware(
 # Include routers
 app.include_router(bookmarks.router, prefix="/api/bookmarks", tags=["bookmarks"])
 app.include_router(widgets.router, prefix="/api/widgets", tags=["widgets"])
+app.include_router(sections.router)
 
 
 @app.get("/")
