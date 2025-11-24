@@ -45,7 +45,7 @@ services:
       - "traefik.http.routers.home.priority=1" 
       - "traefik.http.routers.home.entrypoints=websecure"
       - "traefik.http.routers.home.tls.certresolver=lehttp"
-      - "traefik.http.services.home.loadbalancer.server.port=80"
+      - "traefik.http.services.home.loadbalancer.server.port=8080"
     restart: unless-stopped
 
   redis:
