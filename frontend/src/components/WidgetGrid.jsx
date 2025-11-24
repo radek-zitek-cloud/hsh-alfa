@@ -76,13 +76,14 @@ const WidgetGrid = () => {
   }, [widgetsData, sectionsData])
 
   // Handle moving section up
-  const handleMoveUp = (sectionIndex) => {
-    if (sectionIndex === 0) return
+  const handleMoveUp = (section) => {
+    const currentIndex = sectionsData.findIndex(s => s.id === section.id)
+    if (currentIndex <= 0) return
 
     const newSections = [...sectionsData]
-    const temp = newSections[sectionIndex]
-    newSections[sectionIndex] = newSections[sectionIndex - 1]
-    newSections[sectionIndex - 1] = temp
+    const temp = newSections[currentIndex]
+    newSections[currentIndex] = newSections[currentIndex - 1]
+    newSections[currentIndex - 1] = temp
 
     // Update positions
     const reorderData = newSections.map((section, index) => ({
@@ -94,13 +95,14 @@ const WidgetGrid = () => {
   }
 
   // Handle moving section down
-  const handleMoveDown = (sectionIndex) => {
-    if (sectionIndex === sectionsData.length - 1) return
+  const handleMoveDown = (section) => {
+    const currentIndex = sectionsData.findIndex(s => s.id === section.id)
+    if (currentIndex === -1 || currentIndex === sectionsData.length - 1) return
 
     const newSections = [...sectionsData]
-    const temp = newSections[sectionIndex]
-    newSections[sectionIndex] = newSections[sectionIndex + 1]
-    newSections[sectionIndex + 1] = temp
+    const temp = newSections[currentIndex]
+    newSections[currentIndex] = newSections[currentIndex + 1]
+    newSections[currentIndex + 1] = temp
 
     // Update positions
     const reorderData = newSections.map((section, index) => ({
@@ -122,7 +124,8 @@ const WidgetGrid = () => {
   if (widgetsError || sectionsError) {
     return (
       <div className="text-red-500 p-4 bg-red-50 dark:bg-red-900/20 rounded-lg">
-        Error loading widgets: {(widgetsError || sectionsError).message}
+        {widgetsError && <div>Error loading widgets: {widgetsError.message}</div>}
+        {sectionsError && <div>Error loading sections: {sectionsError.message}</div>}
       </div>
     )
   }
@@ -143,22 +146,28 @@ const WidgetGrid = () => {
     )
   }
 
+  // Filter out sections with no widgets for display
+  const visibleSections = sectionsData.filter(section => {
+    const sectionWidgets = widgetsBySection[section.name] || []
+    return sectionWidgets.length > 0
+  })
+
   return (
     <div className="space-y-8">
-      {sectionsData.map((section, sectionIndex) => {
+      {visibleSections.map((section, displayIndex) => {
         const sectionWidgets = widgetsBySection[section.name] || []
 
-        // Skip empty sections
-        if (sectionWidgets.length === 0) return null
+        // Find the actual index in the full sections array
+        const actualIndex = sectionsData.findIndex(s => s.id === section.id)
 
         return (
           <section key={section.id}>
             <SectionHeader
               section={section}
-              onMoveUp={() => handleMoveUp(sectionIndex)}
-              onMoveDown={() => handleMoveDown(sectionIndex)}
-              isFirst={sectionIndex === 0}
-              isLast={sectionIndex === sectionsData.length - 1}
+              onMoveUp={() => handleMoveUp(section)}
+              onMoveDown={() => handleMoveDown(section)}
+              isFirst={actualIndex === 0}
+              isLast={actualIndex === sectionsData.length - 1}
             />
             <div className="unified-grid">
               {sectionWidgets.map((widget) => {

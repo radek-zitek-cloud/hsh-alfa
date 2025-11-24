@@ -1,5 +1,5 @@
 """Section database model for widget organization."""
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Optional, List
 from sqlalchemy import String, Integer, DateTime, Boolean, Text
 from sqlalchemy.orm import Mapped, mapped_column
@@ -19,8 +19,8 @@ class Section(Base):
     position: Mapped[int] = mapped_column(Integer, default=0)
     enabled: Mapped[bool] = mapped_column(Boolean, default=True)
     widget_ids: Mapped[Optional[str]] = mapped_column(Text, nullable=True)  # JSON array of widget IDs
-    created: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
-    updated: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True, onupdate=datetime.utcnow)
+    created: Mapped[datetime] = mapped_column(DateTime, default=lambda: datetime.now(timezone.utc))
+    updated: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True, onupdate=lambda: datetime.now(timezone.utc))
 
     def to_dict(self) -> dict:
         """Convert model to dictionary."""

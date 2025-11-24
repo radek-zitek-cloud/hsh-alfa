@@ -6,7 +6,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.config import settings
 from app.api import bookmarks, widgets, sections
-from app.services.database import init_db
+from app.services.database import init_db, get_db
 from app.services.scheduler import scheduler_service
 
 # Configure logging
@@ -26,6 +26,16 @@ async def lifespan(app: FastAPI):
     # Initialize database
     await init_db()
     logger.info("Database initialized")
+
+    # Initialize default sections
+    async for db in get_db():
+        try:
+            from app.api.sections import initialize_default_sections
+            await initialize_default_sections(db)
+            logger.info("Default sections initialized")
+        finally:
+            await db.close()
+        break
 
     # Start scheduler if enabled
     if settings.SCHEDULER_ENABLED:
