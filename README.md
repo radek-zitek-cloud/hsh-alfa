@@ -55,13 +55,22 @@ A self-hosted, customizable browser homepage application that serves as your per
    cp .env.example .env
    ```
 
-3. **Generate a secure SECRET_KEY**
+3. **Create data directory with proper permissions**
+   ```bash
+   mkdir -p data
+   # If running as root or with sudo, set ownership to UID 1000
+   sudo chown -R 1000:1000 data
+   ```
+
+   **Note**: The backend container runs as a non-root user (UID 1000) for security. The data directory must be writable by this user for SQLite database operations.
+
+4. **Generate a secure SECRET_KEY**
    ```bash
    python -c 'import secrets; print(secrets.token_urlsafe(32))'
    ```
    Copy the generated key for the next step.
 
-4. **Edit `.env` and add your configuration**
+5. **Edit `.env` and add your configuration**
    ```bash
    # REQUIRED: Secure secret key for session management
    # Use the key generated in the previous step
@@ -77,7 +86,7 @@ A self-hosted, customizable browser homepage application that serves as your per
    DOMAIN=home.zitek.cloud
    ```
 
-5. **Configure widgets** (optional)
+6. **Configure widgets** (optional)
 
    Edit `backend/app/config/widgets.yaml` to customize your widgets:
    ```yaml
@@ -90,12 +99,12 @@ A self-hosted, customizable browser homepage application that serves as your per
          units: "metric"
    ```
 
-6. **Start the application**
+7. **Start the application**
    ```bash
    docker-compose up -d
    ```
 
-7. **Access your homepage**
+8. **Access your homepage**
    - With Traefik: `https://home.zitek.cloud`
    - Without Traefik: Configure port mapping in docker-compose.yml
 
@@ -361,9 +370,29 @@ widgets:
 ## Troubleshooting
 
 ### Backend won't start
+
+**"attempt to write a readonly database" error:**
+
+This occurs when the `data` directory doesn't have proper permissions. The backend container runs as a non-root user (UID 1000) and needs write access to create/modify the SQLite database.
+
+**Fix:**
+```bash
+# Create the directory if it doesn't exist
+mkdir -p data
+
+# Set proper ownership (run with sudo if needed)
+sudo chown -R 1000:1000 data
+
+# Restart containers
+docker-compose down
+docker-compose up -d
+```
+
+**Other startup issues:**
 - Check logs: `docker-compose logs backend`
 - Verify environment variables in `.env`
-- Ensure database directory is writable
+- Ensure `SECRET_KEY` is set to a secure value
+- Check if Redis container is running (if `REDIS_ENABLED=true`)
 
 ### Widgets show errors
 - Verify API keys in `.env`
