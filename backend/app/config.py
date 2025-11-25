@@ -43,6 +43,10 @@ class Settings(BaseSettings):
     # Frontend URL for redirects
     FRONTEND_URL: str = os.getenv("FRONTEND_URL", "http://localhost:3000")
 
+    # CORS Configuration - declared as field but populated manually in model_post_init
+    # init=False tells Pydantic not to try to initialize this from environment variables
+    CORS_ORIGINS: list[str] = Field(default=[], init=False)
+
     def model_post_init(self, __context) -> None:
         """Initialize CORS_ORIGINS after model creation.
 
