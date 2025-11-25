@@ -4,14 +4,14 @@ Favicon fetching service.
 This service handles automatic favicon discovery and fetching for websites,
 using multiple strategies to find the best available favicon.
 """
-import logging
 from urllib.parse import urljoin, urlparse
 from typing import Optional
 from bs4 import BeautifulSoup
 
+from app.logging_config import get_logger
 from app.services.http_client import HttpClient, is_safe_url
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 # Maximum HTML size to fetch (5MB)
 MAX_HTML_SIZE = 5 * 1024 * 1024
@@ -29,14 +29,32 @@ async def validate_favicon_url(favicon_url: str, timeout: int = 5) -> bool:
         True if favicon is accessible, False otherwise
     """
     if not is_safe_url(favicon_url):
+        logger.debug("Favicon URL failed SSRF validation", extra={
+            "operation": "favicon_validation",
+            "reason": "unsafe_url"
+        })
         return False
 
     try:
         client = HttpClient(timeout=timeout)
         response = await client.head(favicon_url)
-        return response.status == 200
+        if response.status == 200:
+            logger.debug("Favicon URL validated successfully", extra={
+                "operation": "favicon_validation",
+                "status": response.status
+            })
+            return True
+        else:
+            logger.debug("Favicon URL returned non-200 status", extra={
+                "operation": "favicon_validation",
+                "status": response.status
+            })
+            return False
     except Exception as e:
-        logger.debug(f"Failed to validate favicon URL {favicon_url}: {e}")
+        logger.debug("Failed to validate favicon URL", extra={
+            "operation": "favicon_validation",
+            "error_type": type(e).__name__
+        })
         return False
 
 
@@ -59,15 +77,27 @@ async def fetch_favicon(url: str, timeout: int = 10) -> Optional[str]:
     try:
         # Validate URL for SSRF protection
         if not is_safe_url(url):
-            logger.warning(f"Blocked unsafe URL: {url}")
+            logger.warning("Blocked unsafe URL for favicon fetch", extra={
+                "operation": "favicon_fetch_blocked",
+                "reason": "unsafe_url"
+            })
             return None
 
         parsed = urlparse(url)
         if not parsed.scheme or not parsed.netloc:
-            logger.warning(f"Invalid URL format: {url}")
+            logger.warning("Invalid URL format for favicon fetch", extra={
+                "operation": "favicon_fetch_failed",
+                "reason": "invalid_url_format"
+            })
             return None
 
         base_url = f"{parsed.scheme}://{parsed.netloc}"
+
+        logger.debug("Starting favicon fetch", extra={
+            "operation": "favicon_fetch_started",
+            "domain": parsed.netloc,
+            "timeout": timeout
+        })
 
         # Create HTTP client with custom user agent
         client = HttpClient(
@@ -76,20 +106,35 @@ async def fetch_favicon(url: str, timeout: int = 10) -> Optional[str]:
         )
 
         # Strategy 1: Try common favicon locations
+        logger.debug("Attempting common favicon locations", extra={
+            "operation": "favicon_fetch",
+            "strategy": "common_locations"
+        })
         favicon_url = await _try_common_locations(client, base_url)
         if favicon_url:
             return favicon_url
 
         # Strategy 2: Parse HTML for favicon link tags
+        logger.debug("Attempting HTML parsing for favicon", extra={
+            "operation": "favicon_fetch",
+            "strategy": "html_parsing"
+        })
         favicon_url = await _parse_html_for_favicon(client, url, base_url)
         if favicon_url:
             return favicon_url
 
         # Strategy 3: Use Google's favicon service as fallback
+        logger.debug("Attempting Google favicon service as fallback", extra={
+            "operation": "favicon_fetch",
+            "strategy": "google_service"
+        })
         return await _try_google_favicon_service(parsed.netloc, timeout)
 
     except Exception as e:
-        logger.error(f"Error fetching favicon for {url}: {e}")
+        logger.error("Error fetching favicon", extra={
+            "operation": "favicon_fetch_error",
+            "error_type": type(e).__name__
+        }, exc_info=True)
         return None
 
 
@@ -116,6 +161,10 @@ async def _try_common_locations(client: HttpClient, base_url: str) -> Optional[s
 
         # Validate each constructed URL
         if not is_safe_url(favicon_url):
+            logger.debug("Common location URL failed SSRF validation", extra={
+                "operation": "favicon_check",
+                "path": path
+            })
             continue
 
         try:
@@ -123,10 +172,18 @@ async def _try_common_locations(client: HttpClient, base_url: str) -> Optional[s
             if response.status == 200:
                 content_type = response.headers.get('content-type', '')
                 if 'image' in content_type or path.endswith(('.ico', '.png', '.jpg', '.jpeg', '.gif', '.svg')):
-                    logger.info(f"Found favicon at common location: {favicon_url}")
+                    logger.info("Favicon found at common location", extra={
+                        "operation": "favicon_found",
+                        "path": path,
+                        "content_type": content_type
+                    })
                     return favicon_url
         except Exception as e:
-            logger.debug(f"Failed to fetch {favicon_url}: {e}")
+            logger.debug("Failed to check common location", extra={
+                "operation": "favicon_check",
+                "path": path,
+                "error_type": type(e).__name__
+            })
             continue
 
     return None
@@ -149,6 +206,9 @@ async def _parse_html_for_favicon(
         Favicon URL if found, None otherwise
     """
     try:
+        logger.debug("Fetching HTML for favicon parsing", extra={
+            "operation": "favicon_html_parse_start"
+        })
         html = await client.get_text(url, max_size=MAX_HTML_SIZE)
 
         # Specify HTML parser explicitly for better performance and security
@@ -163,14 +223,33 @@ async def _parse_html_for_favicon(
 
             # Validate the constructed URL
             if is_safe_url(favicon_url):
-                logger.info(f"Found favicon in HTML: {favicon_url}")
+                logger.info("Favicon found in HTML", extra={
+                    "operation": "favicon_found",
+                    "source": "html_parsing"
+                })
                 return favicon_url
+            else:
+                logger.debug("Favicon URL from HTML failed SSRF validation", extra={
+                    "operation": "favicon_html_parse",
+                    "reason": "unsafe_url"
+                })
+        else:
+            logger.debug("No favicon link found in HTML", extra={
+                "operation": "favicon_html_parse",
+                "reason": "no_icon_link"
+            })
 
     except ValueError as e:
         # Catch size limit errors
-        logger.warning(f"HTML parsing failed: {e}")
+        logger.warning("HTML parsing failed due to size limit", extra={
+            "operation": "favicon_html_parse_failed",
+            "reason": "size_limit_exceeded"
+        })
     except Exception as e:
-        logger.debug(f"Failed to parse HTML for favicon: {e}")
+        logger.debug("Failed to parse HTML for favicon", extra={
+            "operation": "favicon_html_parse_failed",
+            "error_type": type(e).__name__
+        })
 
     return None
 
@@ -188,10 +267,22 @@ async def _try_google_favicon_service(domain: str, timeout: int) -> Optional[str
     """
     google_favicon_url = f"https://www.google.com/s2/favicons?domain={domain}&sz=64"
 
+    logger.debug("Attempting Google favicon service", extra={
+        "operation": "favicon_google_service_attempt",
+        "domain": domain
+    })
+
     # Validate that Google's service actually returns a valid favicon
     if await validate_favicon_url(google_favicon_url, timeout=timeout):
-        logger.info(f"Using Google favicon service as fallback: {google_favicon_url}")
+        logger.info("Using Google favicon service as fallback", extra={
+            "operation": "favicon_found",
+            "source": "google_service",
+            "domain": domain
+        })
         return google_favicon_url
     else:
-        logger.info(f"Google favicon service did not return a valid favicon for: {domain}")
+        logger.warning("Google favicon service did not return a valid favicon", extra={
+            "operation": "favicon_google_service_failed",
+            "domain": domain
+        })
         return None

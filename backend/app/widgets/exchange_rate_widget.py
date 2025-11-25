@@ -1,11 +1,11 @@
 """Exchange rate widget implementation."""
 import aiohttp
-import logging
 from typing import Dict, Any, List
 from app.widgets.base_widget import BaseWidget
 from app.config import settings
+from app.logging_config import get_logger
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 class ExchangeRateWidget(BaseWidget):
@@ -20,14 +20,37 @@ class ExchangeRateWidget(BaseWidget):
         # Check required fields
         for field in required_fields:
             if field not in self.config:
-                logger.error(f"Missing required field: {field}")
+                logger.warning(
+                    f"Missing required field: {field}",
+                    extra={
+                        "widget_type": self.widget_type,
+                        "widget_id": self.widget_id,
+                        "missing_field": field
+                    }
+                )
                 return False
 
         # Validate target_currencies is a list
         if not isinstance(self.config.get("target_currencies"), list):
-            logger.error("target_currencies must be a list")
+            logger.warning(
+                "target_currencies must be a list",
+                extra={
+                    "widget_type": self.widget_type,
+                    "widget_id": self.widget_id,
+                    "field_type": type(self.config.get("target_currencies")).__name__
+                }
+            )
             return False
 
+        logger.debug(
+            "Exchange rate widget configuration validated",
+            extra={
+                "widget_type": self.widget_type,
+                "widget_id": self.widget_id,
+                "base_currency": self.config.get("base_currency"),
+                "target_currencies": len(self.config.get("target_currencies", []))
+            }
+        )
         return True
 
     async def fetch_data(self) -> Dict[str, Any]:
@@ -44,15 +67,53 @@ class ExchangeRateWidget(BaseWidget):
 
         # Use free API if no key provided (European Central Bank)
         if not api_key:
+            logger.info(
+                "No API key provided, using ECB free API",
+                extra={
+                    "widget_type": self.widget_type,
+                    "widget_id": self.widget_id,
+                    "base_currency": base_currency
+                }
+            )
             return await self._fetch_from_ecb(base_currency, target_currencies)
 
         # Use exchangerate-api.com with API key
         url = f"https://v6.exchangerate-api.com/v6/{api_key}/latest/{base_currency}"
 
+        logger.info(
+            "Fetching exchange rates from exchangerate-api.com",
+            extra={
+                "widget_type": self.widget_type,
+                "widget_id": self.widget_id,
+                "base_currency": base_currency,
+                "api_url": url
+            }
+        )
+
         async with aiohttp.ClientSession() as session:
             async with session.get(url) as response:
+                logger.debug(
+                    "Exchange rate API response received",
+                    extra={
+                        "widget_type": self.widget_type,
+                        "widget_id": self.widget_id,
+                        "response_status": response.status,
+                        "api_url": url
+                    }
+                )
+
                 if response.status != 200:
                     error_text = await response.text()
+                    logger.warning(
+                        f"Exchange rate API returned error: {response.status}",
+                        extra={
+                            "widget_type": self.widget_type,
+                            "widget_id": self.widget_id,
+                            "response_status": response.status,
+                            "error_text": error_text,
+                            "api_url": url
+                        }
+                    )
                     raise Exception(f"Exchange rate API error: {response.status} - {error_text}")
 
                 data = await response.json()
@@ -74,9 +135,38 @@ class ExchangeRateWidget(BaseWidget):
         # ECB provides rates with EUR as base
         url = "https://www.ecb.europa.eu/stats/eurofxref/eurofxref-daily.xml"
 
+        logger.info(
+            "Fetching exchange rates from European Central Bank (free API)",
+            extra={
+                "widget_type": self.widget_type,
+                "widget_id": self.widget_id,
+                "base_currency": base_currency,
+                "api_url": url
+            }
+        )
+
         async with aiohttp.ClientSession() as session:
             async with session.get(url) as response:
+                logger.debug(
+                    "ECB API response received",
+                    extra={
+                        "widget_type": self.widget_type,
+                        "widget_id": self.widget_id,
+                        "response_status": response.status,
+                        "api_url": url
+                    }
+                )
+
                 if response.status != 200:
+                    logger.warning(
+                        f"ECB API returned error: {response.status}",
+                        extra={
+                            "widget_type": self.widget_type,
+                            "widget_id": self.widget_id,
+                            "response_status": response.status,
+                            "api_url": url
+                        }
+                    )
                     raise Exception(f"ECB API error: {response.status}")
 
                 xml_data = await response.text()
@@ -92,9 +182,27 @@ class ExchangeRateWidget(BaseWidget):
             rate = float(cube.get("rate"))
             rates[currency] = rate
 
+        logger.debug(
+            "ECB exchange rates parsed",
+            extra={
+                "widget_type": self.widget_type,
+                "widget_id": self.widget_id,
+                "num_rates": len(rates)
+            }
+        )
+
         # Convert to requested base currency
         if base_currency != "EUR":
             if base_currency not in rates:
+                logger.warning(
+                    f"Base currency {base_currency} not available in ECB data",
+                    extra={
+                        "widget_type": self.widget_type,
+                        "widget_id": self.widget_id,
+                        "base_currency": base_currency,
+                        "available_currencies": list(rates.keys())
+                    }
+                )
                 raise Exception(f"Base currency {base_currency} not available in ECB data")
 
             base_rate = rates[base_currency]
@@ -103,6 +211,15 @@ class ExchangeRateWidget(BaseWidget):
             for currency, rate in rates.items():
                 converted_rates[currency] = rate / base_rate
             rates = converted_rates
+
+            logger.debug(
+                "Exchange rates converted to requested base currency",
+                extra={
+                    "widget_type": self.widget_type,
+                    "widget_id": self.widget_id,
+                    "base_currency": base_currency
+                }
+            )
 
         # Build response in similar format to exchangerate-api
         return {
@@ -139,7 +256,15 @@ class ExchangeRateWidget(BaseWidget):
                     "formatted": f"1 {base_currency} = {rate_value:.4f} {currency}"
                 })
             else:
-                logger.warning(f"Currency {currency} not found in exchange rate data")
+                logger.warning(
+                    f"Currency {currency} not found in exchange rate data",
+                    extra={
+                        "widget_type": self.widget_type,
+                        "widget_id": self.widget_id,
+                        "missing_currency": currency,
+                        "base_currency": base_currency
+                    }
+                )
 
         result = {
             "base_currency": base_currency,

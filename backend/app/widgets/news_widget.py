@@ -1,13 +1,13 @@
 """News/RSS widget implementation."""
 import aiohttp
 import feedparser
-import logging
 from typing import Dict, Any, List, Optional
 from datetime import datetime
 from app.widgets.base_widget import BaseWidget
 from app.config import settings
+from app.logging_config import get_logger
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 class NewsWidget(BaseWidget):
@@ -25,14 +25,36 @@ class NewsWidget(BaseWidget):
         if has_news_api:
             api_key = self.config.get("api_key") or settings.NEWS_API_KEY
             if not api_key:
-                logger.error("News API key not configured")
+                logger.warning(
+                    "News API key not configured",
+                    extra={
+                        "widget_type": self.widget_type,
+                        "widget_id": self.widget_id
+                    }
+                )
                 return False
 
         # Must have at least one news source
         if not has_rss_feeds and not has_news_api:
-            logger.error("No news sources configured (rss_feeds or use_news_api)")
+            logger.warning(
+                "No news sources configured (rss_feeds or use_news_api)",
+                extra={
+                    "widget_type": self.widget_type,
+                    "widget_id": self.widget_id
+                }
+            )
             return False
 
+        logger.debug(
+            "News widget configuration validated",
+            extra={
+                "widget_type": self.widget_type,
+                "widget_id": self.widget_id,
+                "has_rss_feeds": has_rss_feeds,
+                "has_news_api": has_news_api,
+                "num_rss_feeds": len(self.config.get("rss_feeds", []))
+            }
+        )
         return True
 
     async def fetch_data(self) -> Dict[str, Any]:
@@ -75,18 +97,55 @@ class NewsWidget(BaseWidget):
         """
         articles = []
 
+        logger.info(
+            "Fetching articles from RSS feeds",
+            extra={
+                "widget_type": self.widget_type,
+                "widget_id": self.widget_id,
+                "num_feeds": len(feeds)
+            }
+        )
+
         async with aiohttp.ClientSession() as session:
             for feed_url in feeds:
                 try:
+                    logger.debug(
+                        "Fetching RSS feed",
+                        extra={
+                            "widget_type": self.widget_type,
+                            "widget_id": self.widget_id,
+                            "api_url": feed_url
+                        }
+                    )
+
                     async with session.get(feed_url, timeout=aiohttp.ClientTimeout(total=10)) as response:
                         if response.status != 200:
-                            logger.warning(f"Failed to fetch RSS feed {feed_url}: {response.status}")
+                            logger.warning(
+                                f"Failed to fetch RSS feed: {response.status}",
+                                extra={
+                                    "widget_type": self.widget_type,
+                                    "widget_id": self.widget_id,
+                                    "response_status": response.status,
+                                    "api_url": feed_url
+                                }
+                            )
                             continue
 
                         content = await response.text()
 
                         # Parse RSS feed (feedparser is sync, but fast)
                         feed = feedparser.parse(content)
+
+                        logger.debug(
+                            "RSS feed parsed successfully",
+                            extra={
+                                "widget_type": self.widget_type,
+                                "widget_id": self.widget_id,
+                                "feed_title": feed.feed.get('title', 'Unknown'),
+                                "num_entries": len(feed.entries),
+                                "api_url": feed_url
+                            }
+                        )
 
                         # Extract articles from feed
                         for entry in feed.entries:
@@ -131,8 +190,26 @@ class NewsWidget(BaseWidget):
                             articles.append(article)
 
                 except Exception as e:
-                    logger.error(f"Error fetching RSS feed {feed_url}: {str(e)}")
+                    logger.error(
+                        f"Error fetching RSS feed: {str(e)}",
+                        extra={
+                            "widget_type": self.widget_type,
+                            "widget_id": self.widget_id,
+                            "api_url": feed_url,
+                            "error_type": type(e).__name__
+                        },
+                        exc_info=True
+                    )
                     continue
+
+        logger.info(
+            "RSS feed fetch completed",
+            extra={
+                "widget_type": self.widget_type,
+                "widget_id": self.widget_id,
+                "total_articles": len(articles)
+            }
+        )
 
         return articles
 
@@ -161,6 +238,16 @@ class NewsWidget(BaseWidget):
                 "apiKey": api_key,
                 "pageSize": self.config.get("max_articles", 10)
             }
+            logger.info(
+                "Fetching news articles from News API (everything endpoint)",
+                extra={
+                    "widget_type": self.widget_type,
+                    "widget_id": self.widget_id,
+                    "api_url": url,
+                    "query": query,
+                    "language": language
+                }
+            )
         else:
             url = "https://newsapi.org/v2/top-headlines"
             params = {
@@ -169,13 +256,42 @@ class NewsWidget(BaseWidget):
                 "apiKey": api_key,
                 "pageSize": self.config.get("max_articles", 10)
             }
+            logger.info(
+                "Fetching news articles from News API (top-headlines endpoint)",
+                extra={
+                    "widget_type": self.widget_type,
+                    "widget_id": self.widget_id,
+                    "api_url": url,
+                    "category": category,
+                    "country": country
+                }
+            )
 
         try:
             async with aiohttp.ClientSession() as session:
                 async with session.get(url, params=params, timeout=aiohttp.ClientTimeout(total=10)) as response:
+                    logger.debug(
+                        "News API response received",
+                        extra={
+                            "widget_type": self.widget_type,
+                            "widget_id": self.widget_id,
+                            "response_status": response.status,
+                            "api_url": url
+                        }
+                    )
+
                     if response.status != 200:
                         error_text = await response.text()
-                        logger.error(f"News API error: {response.status} - {error_text}")
+                        logger.warning(
+                            f"News API returned error: {response.status}",
+                            extra={
+                                "widget_type": self.widget_type,
+                                "widget_id": self.widget_id,
+                                "response_status": response.status,
+                                "error_text": error_text,
+                                "api_url": url
+                            }
+                        )
                         return articles
 
                     data = await response.json()
@@ -192,8 +308,27 @@ class NewsWidget(BaseWidget):
                         }
                         articles.append(article)
 
+                    logger.info(
+                        "News API articles retrieved successfully",
+                        extra={
+                            "widget_type": self.widget_type,
+                            "widget_id": self.widget_id,
+                            "num_articles": len(articles),
+                            "response_status": response.status
+                        }
+                    )
+
         except Exception as e:
-            logger.error(f"Error fetching from News API: {str(e)}")
+            logger.error(
+                f"Error fetching from News API: {str(e)}",
+                extra={
+                    "widget_type": self.widget_type,
+                    "widget_id": self.widget_id,
+                    "api_url": url,
+                    "error_type": type(e).__name__
+                },
+                exc_info=True
+            )
 
         return articles
 

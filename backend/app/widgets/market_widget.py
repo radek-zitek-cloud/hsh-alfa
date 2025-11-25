@@ -1,11 +1,11 @@
 """Market information widget implementation."""
 import aiohttp
-import logging
 from typing import Dict, Any, List
 from datetime import datetime
 from app.widgets.base_widget import BaseWidget
+from app.logging_config import get_logger
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 class MarketWidget(BaseWidget):
@@ -20,9 +20,26 @@ class MarketWidget(BaseWidget):
         has_crypto = "crypto" in self.config and isinstance(self.config["crypto"], list)
 
         if not has_stocks and not has_crypto:
-            logger.error("Market widget must have either 'stocks' or 'crypto' configured")
+            logger.warning(
+                "Market widget must have either 'stocks' or 'crypto' configured",
+                extra={
+                    "widget_type": self.widget_type,
+                    "widget_id": self.widget_id
+                }
+            )
             return False
 
+        logger.debug(
+            "Market widget configuration validated",
+            extra={
+                "widget_type": self.widget_type,
+                "widget_id": self.widget_id,
+                "has_stocks": has_stocks,
+                "num_stocks": len(self.config.get("stocks", [])),
+                "has_crypto": has_crypto,
+                "num_crypto": len(self.config.get("crypto", []))
+            }
+        )
         return True
 
     async def fetch_data(self) -> Dict[str, Any]:
@@ -35,6 +52,16 @@ class MarketWidget(BaseWidget):
         stocks = self.config.get("stocks", [])
         crypto = self.config.get("crypto", [])
 
+        logger.info(
+            "Fetching market data",
+            extra={
+                "widget_type": self.widget_type,
+                "widget_id": self.widget_id,
+                "num_stocks": len(stocks),
+                "num_crypto": len(crypto)
+            }
+        )
+
         result = {
             "stocks": [],
             "crypto": []
@@ -42,13 +69,45 @@ class MarketWidget(BaseWidget):
 
         # Fetch stock data
         if stocks:
+            logger.debug(
+                "Fetching stock data from Yahoo Finance",
+                extra={
+                    "widget_type": self.widget_type,
+                    "widget_id": self.widget_id,
+                    "num_stocks": len(stocks)
+                }
+            )
             stock_data = await self._fetch_yahoo_finance(stocks)
             result["stocks"] = stock_data
+            logger.debug(
+                "Stock data retrieved",
+                extra={
+                    "widget_type": self.widget_type,
+                    "widget_id": self.widget_id,
+                    "stocks_retrieved": len(stock_data)
+                }
+            )
 
         # Fetch crypto data (using Coinbase API - free, no key)
         if crypto:
+            logger.debug(
+                "Fetching crypto data from CoinGecko",
+                extra={
+                    "widget_type": self.widget_type,
+                    "widget_id": self.widget_id,
+                    "num_crypto": len(crypto)
+                }
+            )
             crypto_data = await self._fetch_crypto_data(crypto)
             result["crypto"] = crypto_data
+            logger.debug(
+                "Crypto data retrieved",
+                extra={
+                    "widget_type": self.widget_type,
+                    "widget_id": self.widget_id,
+                    "crypto_retrieved": len(crypto_data)
+                }
+            )
 
         return result
 
@@ -82,9 +141,39 @@ class MarketWidget(BaseWidget):
                         "range": "1y"  # Get 1 year for YTD, 30d, and 5d calculations
                     }
 
+                    logger.debug(
+                        "Fetching stock data from Yahoo Finance",
+                        extra={
+                            "widget_type": self.widget_type,
+                            "widget_id": self.widget_id,
+                            "symbol": symbol,
+                            "api_url": url
+                        }
+                    )
+
                     async with session.get(url, params=params) as response:
+                        logger.debug(
+                            "Yahoo Finance response received",
+                            extra={
+                                "widget_type": self.widget_type,
+                                "widget_id": self.widget_id,
+                                "symbol": symbol,
+                                "response_status": response.status,
+                                "api_url": url
+                            }
+                        )
+
                         if response.status != 200:
-                            logger.warning(f"Failed to fetch {symbol}: {response.status}")
+                            logger.warning(
+                                f"Failed to fetch {symbol}: {response.status}",
+                                extra={
+                                    "widget_type": self.widget_type,
+                                    "widget_id": self.widget_id,
+                                    "symbol": symbol,
+                                    "response_status": response.status,
+                                    "api_url": url
+                                }
+                            )
                             continue
 
                         data = await response.json()
@@ -94,7 +183,14 @@ class MarketWidget(BaseWidget):
                         result = chart.get("result", [])
 
                         if not result:
-                            logger.warning(f"No data for symbol {symbol}")
+                            logger.warning(
+                                f"No data for symbol {symbol}",
+                                extra={
+                                    "widget_type": self.widget_type,
+                                    "widget_id": self.widget_id,
+                                    "symbol": symbol
+                                }
+                            )
                             continue
 
                         quote_data = result[0]
@@ -108,7 +204,14 @@ class MarketWidget(BaseWidget):
                         previous_close = meta.get("previousClose")
 
                         if current_price is None:
-                            logger.warning(f"No price data for {symbol}")
+                            logger.warning(
+                                f"No price data for {symbol}",
+                                extra={
+                                    "widget_type": self.widget_type,
+                                    "widget_id": self.widget_id,
+                                    "symbol": symbol
+                                }
+                            )
                             continue
 
                         # Calculate 1-day change
@@ -146,8 +249,27 @@ class MarketWidget(BaseWidget):
                         })
 
                 except Exception as e:
-                    logger.error(f"Error fetching {symbol}: {str(e)}")
+                    logger.error(
+                        f"Error fetching {symbol}: {str(e)}",
+                        extra={
+                            "widget_type": self.widget_type,
+                            "widget_id": self.widget_id,
+                            "symbol": symbol,
+                            "error_type": type(e).__name__
+                        },
+                        exc_info=True
+                    )
                     continue
+
+        logger.info(
+            "Yahoo Finance data fetch completed",
+            extra={
+                "widget_type": self.widget_type,
+                "widget_id": self.widget_id,
+                "symbols_requested": len(symbols),
+                "symbols_retrieved": len(results)
+            }
+        )
 
         return results
 
@@ -284,6 +406,14 @@ class MarketWidget(BaseWidget):
                 id_to_symbol[crypto_id] = symbol.upper()
 
         if not crypto_ids:
+            logger.warning(
+                "No valid crypto IDs after mapping",
+                extra={
+                    "widget_type": self.widget_type,
+                    "widget_id": self.widget_id,
+                    "requested_symbols": len(symbols)
+                }
+            )
             return results
 
         async with aiohttp.ClientSession() as session:
@@ -295,10 +425,38 @@ class MarketWidget(BaseWidget):
                 "include_24hr_change": "true"
             }
 
+            logger.info(
+                "Fetching crypto data from CoinGecko API",
+                extra={
+                    "widget_type": self.widget_type,
+                    "widget_id": self.widget_id,
+                    "num_crypto": len(crypto_ids),
+                    "api_url": price_url
+                }
+            )
+
             try:
                 async with session.get(price_url, params=price_params) as response:
+                    logger.debug(
+                        "CoinGecko API response received",
+                        extra={
+                            "widget_type": self.widget_type,
+                            "widget_id": self.widget_id,
+                            "response_status": response.status,
+                            "api_url": price_url
+                        }
+                    )
+
                     if response.status != 200:
-                        logger.error(f"CoinGecko API error: {response.status}")
+                        logger.warning(
+                            f"CoinGecko API error: {response.status}",
+                            extra={
+                                "widget_type": self.widget_type,
+                                "widget_id": self.widget_id,
+                                "response_status": response.status,
+                                "api_url": price_url
+                            }
+                        )
                         return results
 
                     price_data = await response.json()
@@ -306,7 +464,15 @@ class MarketWidget(BaseWidget):
                     # For each crypto, fetch historical data for period calculations
                     for crypto_id in crypto_ids:
                         if crypto_id not in price_data:
-                            logger.warning(f"No data for crypto {id_to_symbol[crypto_id]}")
+                            logger.warning(
+                                f"No data for crypto {id_to_symbol[crypto_id]}",
+                                extra={
+                                    "widget_type": self.widget_type,
+                                    "widget_id": self.widget_id,
+                                    "crypto_id": crypto_id,
+                                    "symbol": id_to_symbol[crypto_id]
+                                }
+                            )
                             continue
 
                         current_data = price_data[crypto_id]
@@ -329,6 +495,17 @@ class MarketWidget(BaseWidget):
                         change_ytd = None
 
                         try:
+                            logger.debug(
+                                "Fetching historical crypto data from CoinGecko",
+                                extra={
+                                    "widget_type": self.widget_type,
+                                    "widget_id": self.widget_id,
+                                    "crypto_id": crypto_id,
+                                    "symbol": id_to_symbol[crypto_id],
+                                    "api_url": market_chart_url
+                                }
+                            )
+
                             async with session.get(market_chart_url, params=market_params) as hist_response:
                                 if hist_response.status == 200:
                                     hist_data = await hist_response.json()
@@ -339,10 +516,42 @@ class MarketWidget(BaseWidget):
                                         change_5d = self._calculate_crypto_period_change(price, prices, days=5)
                                         change_30d = self._calculate_crypto_period_change(price, prices, days=30)
                                         change_ytd = self._calculate_crypto_ytd_change(price, prices)
+
+                                        logger.debug(
+                                            "Historical crypto data retrieved and calculated",
+                                            extra={
+                                                "widget_type": self.widget_type,
+                                                "widget_id": self.widget_id,
+                                                "crypto_id": crypto_id,
+                                                "symbol": id_to_symbol[crypto_id],
+                                                "num_data_points": len(prices)
+                                            }
+                                        )
                                 else:
-                                    logger.warning(f"Failed to fetch historical data for {crypto_id}: {hist_response.status}")
+                                    logger.warning(
+                                        f"Failed to fetch historical data for {crypto_id}: {hist_response.status}",
+                                        extra={
+                                            "widget_type": self.widget_type,
+                                            "widget_id": self.widget_id,
+                                            "crypto_id": crypto_id,
+                                            "symbol": id_to_symbol[crypto_id],
+                                            "response_status": hist_response.status,
+                                            "api_url": market_chart_url
+                                        }
+                                    )
                         except Exception as e:
-                            logger.error(f"Error fetching historical data for {crypto_id}: {str(e)}")
+                            logger.error(
+                                f"Error fetching historical data for {crypto_id}: {str(e)}",
+                                extra={
+                                    "widget_type": self.widget_type,
+                                    "widget_id": self.widget_id,
+                                    "crypto_id": crypto_id,
+                                    "symbol": id_to_symbol[crypto_id],
+                                    "error_type": type(e).__name__,
+                                    "api_url": market_chart_url
+                                },
+                                exc_info=True
+                            )
 
                         results.append({
                             "symbol": id_to_symbol[crypto_id],
@@ -358,7 +567,26 @@ class MarketWidget(BaseWidget):
                         })
 
             except Exception as e:
-                logger.error(f"Error fetching crypto data: {str(e)}")
+                logger.error(
+                    f"Error fetching crypto data: {str(e)}",
+                    extra={
+                        "widget_type": self.widget_type,
+                        "widget_id": self.widget_id,
+                        "error_type": type(e).__name__,
+                        "api_url": price_url
+                    },
+                    exc_info=True
+                )
+
+        logger.info(
+            "CoinGecko data fetch completed",
+            extra={
+                "widget_type": self.widget_type,
+                "widget_id": self.widget_id,
+                "crypto_requested": len(symbols),
+                "crypto_retrieved": len(results)
+            }
+        )
 
         return results
 

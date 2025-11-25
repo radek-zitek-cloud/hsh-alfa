@@ -17,6 +17,7 @@ class Settings(BaseSettings):
     APP_NAME: str = "Home Sweet Home"
     APP_VERSION: str = "1.0.0"
     DEBUG: bool = False
+    LOG_LEVEL: str = "INFO"  # DEBUG, INFO, WARNING, ERROR, CRITICAL
 
     # Database
     DATABASE_URL: str = "sqlite+aiosqlite:////data/home.db"

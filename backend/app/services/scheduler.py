@@ -1,12 +1,12 @@
 """Background scheduler for widget updates."""
-import logging
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.triggers.interval import IntervalTrigger
 
+from app.logging_config import get_logger
 from app.services.widget_registry import get_widget_registry
 from app.services.cache import cache_service
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 class SchedulerService:
@@ -20,59 +20,103 @@ class SchedulerService:
     async def start(self):
         """Start the background scheduler."""
         if self._is_running:
-            logger.warning("Scheduler already running")
+            logger.warning("Scheduler already running", extra={
+                "operation": "scheduler_start_failed",
+                "reason": "already_running"
+            })
             return
 
-        logger.info("Starting background scheduler...")
+        logger.info("Starting background scheduler", extra={
+            "operation": "scheduler_start_attempt"
+        })
 
-        # Create scheduler
-        self._scheduler = AsyncIOScheduler()
+        try:
+            # Create scheduler
+            self._scheduler = AsyncIOScheduler()
 
-        # Connect to cache
-        await cache_service.connect()
+            # Connect to cache
+            await cache_service.connect()
 
-        # Load widgets from registry and schedule jobs
-        registry = get_widget_registry()
+            # Load widgets from registry and schedule jobs
+            registry = get_widget_registry()
 
-        # Register all widgets first
-        from app.widgets import register_all_widgets
-        register_all_widgets()
+            # Register all widgets first
+            from app.widgets import register_all_widgets
+            register_all_widgets()
+            logger.debug("All widgets registered", extra={
+                "operation": "widgets_registered"
+            })
 
-        # Load widget configuration from database
-        await registry.load_config_from_db()
+            # Load widget configuration from database
+            await registry.load_config_from_db()
+            logger.debug("Widget configuration loaded from database", extra={
+                "operation": "widget_config_loaded"
+            })
 
-        # Schedule widget updates
-        for widget_id, widget in registry.get_all_widgets().items():
-            if not widget.enabled:
-                logger.debug(f"Skipping disabled widget: {widget_id}")
-                continue
+            # Schedule widget updates
+            scheduled_count = 0
+            for widget_id, widget in registry.get_all_widgets().items():
+                if not widget.enabled:
+                    logger.debug("Skipping disabled widget", extra={
+                        "operation": "widget_scheduling",
+                        "widget_id": widget_id,
+                        "reason": "disabled"
+                    })
+                    continue
 
-            # Schedule widget update
-            self._schedule_widget_update(widget_id, widget.refresh_interval)
+                # Schedule widget update
+                self._schedule_widget_update(widget_id, widget.refresh_interval)
+                scheduled_count += 1
 
-        # Schedule auth cleanup tasks
-        self._schedule_auth_cleanup()
+            # Schedule auth cleanup tasks
+            self._schedule_auth_cleanup()
 
-        # Start scheduler
-        self._scheduler.start()
-        self._is_running = True
+            # Start scheduler
+            self._scheduler.start()
+            self._is_running = True
 
-        logger.info(f"Scheduler started with {len(self._scheduler.get_jobs())} jobs")
+            logger.info("Scheduler started successfully", extra={
+                "operation": "scheduler_started",
+                "scheduled_jobs": len(self._scheduler.get_jobs()),
+                "scheduled_widgets": scheduled_count
+            })
+        except Exception as e:
+            logger.error("Failed to start scheduler", extra={
+                "operation": "scheduler_start_failed",
+                "error_type": type(e).__name__
+            }, exc_info=True)
+            raise
 
     async def shutdown(self):
         """Shutdown the scheduler."""
         if not self._is_running:
+            logger.debug("Shutdown requested but scheduler not running", extra={
+                "operation": "scheduler_shutdown",
+                "state": "not_running"
+            })
             return
 
-        logger.info("Shutting down scheduler...")
+        logger.info("Shutting down scheduler", extra={
+            "operation": "scheduler_shutdown_attempt",
+            "active_jobs": len(self._scheduler.get_jobs()) if self._scheduler else 0
+        })
 
-        if self._scheduler:
-            self._scheduler.shutdown(wait=True)
+        try:
+            if self._scheduler:
+                self._scheduler.shutdown(wait=True)
 
-        await cache_service.disconnect()
+            await cache_service.disconnect()
 
-        self._is_running = False
-        logger.info("Scheduler shutdown complete")
+            self._is_running = False
+            logger.info("Scheduler shutdown completed successfully", extra={
+                "operation": "scheduler_shutdown_complete"
+            })
+        except Exception as e:
+            logger.error("Error during scheduler shutdown", extra={
+                "operation": "scheduler_shutdown_error",
+                "error_type": type(e).__name__
+            }, exc_info=True)
+            raise
 
     def _schedule_widget_update(self, widget_id: str, interval_seconds: int):
         """
@@ -94,7 +138,11 @@ class SchedulerService:
             max_instances=1
         )
 
-        logger.info(f"Scheduled widget {widget_id} to update every {interval_seconds}s")
+        logger.info("Widget scheduled for periodic updates", extra={
+            "operation": "widget_scheduled",
+            "widget_id": widget_id,
+            "update_interval_seconds": interval_seconds
+        })
 
     def _schedule_auth_cleanup(self):
         """Schedule periodic cleanup of expired auth tokens and states."""
@@ -109,7 +157,10 @@ class SchedulerService:
             max_instances=1
         )
 
-        logger.info(f"Scheduled auth cleanup to run every {cleanup_interval}s")
+        logger.info("Auth cleanup scheduled", extra={
+            "operation": "auth_cleanup_scheduled",
+            "cleanup_interval_seconds": cleanup_interval
+        })
 
     async def _update_widget(self, widget_id: str):
         """
@@ -118,21 +169,36 @@ class SchedulerService:
         Args:
             widget_id: Widget ID to update
         """
-        logger.debug(f"Background update triggered for widget: {widget_id}")
+        logger.debug("Background update triggered for widget", extra={
+            "operation": "widget_update_started",
+            "widget_id": widget_id
+        })
 
         try:
             registry = get_widget_registry()
             widget = registry.get_widget(widget_id)
 
             if not widget:
-                logger.error(f"Widget {widget_id} not found in registry")
+                logger.error("Widget not found in registry", extra={
+                    "operation": "widget_update_failed",
+                    "widget_id": widget_id,
+                    "reason": "not_found"
+                })
                 return
 
             if not widget.enabled:
-                logger.debug(f"Widget {widget_id} is disabled, skipping update")
+                logger.debug("Widget is disabled, skipping update", extra={
+                    "operation": "widget_update_skipped",
+                    "widget_id": widget_id,
+                    "reason": "disabled"
+                })
                 return
 
             # Fetch fresh data
+            logger.debug("Fetching widget data", extra={
+                "operation": "widget_data_fetch",
+                "widget_id": widget_id
+            })
             data = await widget.get_data()
 
             # Cache the result if no error
@@ -142,16 +208,30 @@ class SchedulerService:
                     data,
                     ttl=widget.refresh_interval
                 )
-                logger.info(f"Widget {widget_id} updated successfully")
+                logger.info("Widget updated successfully", extra={
+                    "operation": "widget_updated",
+                    "widget_id": widget_id,
+                    "refresh_interval": widget.refresh_interval
+                })
             else:
-                logger.error(f"Error updating widget {widget_id}: {data.get('error')}")
+                logger.error("Error updating widget", extra={
+                    "operation": "widget_update_failed",
+                    "widget_id": widget_id,
+                    "error_message": data.get("error")
+                })
 
         except Exception as e:
-            logger.error(f"Failed to update widget {widget_id}: {str(e)}")
+            logger.error("Failed to update widget", extra={
+                "operation": "widget_update_error",
+                "widget_id": widget_id,
+                "error_type": type(e).__name__
+            }, exc_info=True)
 
     async def _cleanup_auth_data(self):
         """Clean up expired auth states and blacklisted tokens in background."""
-        logger.debug("Running auth cleanup task")
+        logger.debug("Starting auth data cleanup task", extra={
+            "operation": "auth_cleanup_started"
+        })
 
         try:
             from app.services.auth_service import auth_service
@@ -162,10 +242,15 @@ class SchedulerService:
             # Clean up expired blacklisted tokens
             auth_service._cleanup_expired_blacklist()
 
-            logger.info("Auth cleanup completed successfully")
+            logger.info("Auth cleanup completed successfully", extra={
+                "operation": "auth_cleanup_completed"
+            })
 
         except Exception as e:
-            logger.error(f"Failed to run auth cleanup: {str(e)}")
+            logger.error("Failed to run auth cleanup", extra={
+                "operation": "auth_cleanup_failed",
+                "error_type": type(e).__name__
+            }, exc_info=True)
 
     def is_running(self) -> bool:
         """Check if scheduler is running."""
