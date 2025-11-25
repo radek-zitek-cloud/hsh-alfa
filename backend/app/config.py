@@ -46,7 +46,7 @@ class Settings(BaseSettings):
     # CORS Configuration
     # Default to localhost for development. In production, set CORS_ORIGINS environment variable
     # to a comma-separated list of allowed origins (e.g., "https://home.example.com,http://localhost:3000")
-    CORS_ORIGINS: list = []
+    CORS_ORIGINS: list = Field(default_factory=list, exclude=True)
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
