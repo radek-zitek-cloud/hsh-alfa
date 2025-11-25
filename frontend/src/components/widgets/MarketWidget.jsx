@@ -49,8 +49,15 @@ const MarketWidget = ({ widgetId, config }) => {
   }
 
   const renderMarketItem = (item) => {
+    // Defensive checks to prevent crashes
+    if (!item || !item.symbol) {
+      return null
+    }
+
     const isPositive = item.change_percent && item.change_percent > 0
     const isNegative = item.change_percent && item.change_percent < 0
+    const price = item.price ?? 0
+    const currency = item.currency || 'USD'
 
     return (
       <div
@@ -62,7 +69,7 @@ const MarketWidget = ({ widgetId, config }) => {
           <span className="font-semibold text-[var(--text-primary)]">
             {item.symbol}
           </span>
-          {item.name !== item.symbol && (
+          {item.name && item.name !== item.symbol && (
             <span className="text-xs text-[var(--text-secondary)]">
               {item.name}
             </span>
@@ -72,17 +79,17 @@ const MarketWidget = ({ widgetId, config }) => {
         {/* Right: Price and Change */}
         <div className="flex flex-col items-end">
           <div className="font-mono text-[var(--text-primary)] font-semibold">
-            {item.price.toLocaleString(undefined, {
+            {price.toLocaleString(undefined, {
               minimumFractionDigits: 2,
-              maximumFractionDigits: item.price < 1 ? 6 : 2
+              maximumFractionDigits: price < 1 ? 6 : 2
             })}
             <span className="text-xs text-[var(--text-secondary)] ml-1">
-              {item.currency}
+              {currency}
             </span>
           </div>
 
           {/* Change indicator */}
-          {item.change_percent !== null && (
+          {item.change_percent !== null && item.change_percent !== undefined && (
             <div className={`flex items-center gap-1 text-sm ${
               isPositive ? 'text-green-500' :
               isNegative ? 'text-red-500' :
