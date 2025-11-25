@@ -7,6 +7,8 @@ from typing import Optional
 from pydantic import Field, field_validator
 from pydantic_settings import BaseSettings
 
+logger = logging.getLogger(__name__)
+
 
 class Settings(BaseSettings):
     """Application settings loaded from environment variables."""
@@ -51,14 +53,14 @@ class Settings(BaseSettings):
         # Parse CORS_ORIGINS from environment variable if provided
         cors_env = os.getenv("CORS_ORIGINS", "")
         if cors_env:
-            if cors_env == "*":
-                logging.warning("Wildcard CORS origins are dangerous and not allowed. Using localhost defaults instead.")
-                # Allow wildcard only if explicitly set
+            if cors_env.strip() == "*":
+                logger.warning("Wildcard CORS origins are dangerous and not allowed. Using localhost defaults instead.")
+                # Never allow wildcard - use localhost defaults instead
                 self.CORS_ORIGINS = [
-                "http://localhost:3000",
-                "http://localhost:5173",  # Vite dev server
-                "http://localhost:8080",  # Frontend container
-            ]
+                    "http://localhost:3000",
+                    "http://localhost:5173",  # Vite dev server
+                    "http://localhost:8080",  # Frontend container
+                ]
             else:
                 # Parse comma-separated list
                 self.CORS_ORIGINS = [
