@@ -3,6 +3,7 @@ import logging
 from typing import Dict, Type, List, Optional, Any
 import yaml
 import os
+import json
 
 from app.widgets.base_widget import BaseWidget
 from app.config import settings
@@ -101,9 +102,61 @@ class WidgetRegistry:
         """
         return self._widget_configs
 
+    async def load_config_from_db(self):
+        """
+        Load widget configuration from database.
+        """
+        try:
+            from app.services.database import AsyncSessionLocal
+            from app.models.widget import Widget
+            from sqlalchemy import select
+
+            async with AsyncSessionLocal() as session:
+                result = await session.execute(select(Widget).where(Widget.enabled == True))
+                widgets = result.scalars().all()
+
+                self._widget_configs = []
+
+                for widget in widgets:
+                    try:
+                        config_dict = json.loads(widget.config) if widget.config else {}
+                    except (json.JSONDecodeError, TypeError):
+                        config_dict = {}
+
+                    # Create widget config
+                    widget_config = {
+                        "id": widget.widget_id,
+                        "type": widget.widget_type,
+                        "enabled": widget.enabled,
+                        "position": {
+                            "row": widget.position_row,
+                            "col": widget.position_col,
+                            "width": widget.position_width,
+                            "height": widget.position_height,
+                        },
+                        "refresh_interval": widget.refresh_interval,
+                        "config": config_dict,
+                    }
+
+                    self._widget_configs.append(widget_config)
+
+                    # Create widget instance
+                    config = config_dict.copy()
+                    config["enabled"] = widget.enabled
+                    config["refresh_interval"] = widget.refresh_interval
+                    config["position"] = widget_config["position"]
+
+                    self.create_widget(widget.widget_id, widget.widget_type, config)
+
+                logger.info(f"Loaded {len(widgets)} widget configurations from database")
+
+        except Exception as e:
+            logger.error(f"Failed to load widget config from database: {str(e)}")
+            self._widget_configs = []
+
     def load_config(self, config_path: Optional[str] = None):
         """
-        Load widget configuration from YAML file.
+        Load widget configuration from YAML file (legacy support).
 
         Args:
             config_path: Path to configuration file
@@ -136,7 +189,7 @@ class WidgetRegistry:
 
                 self.create_widget(widget_id, widget_type, config)
 
-            logger.info(f"Loaded {len(widgets_config)} widget configurations")
+            logger.info(f"Loaded {len(widgets_config)} widget configurations from YAML")
 
         except Exception as e:
             logger.error(f"Failed to load widget config: {str(e)}")

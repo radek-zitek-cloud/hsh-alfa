@@ -42,6 +42,12 @@ export const widgetsApi = {
   getData: (id, forceRefresh = false) =>
     api.get(`/widgets/${id}/data`, { params: { force_refresh: forceRefresh } }),
 
+  create: (data) => api.post('/widgets/', data),
+
+  update: (id, data) => api.put(`/widgets/${id}`, data),
+
+  delete: (id) => api.delete(`/widgets/${id}`),
+
   refresh: (id) => api.post(`/widgets/${id}/refresh`),
 
   reloadConfig: () => api.post('/widgets/reload-config'),
