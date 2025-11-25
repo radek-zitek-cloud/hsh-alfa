@@ -67,7 +67,7 @@ const ExchangeRateWidget = ({ widgetId, config }) => {
               </div>
               <div className="text-right">
                 <div className="font-mono text-[var(--text-primary)]">
-                  {rate.rate.toFixed(4)}
+                  {rate.rate.toFixed(4)} / {rate.reverse_rate.toFixed(4)}
                 </div>
               </div>
             </div>

@@ -131,9 +131,11 @@ class ExchangeRateWidget(BaseWidget):
         for currency in target_currencies:
             if currency in all_rates:
                 rate_value = all_rates[currency]
+                reverse_rate = 1 / rate_value if rate_value != 0 else 0
                 rates.append({
                     "currency": currency,
                     "rate": round(rate_value, 4),
+                    "reverse_rate": round(reverse_rate, 4),
                     "formatted": f"1 {base_currency} = {rate_value:.4f} {currency}"
                 })
             else:
