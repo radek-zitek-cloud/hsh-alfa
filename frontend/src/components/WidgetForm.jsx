@@ -19,7 +19,6 @@ const WidgetForm = ({ widget, onSuccess, onCancel }) => {
 
   // Form state
   const [formData, setFormData] = useState({
-    id: widget?.id || '',
     type: widget?.type || 'weather',
     enabled: widget?.enabled !== false,
     position: {
@@ -79,7 +78,6 @@ const WidgetForm = ({ widget, onSuccess, onCancel }) => {
 
     // Validate form
     const newErrors = {}
-    if (!formData.id.trim()) newErrors.id = 'Widget ID is required'
     if (!formData.type) newErrors.type = 'Widget type is required'
     if (formData.refresh_interval < 60) newErrors.refresh_interval = 'Refresh interval must be at least 60 seconds'
 
@@ -124,22 +122,6 @@ const WidgetForm = ({ widget, onSuccess, onCancel }) => {
       )}
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        {/* Widget ID */}
-        <div>
-          <label className="block text-sm font-medium text-[var(--text-primary)] mb-2">
-            Widget ID *
-          </label>
-          <input
-            type="text"
-            value={formData.id}
-            onChange={(e) => handleInputChange('id', e.target.value)}
-            disabled={isEditMode}
-            className="w-full px-4 py-2 bg-[var(--bg-primary)] border border-[var(--border-color)] rounded-lg focus:ring-2 focus:ring-[var(--accent-color)] focus:border-transparent disabled:opacity-50"
-            placeholder="e.g., weather-ostrava"
-          />
-          {errors.id && <p className="text-red-500 text-sm mt-1">{errors.id}</p>}
-        </div>
-
         {/* Widget Type */}
         <div>
           <label className="block text-sm font-medium text-[var(--text-primary)] mb-2">

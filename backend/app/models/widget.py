@@ -5,6 +5,7 @@ from sqlalchemy import String, Integer, DateTime, Text, Boolean, JSON
 from sqlalchemy.orm import Mapped, mapped_column
 from pydantic import BaseModel, field_validator, Field
 import json
+import uuid
 
 from app.services.database import Base
 
@@ -62,25 +63,11 @@ class WidgetPosition(BaseModel):
 
 class WidgetCreate(BaseModel):
     """Schema for creating a widget."""
-    id: str = Field(min_length=1, max_length=255, description="Unique widget identifier")
     type: str = Field(min_length=1, max_length=100, description="Widget type (weather, exchange_rate, news, market)")
     enabled: bool = Field(default=True, description="Enable/disable widget")
     position: WidgetPosition
     refresh_interval: int = Field(ge=60, le=86400, description="Refresh interval in seconds (60-86400)")
     config: Dict[str, Any] = Field(default_factory=dict, description="Widget-specific configuration")
-
-    @field_validator('id')
-    @classmethod
-    def validate_id(cls, v: str) -> str:
-        """Validate widget ID format."""
-        if not v or len(v.strip()) == 0:
-            raise ValueError('Widget ID cannot be empty')
-        if len(v) > 255:
-            raise ValueError('Widget ID cannot exceed 255 characters')
-        # Check for valid characters (alphanumeric, hyphen, underscore)
-        if not all(c.isalnum() or c in '-_' for c in v):
-            raise ValueError('Widget ID can only contain alphanumeric characters, hyphens, and underscores')
-        return v
 
     @field_validator('type')
     @classmethod

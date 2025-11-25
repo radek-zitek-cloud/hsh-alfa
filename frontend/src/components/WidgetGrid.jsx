@@ -1,12 +1,14 @@
-import React, { useMemo } from 'react'
+import React, { useMemo, useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { widgetsApi, sectionsApi } from '../services/api'
-import { Loader } from 'lucide-react'
+import { Loader, Edit2, Trash2 } from 'lucide-react'
 import WeatherWidget from './widgets/WeatherWidget'
 import ExchangeRateWidget from './widgets/ExchangeRateWidget'
 import NewsWidget from './widgets/NewsWidget'
 import MarketWidget from './widgets/MarketWidget'
 import SectionHeader from './SectionHeader'
+import BookmarkModal from './BookmarkModal'
+import WidgetForm from './WidgetForm'
 
 // Map widget types to components
 const WIDGET_COMPONENTS = {
@@ -22,6 +24,100 @@ const WIDGET_TYPE_TO_SECTION = {
   exchange_rate: 'rates',
   market: 'markets',
   news: 'news',
+}
+
+// Widget Card wrapper with edit/delete buttons
+const WidgetCard = ({ widget, widthMultiple }) => {
+  const queryClient = useQueryClient()
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false)
+  const [isDeleting, setIsDeleting] = useState(false)
+
+  const WidgetComponent = WIDGET_COMPONENTS[widget.type]
+
+  const deleteMutation = useMutation({
+    mutationFn: () => widgetsApi.delete(widget.id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['widgets'] })
+    },
+    onError: (error) => {
+      console.error('Error deleting widget:', error)
+      alert('Failed to delete widget')
+    },
+    onSettled: () => {
+      setIsDeleting(false)
+    },
+  })
+
+  const handleEdit = (e) => {
+    e.stopPropagation()
+    setIsEditModalOpen(true)
+  }
+
+  const handleDelete = (e) => {
+    e.stopPropagation()
+    if (window.confirm('Are you sure you want to delete this widget?')) {
+      setIsDeleting(true)
+      deleteMutation.mutate()
+    }
+  }
+
+  if (!WidgetComponent) {
+    return (
+      <div className={`grid-span-${widthMultiple}`}>
+        <div className="widget-card">
+          <p className="text-[var(--text-secondary)]">
+            Unknown widget type: {widget.type}
+          </p>
+        </div>
+      </div>
+    )
+  }
+
+  return (
+    <>
+      <div className={`grid-span-${widthMultiple} relative group`}>
+        {/* Action Buttons */}
+        <div className="absolute top-2 right-2 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity z-10">
+          <button
+            onClick={handleEdit}
+            className="p-1.5 bg-[var(--bg-primary)] hover:bg-[var(--bg-secondary)] rounded border border-[var(--border-color)] shadow-sm"
+            aria-label="Edit widget"
+            title="Edit"
+          >
+            <Edit2 size={14} className="text-[var(--text-primary)]" />
+          </button>
+          <button
+            onClick={handleDelete}
+            disabled={isDeleting}
+            className="p-1.5 bg-[var(--bg-primary)] hover:bg-red-50 dark:hover:bg-red-900/20 rounded border border-[var(--border-color)] shadow-sm disabled:opacity-50"
+            aria-label="Delete widget"
+            title="Delete"
+          >
+            {isDeleting ? (
+              <Loader size={14} className="animate-spin text-red-500" />
+            ) : (
+              <Trash2 size={14} className="text-red-500" />
+            )}
+          </button>
+        </div>
+
+        <WidgetComponent widgetId={widget.id} config={widget.config} />
+      </div>
+
+      {/* Edit Modal */}
+      <BookmarkModal
+        isOpen={isEditModalOpen}
+        onClose={() => setIsEditModalOpen(false)}
+        title="Edit Widget"
+      >
+        <WidgetForm
+          widget={widget}
+          onSuccess={() => setIsEditModalOpen(false)}
+          onCancel={() => setIsEditModalOpen(false)}
+        />
+      </BookmarkModal>
+    </>
+  )
 }
 
 const WidgetGrid = () => {
@@ -171,25 +267,13 @@ const WidgetGrid = () => {
             />
             <div className="unified-grid">
               {sectionWidgets.map((widget) => {
-                const WidgetComponent = WIDGET_COMPONENTS[widget.type]
                 const widthMultiple = widget.position?.width || 1
-
-                if (!WidgetComponent) {
-                  return (
-                    <div key={widget.id} className={`grid-span-${widthMultiple}`}>
-                      <div className="widget-card">
-                        <p className="text-[var(--text-secondary)]">
-                          Unknown widget type: {widget.type}
-                        </p>
-                      </div>
-                    </div>
-                  )
-                }
-
                 return (
-                  <div key={widget.id} className={`grid-span-${widthMultiple}`}>
-                    <WidgetComponent widgetId={widget.id} config={widget.config} />
-                  </div>
+                  <WidgetCard
+                    key={widget.id}
+                    widget={widget}
+                    widthMultiple={widthMultiple}
+                  />
                 )
               })}
             </div>
