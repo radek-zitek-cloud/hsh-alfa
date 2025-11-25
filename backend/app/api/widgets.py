@@ -1,6 +1,7 @@
 """Widget API endpoints."""
 import logging
 import json
+import uuid
 from typing import Dict, Any, List
 from fastapi import APIRouter, HTTPException, Depends, Request
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -193,14 +194,8 @@ async def create_widget(
     Returns:
         Created widget configuration
     """
-    # Check if widget ID already exists
-    result = await db.execute(
-        select(Widget).where(Widget.widget_id == widget_data.id)
-    )
-    existing = result.scalar_one_or_none()
-
-    if existing:
-        raise HTTPException(status_code=409, detail=f"Widget with ID '{widget_data.id}' already exists")
+    # Generate a unique widget ID
+    widget_id = str(uuid.uuid4())
 
     # Validate widget type
     if widget_data.type not in registry.list_widget_types():
@@ -208,7 +203,7 @@ async def create_widget(
 
     # Create widget in database
     widget = Widget(
-        widget_id=widget_data.id,
+        widget_id=widget_id,
         widget_type=widget_data.type,
         enabled=widget_data.enabled,
         position_row=widget_data.position.row,
@@ -233,9 +228,9 @@ async def create_widget(
         "width": widget_data.position.width,
         "height": widget_data.position.height,
     }
-    registry.create_widget(widget_data.id, widget_data.type, config)
+    registry.create_widget(widget_id, widget_data.type, config)
 
-    logger.info(f"Created widget '{widget_data.id}'")
+    logger.info(f"Created widget '{widget_id}'")
 
     return WidgetResponse(**widget.to_dict())
 

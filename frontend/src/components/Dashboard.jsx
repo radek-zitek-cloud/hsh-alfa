@@ -1,15 +1,14 @@
 import React, { useState } from 'react'
-import { Sun, Moon, Plus, Settings } from 'lucide-react'
+import { Sun, Moon, Plus } from 'lucide-react'
 import BookmarkGrid from './BookmarkGrid'
 import WidgetGrid from './WidgetGrid'
 import BookmarkModal from './BookmarkModal'
 import BookmarkForm from './BookmarkForm'
-import WidgetConfigModal from './WidgetConfigModal'
-import WidgetList from './WidgetList'
+import WidgetForm from './WidgetForm'
 
 const Dashboard = ({ theme, toggleTheme }) => {
   const [isAddModalOpen, setIsAddModalOpen] = useState(false)
-  const [isWidgetConfigOpen, setIsWidgetConfigOpen] = useState(false)
+  const [isAddWidgetModalOpen, setIsAddWidgetModalOpen] = useState(false)
 
   return (
     <div className="min-h-screen p-4 md:p-6 lg:p-8">
@@ -51,11 +50,11 @@ const Dashboard = ({ theme, toggleTheme }) => {
             Widgets
           </h2>
           <button
-            onClick={() => setIsWidgetConfigOpen(true)}
-            className="flex items-center gap-2 px-4 py-2 bg-[var(--bg-secondary)] border border-[var(--border-color)] rounded-lg hover:bg-[var(--border-color)] transition-colors"
+            onClick={() => setIsAddWidgetModalOpen(true)}
+            className="flex items-center gap-2 px-4 py-2 bg-[var(--accent-color)] text-white rounded-lg hover:opacity-90 transition-opacity"
           >
-            <Settings size={18} />
-            Configure Widgets
+            <Plus size={18} />
+            Add Widget
           </button>
         </div>
         <WidgetGrid />
@@ -73,14 +72,17 @@ const Dashboard = ({ theme, toggleTheme }) => {
         />
       </BookmarkModal>
 
-      {/* Widget Configuration Modal */}
-      <WidgetConfigModal
-        isOpen={isWidgetConfigOpen}
-        onClose={() => setIsWidgetConfigOpen(false)}
-        title="Configure Widgets"
+      {/* Add Widget Modal */}
+      <BookmarkModal
+        isOpen={isAddWidgetModalOpen}
+        onClose={() => setIsAddWidgetModalOpen(false)}
+        title="Add New Widget"
       >
-        <WidgetList />
-      </WidgetConfigModal>
+        <WidgetForm
+          onSuccess={() => setIsAddWidgetModalOpen(false)}
+          onCancel={() => setIsAddWidgetModalOpen(false)}
+        />
+      </BookmarkModal>
     </div>
   )
 }
