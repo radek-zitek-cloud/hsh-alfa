@@ -64,6 +64,8 @@ const WidgetForm = ({ widget, onSuccess, onCancel }) => {
     mutationFn: ({ id, data }) => widgetsApi.update(id, data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['widgets'] })
+      // Also invalidate the specific widget's data query to refresh the display
+      queryClient.invalidateQueries({ queryKey: ['widget', widget.id] })
       onSuccess?.()
     },
     onError: (error) => {
