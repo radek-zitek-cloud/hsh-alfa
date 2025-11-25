@@ -15,10 +15,11 @@ export const authService = {
   /**
    * Handle OAuth2 callback with authorization code
    * @param {string} code - Authorization code from Google
+   * @param {string} state - State token for CSRF protection
    * @returns {Promise<Object>} Token response with user data
    */
-  async handleCallback(code) {
-    const response = await api.post('/auth/callback', { code });
+  async handleCallback(code, state) {
+    const response = await api.post('/auth/callback', { code, state });
     return response.data;
   },
 

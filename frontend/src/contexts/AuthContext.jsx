@@ -1,4 +1,4 @@
-import { createContext, useContext, useState, useEffect } from 'react';
+import { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import { authService } from '../services/authService';
 
 const AuthContext = createContext(null);
@@ -16,12 +16,7 @@ export const AuthProvider = ({ children }) => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
-  // Check if user is authenticated on mount
-  useEffect(() => {
-    checkAuth();
-  }, []);
-
-  const checkAuth = async () => {
+  const checkAuth = useCallback(async () => {
     try {
       setLoading(true);
       const token = authService.getToken();
@@ -41,11 +36,16 @@ export const AuthProvider = ({ children }) => {
       // Token might be expired or invalid
       authService.removeToken();
       setUser(null);
-      setError(err.message);
+      setError(err?.message || 'Authentication check failed');
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
+
+  // Check if user is authenticated on mount
+  useEffect(() => {
+    checkAuth();
+  }, [checkAuth]);
 
   const login = (token, userData) => {
     authService.setToken(token);
@@ -69,25 +69,25 @@ export const AuthProvider = ({ children }) => {
     try {
       return await authService.getGoogleAuthUrl();
     } catch (err) {
-      setError(err.message);
+      setError(err?.message || 'Failed to get authentication URL');
       throw err;
     }
   };
 
-  const handleCallback = async (code) => {
+  const handleCallback = useCallback(async (code, state) => {
     try {
       setLoading(true);
       setError(null);
-      const response = await authService.handleCallback(code);
+      const response = await authService.handleCallback(code, state);
       login(response.access_token, response.user);
       return response;
     } catch (err) {
-      setError(err.message);
+      setError(err?.message || 'Authentication failed');
       throw err;
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
 
   const value = {
     user,

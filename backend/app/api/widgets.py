@@ -12,6 +12,8 @@ from app.services.cache import get_cache_service, CacheService
 from app.services.rate_limit import limiter
 from app.services.database import get_db
 from app.models.widget import Widget, WidgetCreate, WidgetUpdate, WidgetResponse
+from app.models.user import User
+from app.api.dependencies import require_auth
 
 logger = logging.getLogger(__name__)
 
@@ -20,7 +22,8 @@ router = APIRouter()
 
 @router.get("/", response_model=List[WidgetResponse])
 async def list_widgets(
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(require_auth)
 ):
     """
     List all widget configurations from database.
@@ -57,7 +60,8 @@ async def list_widget_types(
 @router.get("/{widget_id}")
 async def get_widget_config(
     widget_id: str,
-    registry: WidgetRegistry = Depends(get_widget_registry)
+    registry: WidgetRegistry = Depends(get_widget_registry),
+    current_user: User = Depends(require_auth)
 ):
     """
     Get widget configuration.
@@ -89,7 +93,8 @@ async def get_widget_data(
     widget_id: str,
     force_refresh: bool = False,
     registry: WidgetRegistry = Depends(get_widget_registry),
-    cache: CacheService = Depends(get_cache_service)
+    cache: CacheService = Depends(get_cache_service),
+    current_user: User = Depends(require_auth)
 ):
     """
     Get widget data (with caching).
@@ -138,7 +143,8 @@ async def refresh_widget(
     request: Request,
     widget_id: str,
     registry: WidgetRegistry = Depends(get_widget_registry),
-    cache: CacheService = Depends(get_cache_service)
+    cache: CacheService = Depends(get_cache_service),
+    current_user: User = Depends(require_auth)
 ):
     """
     Force refresh widget data.
@@ -181,7 +187,8 @@ async def refresh_widget(
 async def create_widget(
     widget_data: WidgetCreate,
     db: AsyncSession = Depends(get_db),
-    registry: WidgetRegistry = Depends(get_widget_registry)
+    registry: WidgetRegistry = Depends(get_widget_registry),
+    current_user: User = Depends(require_auth)
 ):
     """
     Create a new widget.
@@ -241,7 +248,8 @@ async def update_widget(
     widget_data: WidgetUpdate,
     db: AsyncSession = Depends(get_db),
     registry: WidgetRegistry = Depends(get_widget_registry),
-    cache: CacheService = Depends(get_cache_service)
+    cache: CacheService = Depends(get_cache_service),
+    current_user: User = Depends(require_auth)
 ):
     """
     Update an existing widget.
@@ -312,7 +320,8 @@ async def delete_widget(
     widget_id: str,
     db: AsyncSession = Depends(get_db),
     registry: WidgetRegistry = Depends(get_widget_registry),
-    cache: CacheService = Depends(get_cache_service)
+    cache: CacheService = Depends(get_cache_service),
+    current_user: User = Depends(require_auth)
 ):
     """
     Delete a widget.
@@ -354,7 +363,8 @@ async def delete_widget(
 @router.post("/reload-config")
 async def reload_widget_config(
     registry: WidgetRegistry = Depends(get_widget_registry),
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(require_auth)
 ):
     """
     Reload widget configuration from database.
