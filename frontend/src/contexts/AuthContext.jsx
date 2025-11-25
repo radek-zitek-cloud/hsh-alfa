@@ -47,11 +47,11 @@ export const AuthProvider = ({ children }) => {
     checkAuth();
   }, [checkAuth]);
 
-  const login = (token, userData) => {
+  const login = useCallback((token, userData) => {
     authService.setToken(token);
     setUser(userData);
     setError(null);
-  };
+  }, []);
 
   const logout = async () => {
     try {
