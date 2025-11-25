@@ -43,9 +43,6 @@ class Settings(BaseSettings):
     # Frontend URL for redirects
     FRONTEND_URL: str = os.getenv("FRONTEND_URL", "http://localhost:3000")
 
-    # CORS Configuration - declared as field but computed in model_post_init
-    CORS_ORIGINS: list[str] = []
-
     def model_post_init(self, __context) -> None:
         """Initialize CORS_ORIGINS after model creation.
 
