@@ -1,4 +1,5 @@
 """Custom exceptions for the application."""
+
 from typing import Any, Optional
 
 
@@ -56,10 +57,7 @@ class ExternalServiceError(AppException):
             service: Name of the external service
             message: Error details
         """
-        super().__init__(
-            f"Failed to fetch data from {service}: {message}",
-            status_code=502
-        )
+        super().__init__(f"Failed to fetch data from {service}: {message}", status_code=502)
 
 
 class ConfigurationError(AppException):

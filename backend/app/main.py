@@ -1,4 +1,5 @@
 """Main FastAPI application entry point."""
+
 import time
 from datetime import datetime
 from contextlib import asynccontextmanager
@@ -55,7 +56,7 @@ class RequestLoggingMiddleware(BaseHTTPMiddleware):
                 "query_params": str(request.query_params),
                 "client_host": request.client.host if request.client else "unknown",
                 "user_agent": request.headers.get("user-agent", "unknown"),
-            }
+            },
         )
 
         # Process request
@@ -73,7 +74,7 @@ class RequestLoggingMiddleware(BaseHTTPMiddleware):
                     "error_message": str(e),
                     "duration": duration,
                 },
-                exc_info=True
+                exc_info=True,
             )
             raise
 
@@ -81,7 +82,11 @@ class RequestLoggingMiddleware(BaseHTTPMiddleware):
         duration = time.time() - start_time
 
         # Log response
-        log_level = "info" if response.status_code < 400 else "warning" if response.status_code < 500 else "error"
+        log_level = (
+            "info"
+            if response.status_code < 400
+            else "warning" if response.status_code < 500 else "error"
+        )
         getattr(logger, log_level)(
             "Request completed",
             extra={
@@ -90,7 +95,7 @@ class RequestLoggingMiddleware(BaseHTTPMiddleware):
                 "status_code": response.status_code,
                 "duration_seconds": round(duration, 3),
                 "response_time_ms": round(duration * 1000, 2),
-            }
+            },
         )
 
         return response
@@ -121,7 +126,7 @@ class RequestSizeLimitMiddleware(BaseHTTPMiddleware):
         Returns:
             HTTP response or 413 error if too large
         """
-        content_length = request.headers.get('content-length')
+        content_length = request.headers.get("content-length")
         if content_length and int(content_length) > self.max_size:
             logger = get_logger(__name__)
             logger.warning(
@@ -132,15 +137,15 @@ class RequestSizeLimitMiddleware(BaseHTTPMiddleware):
                     "content_length": int(content_length),
                     "max_size": self.max_size,
                     "client_host": request.client.host if request.client else "unknown",
-                }
+                },
             )
             return JSONResponse(
                 status_code=413,
                 content={
                     "error": "Request body too large",
                     "max_size": self.max_size,
-                    "timestamp": datetime.utcnow().isoformat()
-                }
+                    "timestamp": datetime.utcnow().isoformat(),
+                },
             )
         return await call_next(request)
 
@@ -156,7 +161,7 @@ async def lifespan(app: FastAPI):
             "version": settings.APP_VERSION,
             "debug_mode": settings.DEBUG,
             "log_level": settings.LOG_LEVEL,
-        }
+        },
     )
 
     # Initialize database
@@ -164,21 +169,19 @@ async def lifespan(app: FastAPI):
         await init_db()
         logger.info(
             "Database initialized",
-            extra={"database_url": settings.DATABASE_URL.split("://")[0] + "://***"}
+            extra={"database_url": settings.DATABASE_URL.split("://")[0] + "://***"},
         )
     except Exception as e:
-        logger.critical(
-            "Failed to initialize database",
-            extra={"error": str(e)},
-            exc_info=True
-        )
+        logger.critical("Failed to initialize database", extra={"error": str(e)}, exc_info=True)
         raise
 
     # Run migrations
     try:
         from app.services.database import engine
         from app.migrations.add_clicks_to_bookmarks import run_migration as run_clicks_migration
-        from app.migrations.create_preferences_table import run_migration as run_preferences_migration
+        from app.migrations.create_preferences_table import (
+            run_migration as run_preferences_migration,
+        )
         from app.migrations.create_users_table import run_migration as run_users_migration
 
         logger.debug("Running database migrations")
@@ -190,7 +193,7 @@ async def lifespan(app: FastAPI):
         logger.error(
             "Migration failed",
             extra={"error_type": type(e).__name__, "error": str(e)},
-            exc_info=True
+            exc_info=True,
         )
         # Continue startup even if migration fails
         # This prevents breaking the application if migration has issues
@@ -199,13 +202,12 @@ async def lifespan(app: FastAPI):
     async for db in get_db():
         try:
             from app.api.sections import initialize_default_sections
+
             await initialize_default_sections(db)
             logger.info("Default sections initialized")
         except Exception as e:
             logger.error(
-                "Failed to initialize default sections",
-                extra={"error": str(e)},
-                exc_info=True
+                "Failed to initialize default sections", extra={"error": str(e)}, exc_info=True
             )
         finally:
             await db.close()
@@ -216,15 +218,10 @@ async def lifespan(app: FastAPI):
         try:
             await scheduler_service.start()
             logger.info(
-                "Scheduler started",
-                extra={"scheduler_enabled": settings.SCHEDULER_ENABLED}
+                "Scheduler started", extra={"scheduler_enabled": settings.SCHEDULER_ENABLED}
             )
         except Exception as e:
-            logger.error(
-                "Failed to start scheduler",
-                extra={"error": str(e)},
-                exc_info=True
-            )
+            logger.error("Failed to start scheduler", extra={"error": str(e)}, exc_info=True)
 
     logger.info("Application startup completed successfully")
 
@@ -238,11 +235,7 @@ async def lifespan(app: FastAPI):
             await scheduler_service.shutdown()
             logger.info("Scheduler stopped successfully")
         except Exception as e:
-            logger.error(
-                "Error stopping scheduler",
-                extra={"error": str(e)},
-                exc_info=True
-            )
+            logger.error("Error stopping scheduler", extra={"error": str(e)}, exc_info=True)
 
     logger.info("Application shutdown completed")
 
@@ -252,12 +245,13 @@ app = FastAPI(
     title=settings.APP_NAME,
     version=settings.APP_VERSION,
     description="Self-hosted customizable browser homepage with widgets",
-    lifespan=lifespan
+    lifespan=lifespan,
 )
 
 # Configure rate limiting
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+
 
 # Add global exception handler for custom exceptions
 @app.exception_handler(AppException)
@@ -281,16 +275,17 @@ async def app_exception_handler(request: Request, exc: AppException):
             "status_code": exc.status_code,
             "error_message": exc.message,
             "exception_type": type(exc).__name__,
-        }
+        },
     )
     return JSONResponse(
         status_code=exc.status_code,
         content={
             "error": exc.message,
             "path": request.url.path,
-            "timestamp": datetime.utcnow().isoformat()
-        }
+            "timestamp": datetime.utcnow().isoformat(),
+        },
     )
+
 
 # Add middleware
 app.add_middleware(RequestLoggingMiddleware)
@@ -317,11 +312,7 @@ app.include_router(preferences.router, prefix="/api/preferences", tags=["prefere
 @app.get("/")
 async def root():
     """Root endpoint."""
-    return {
-        "name": settings.APP_NAME,
-        "version": settings.APP_VERSION,
-        "status": "running"
-    }
+    return {"name": settings.APP_NAME, "version": settings.APP_VERSION, "status": "running"}
 
 
 @app.get("/health")
@@ -332,9 +323,5 @@ async def health_check():
 
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run(
-        "app.main:app",
-        host="0.0.0.0",
-        port=8000,
-        reload=settings.DEBUG
-    )
+
+    uvicorn.run("app.main:app", host="0.0.0.0", port=8000, reload=settings.DEBUG)

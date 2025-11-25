@@ -4,6 +4,7 @@ This module configures structured JSON logging suitable for log aggregation
 tools like Promtail/Loki. All logs include contextual information and are
 formatted as JSON for easy parsing and filtering.
 """
+
 import logging
 import sys
 from typing import Any, Dict
@@ -15,10 +16,7 @@ class CustomJsonFormatter(jsonlogger.JsonFormatter):
     """Custom JSON formatter with additional context fields."""
 
     def add_fields(
-        self,
-        log_record: Dict[str, Any],
-        record: logging.LogRecord,
-        message_dict: Dict[str, Any]
+        self, log_record: Dict[str, Any], record: logging.LogRecord, message_dict: Dict[str, Any]
     ) -> None:
         """Add custom fields to log records.
 
@@ -30,20 +28,20 @@ class CustomJsonFormatter(jsonlogger.JsonFormatter):
         super().add_fields(log_record, record, message_dict)
 
         # Add standard fields
-        log_record['timestamp'] = self.formatTime(record, self.datefmt)
-        log_record['level'] = record.levelname
-        log_record['logger'] = record.name
-        log_record['module'] = record.module
-        log_record['function'] = record.funcName
-        log_record['line'] = record.lineno
+        log_record["timestamp"] = self.formatTime(record, self.datefmt)
+        log_record["level"] = record.levelname
+        log_record["logger"] = record.name
+        log_record["module"] = record.module
+        log_record["function"] = record.funcName
+        log_record["line"] = record.lineno
 
         # Add process/thread info for debugging
-        log_record['process_id'] = record.process
-        log_record['thread_id'] = record.thread
+        log_record["process_id"] = record.process
+        log_record["thread_id"] = record.thread
 
         # Include exception info if present
         if record.exc_info:
-            log_record['exception'] = self.formatException(record.exc_info)
+            log_record["exception"] = self.formatException(record.exc_info)
 
 
 def setup_logging(log_level: str = "INFO") -> None:
@@ -60,8 +58,7 @@ def setup_logging(log_level: str = "INFO") -> None:
 
     # Create JSON formatter
     formatter = CustomJsonFormatter(
-        '%(timestamp)s %(level)s %(logger)s %(message)s',
-        datefmt='%Y-%m-%dT%H:%M:%S.%fZ'
+        "%(timestamp)s %(level)s %(logger)s %(message)s", datefmt="%Y-%m-%dT%H:%M:%S.%fZ"
     )
 
     # Configure root logger
@@ -87,11 +84,7 @@ def setup_logging(log_level: str = "INFO") -> None:
     # Log configuration completion
     root_logger.info(
         "Structured logging configured",
-        extra={
-            "log_level": log_level,
-            "formatter": "json",
-            "output": "stdout"
-        }
+        extra={"log_level": log_level, "formatter": "json", "output": "stdout"},
     )
 
 

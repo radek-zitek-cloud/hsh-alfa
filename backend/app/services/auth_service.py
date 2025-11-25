@@ -1,4 +1,5 @@
 """Authentication service for OAuth2 and JWT handling."""
+
 import hashlib
 import secrets
 import threading
@@ -53,26 +54,29 @@ class AuthService:
     def __init__(self):
         """Initialize auth service."""
         if not settings.JWT_SECRET_KEY:
-            logger.warning("JWT_SECRET_KEY not set, using SECRET_KEY as fallback", extra={
-                "operation": "auth_init",
-                "config_issue": "jwt_secret_missing"
-            })
+            logger.warning(
+                "JWT_SECRET_KEY not set, using SECRET_KEY as fallback",
+                extra={"operation": "auth_init", "config_issue": "jwt_secret_missing"},
+            )
             self.jwt_secret = settings.SECRET_KEY
         else:
             self.jwt_secret = settings.JWT_SECRET_KEY
 
         if not self.jwt_secret:
-            logger.error("No JWT secret configured", extra={
-                "operation": "auth_init_failed",
-                "error": "no_secret_configured"
-            })
+            logger.error(
+                "No JWT secret configured",
+                extra={"operation": "auth_init_failed", "error": "no_secret_configured"},
+            )
             raise ValueError("JWT_SECRET_KEY or SECRET_KEY must be set in environment")
 
-        logger.debug("Auth service initialized", extra={
-            "operation": "auth_init",
-            "jwt_algorithm": settings.JWT_ALGORITHM,
-            "expiration_hours": settings.JWT_EXPIRATION_HOURS
-        })
+        logger.debug(
+            "Auth service initialized",
+            extra={
+                "operation": "auth_init",
+                "jwt_algorithm": settings.JWT_ALGORITHM,
+                "expiration_hours": settings.JWT_EXPIRATION_HOURS,
+            },
+        )
 
     def generate_state_token(self) -> str:
         """Generate a secure random state token for CSRF protection.
@@ -85,11 +89,14 @@ class AuthService:
         expiration = datetime.now(timezone.utc).timestamp() + 600
         with self._state_lock:
             self._state_store[state] = expiration
-        logger.debug("OAuth state token generated", extra={
-            "operation": "state_token_generated",
-            "expiration_seconds": 600,
-            "state_store_size": len(self._state_store)
-        })
+        logger.debug(
+            "OAuth state token generated",
+            extra={
+                "operation": "state_token_generated",
+                "expiration_seconds": 600,
+                "state_store_size": len(self._state_store),
+            },
+        )
         return state
 
     def validate_state_token(self, state: str) -> bool:
@@ -103,10 +110,13 @@ class AuthService:
         """
         with self._state_lock:
             if not state or state not in self._state_store:
-                logger.warning("Invalid or missing OAuth state token", extra={
-                    "operation": "state_token_validation_failed",
-                    "reason": "token_not_found"
-                })
+                logger.warning(
+                    "Invalid or missing OAuth state token",
+                    extra={
+                        "operation": "state_token_validation_failed",
+                        "reason": "token_not_found",
+                    },
+                )
                 return False
 
             expiration = self._state_store[state]
@@ -115,35 +125,36 @@ class AuthService:
             # Check if expired
             if now > expiration:
                 del self._state_store[state]
-                logger.warning("OAuth state token expired", extra={
-                    "operation": "state_token_validation_failed",
-                    "reason": "token_expired"
-                })
+                logger.warning(
+                    "OAuth state token expired",
+                    extra={"operation": "state_token_validation_failed", "reason": "token_expired"},
+                )
                 return False
 
             # Valid token - remove it (one-time use)
             del self._state_store[state]
-            logger.debug("OAuth state token validated successfully", extra={
-                "operation": "state_token_validated"
-            })
+            logger.debug(
+                "OAuth state token validated successfully",
+                extra={"operation": "state_token_validated"},
+            )
             return True
 
     def _cleanup_expired_states(self):
         """Clean up expired state tokens from store."""
         now = datetime.now(timezone.utc).timestamp()
         with self._state_lock:
-            expired_states = [
-                state for state, exp in self._state_store.items()
-                if now > exp
-            ]
+            expired_states = [state for state, exp in self._state_store.items() if now > exp]
             for state in expired_states:
                 del self._state_store[state]
             if expired_states:
-                logger.debug("Expired state tokens cleaned up", extra={
-                    "operation": "state_cleanup",
-                    "cleaned_count": len(expired_states),
-                    "remaining_states": len(self._state_store)
-                })
+                logger.debug(
+                    "Expired state tokens cleaned up",
+                    extra={
+                        "operation": "state_cleanup",
+                        "cleaned_count": len(expired_states),
+                        "remaining_states": len(self._state_store),
+                    },
+                )
 
     def create_access_token(self, data: Dict[str, Any]) -> str:
         """Create JWT access token with unique identifier.
@@ -158,23 +169,18 @@ class AuthService:
         expire = datetime.now(timezone.utc) + timedelta(hours=settings.JWT_EXPIRATION_HOURS)
         # Add unique identifier for token blacklisting
         jti = secrets.token_urlsafe(16)
-        to_encode.update({
-            "exp": expire,
-            "jti": jti,
-            "iat": datetime.now(timezone.utc).timestamp()
-        })
+        to_encode.update({"exp": expire, "jti": jti, "iat": datetime.now(timezone.utc).timestamp()})
 
-        encoded_jwt = jwt.encode(
-            to_encode,
-            self.jwt_secret,
-            algorithm=settings.JWT_ALGORITHM
+        encoded_jwt = jwt.encode(to_encode, self.jwt_secret, algorithm=settings.JWT_ALGORITHM)
+        logger.debug(
+            "JWT access token created",
+            extra={
+                "operation": "token_created",
+                "jti": jti,
+                "expiration_hours": settings.JWT_EXPIRATION_HOURS,
+                "subject": data.get("sub", "unknown"),
+            },
         )
-        logger.debug("JWT access token created", extra={
-            "operation": "token_created",
-            "jti": jti,
-            "expiration_hours": settings.JWT_EXPIRATION_HOURS,
-            "subject": data.get("sub", "unknown")
-        })
         return encoded_jwt
 
     def verify_token(self, token: str) -> Optional[Dict[str, Any]]:
@@ -187,35 +193,40 @@ class AuthService:
             Decoded token payload or None if invalid or blacklisted
         """
         try:
-            payload = jwt.decode(
-                token,
-                self.jwt_secret,
-                algorithms=[settings.JWT_ALGORITHM]
-            )
+            payload = jwt.decode(token, self.jwt_secret, algorithms=[settings.JWT_ALGORITHM])
 
             # Check if token is blacklisted
             jti = payload.get("jti")
             if jti and self.is_token_blacklisted(jti):
-                logger.warning("Attempted use of blacklisted token", extra={
-                    "operation": "token_verification_failed",
-                    "reason": "token_blacklisted",
-                    "jti": jti,
-                    "subject": payload.get("sub", "unknown")
-                })
+                logger.warning(
+                    "Attempted use of blacklisted token",
+                    extra={
+                        "operation": "token_verification_failed",
+                        "reason": "token_blacklisted",
+                        "jti": jti,
+                        "subject": payload.get("sub", "unknown"),
+                    },
+                )
                 return None
 
-            logger.debug("JWT token verified successfully", extra={
-                "operation": "token_verified",
-                "jti": jti,
-                "subject": payload.get("sub", "unknown")
-            })
+            logger.debug(
+                "JWT token verified successfully",
+                extra={
+                    "operation": "token_verified",
+                    "jti": jti,
+                    "subject": payload.get("sub", "unknown"),
+                },
+            )
             return payload
         except JWTError as e:
-            logger.warning("JWT verification failed", extra={
-                "operation": "token_verification_failed",
-                "reason": "invalid_jwt",
-                "error_type": type(e).__name__
-            })
+            logger.warning(
+                "JWT verification failed",
+                extra={
+                    "operation": "token_verification_failed",
+                    "reason": "invalid_jwt",
+                    "error_type": type(e).__name__,
+                },
+            )
             return None
 
     def blacklist_token(self, token: str) -> bool:
@@ -232,34 +243,41 @@ class AuthService:
                 token,
                 self.jwt_secret,
                 algorithms=[settings.JWT_ALGORITHM],
-                options={"verify_exp": False}  # Allow decoding expired tokens
+                options={"verify_exp": False},  # Allow decoding expired tokens
             )
 
             jti = payload.get("jti")
             exp = payload.get("exp")
 
             if not jti or not exp:
-                logger.warning("Cannot blacklist token - missing jti or exp", extra={
-                    "operation": "token_blacklist_failed",
-                    "reason": "missing_claims",
-                    "subject": payload.get("sub", "unknown")
-                })
+                logger.warning(
+                    "Cannot blacklist token - missing jti or exp",
+                    extra={
+                        "operation": "token_blacklist_failed",
+                        "reason": "missing_claims",
+                        "subject": payload.get("sub", "unknown"),
+                    },
+                )
                 return False
 
             # Store until token expiration
             with self._blacklist_lock:
                 self._token_blacklist[jti] = float(exp)
-            logger.info("Token blacklisted for logout", extra={
-                "operation": "token_blacklisted",
-                "jti": jti,
-                "subject": payload.get("sub", "unknown")
-            })
+            logger.info(
+                "Token blacklisted for logout",
+                extra={
+                    "operation": "token_blacklisted",
+                    "jti": jti,
+                    "subject": payload.get("sub", "unknown"),
+                },
+            )
             return True
         except JWTError as e:
-            logger.error("Failed to blacklist token", extra={
-                "operation": "token_blacklist_failed",
-                "error_type": type(e).__name__
-            }, exc_info=True)
+            logger.error(
+                "Failed to blacklist token",
+                extra={"operation": "token_blacklist_failed", "error_type": type(e).__name__},
+                exc_info=True,
+            )
             return False
 
     def is_token_blacklisted(self, jti: str) -> bool:
@@ -290,18 +308,18 @@ class AuthService:
         """Clean up expired tokens from blacklist."""
         now = datetime.now(timezone.utc).timestamp()
         with self._blacklist_lock:
-            expired_tokens = [
-                jti for jti, exp in self._token_blacklist.items()
-                if now > exp
-            ]
+            expired_tokens = [jti for jti, exp in self._token_blacklist.items() if now > exp]
             for jti in expired_tokens:
                 del self._token_blacklist[jti]
             if expired_tokens:
-                logger.debug("Expired blacklisted tokens cleaned up", extra={
-                    "operation": "blacklist_cleanup",
-                    "cleaned_count": len(expired_tokens),
-                    "remaining_blacklisted": len(self._token_blacklist)
-                })
+                logger.debug(
+                    "Expired blacklisted tokens cleaned up",
+                    extra={
+                        "operation": "blacklist_cleanup",
+                        "cleaned_count": len(expired_tokens),
+                        "remaining_blacklisted": len(self._token_blacklist),
+                    },
+                )
 
     async def exchange_code_for_token(self, code: str) -> Optional[str]:
         """Exchange authorization code for access token.
@@ -313,10 +331,13 @@ class AuthService:
             Access token or None if exchange failed
         """
         try:
-            logger.debug("Exchanging authorization code for token", extra={
-                "operation": "oauth_code_exchange_attempt",
-                "redirect_uri": settings.GOOGLE_REDIRECT_URI
-            })
+            logger.debug(
+                "Exchanging authorization code for token",
+                extra={
+                    "operation": "oauth_code_exchange_attempt",
+                    "redirect_uri": settings.GOOGLE_REDIRECT_URI,
+                },
+            )
             async with httpx.AsyncClient(timeout=GOOGLE_API_TIMEOUT) as client:
                 response = await client.post(
                     GOOGLE_TOKEN_URL,
@@ -326,20 +347,24 @@ class AuthService:
                         "client_secret": settings.GOOGLE_CLIENT_SECRET,
                         "redirect_uri": settings.GOOGLE_REDIRECT_URI,
                         "grant_type": "authorization_code",
-                    }
+                    },
                 )
                 response.raise_for_status()
                 token_data = response.json()
-                logger.info("Authorization code exchanged for token successfully", extra={
-                    "operation": "oauth_code_exchanged",
-                    "token_type": token_data.get("token_type", "unknown")
-                })
+                logger.info(
+                    "Authorization code exchanged for token successfully",
+                    extra={
+                        "operation": "oauth_code_exchanged",
+                        "token_type": token_data.get("token_type", "unknown"),
+                    },
+                )
                 return token_data.get("access_token")
         except httpx.HTTPError as e:
-            logger.error("Failed to exchange code for token", extra={
-                "operation": "oauth_code_exchange_failed",
-                "error_type": type(e).__name__
-            }, exc_info=True)
+            logger.error(
+                "Failed to exchange code for token",
+                extra={"operation": "oauth_code_exchange_failed", "error_type": type(e).__name__},
+                exc_info=True,
+            )
             return None
 
     async def get_google_user_info(self, access_token: str) -> Optional[Dict[str, Any]]:
@@ -352,32 +377,33 @@ class AuthService:
             User info dict or None if request failed
         """
         try:
-            logger.debug("Fetching Google user info", extra={
-                "operation": "oauth_userinfo_fetch_attempt"
-            })
+            logger.debug(
+                "Fetching Google user info", extra={"operation": "oauth_userinfo_fetch_attempt"}
+            )
             async with httpx.AsyncClient(timeout=GOOGLE_API_TIMEOUT) as client:
                 response = await client.get(
-                    GOOGLE_USERINFO_URL,
-                    headers={"Authorization": f"Bearer {access_token}"}
+                    GOOGLE_USERINFO_URL, headers={"Authorization": f"Bearer {access_token}"}
                 )
                 response.raise_for_status()
                 user_info = response.json()
-                logger.info("Google user info retrieved successfully", extra={
-                    "operation": "oauth_userinfo_fetched",
-                    "user_email": mask_email(user_info.get("email", ""))
-                })
+                logger.info(
+                    "Google user info retrieved successfully",
+                    extra={
+                        "operation": "oauth_userinfo_fetched",
+                        "user_email": mask_email(user_info.get("email", "")),
+                    },
+                )
                 return user_info
         except httpx.HTTPError as e:
-            logger.error("Failed to get user info from Google", extra={
-                "operation": "oauth_userinfo_fetch_failed",
-                "error_type": type(e).__name__
-            }, exc_info=True)
+            logger.error(
+                "Failed to get user info from Google",
+                extra={"operation": "oauth_userinfo_fetch_failed", "error_type": type(e).__name__},
+                exc_info=True,
+            )
             return None
 
     async def get_or_create_user(
-        self,
-        db: AsyncSession,
-        google_user_info: Dict[str, Any]
+        self, db: AsyncSession, google_user_info: Dict[str, Any]
     ) -> Optional[User]:
         """Get existing user or create new one from Google user info.
 
@@ -392,16 +418,14 @@ class AuthService:
         email = google_user_info.get("email")
 
         if not google_id or not email:
-            logger.error("Missing google_id or email in user info", extra={
-                "operation": "user_creation_failed",
-                "reason": "missing_claims"
-            })
+            logger.error(
+                "Missing google_id or email in user info",
+                extra={"operation": "user_creation_failed", "reason": "missing_claims"},
+            )
             return None
 
         # Try to find existing user by google_id
-        result = await db.execute(
-            select(User).where(User.google_id == google_id)
-        )
+        result = await db.execute(select(User).where(User.google_id == google_id))
         user = result.scalar_one_or_none()
 
         if user:
@@ -413,12 +437,15 @@ class AuthService:
             user.email = email
             await db.commit()
             await db.refresh(user)
-            logger.info("Existing user logged in", extra={
-                "operation": "user_login",
-                "user_id": user.id,
-                "user_email": mask_email(email),
-                "action": "login"
-            })
+            logger.info(
+                "Existing user logged in",
+                extra={
+                    "operation": "user_login",
+                    "user_id": user.id,
+                    "user_email": mask_email(email),
+                    "action": "login",
+                },
+            )
             return user
 
         # Create new user
@@ -427,7 +454,7 @@ class AuthService:
                 email=email,
                 google_id=google_id,
                 name=google_user_info.get("name"),
-                picture=google_user_info.get("picture")
+                picture=google_user_info.get("picture"),
             )
 
             user = User(
@@ -435,25 +462,32 @@ class AuthService:
                 google_id=user_create.google_id,
                 name=user_create.name,
                 picture=user_create.picture,
-                last_login=datetime.now(timezone.utc)
+                last_login=datetime.now(timezone.utc),
             )
 
             db.add(user)
             await db.commit()
             await db.refresh(user)
-            logger.info("New user created", extra={
-                "operation": "user_creation",
-                "user_id": user.id,
-                "user_email": mask_email(email),
-                "action": "signup"
-            })
+            logger.info(
+                "New user created",
+                extra={
+                    "operation": "user_creation",
+                    "user_id": user.id,
+                    "user_email": mask_email(email),
+                    "action": "signup",
+                },
+            )
             return user
         except Exception as e:
-            logger.error("Failed to create user in database", extra={
-                "operation": "user_creation_failed",
-                "user_email": mask_email(email),
-                "error_type": type(e).__name__
-            }, exc_info=True)
+            logger.error(
+                "Failed to create user in database",
+                extra={
+                    "operation": "user_creation_failed",
+                    "user_email": mask_email(email),
+                    "error_type": type(e).__name__,
+                },
+                exc_info=True,
+            )
             await db.rollback()
             return None
 
@@ -467,9 +501,7 @@ class AuthService:
         Returns:
             User object or None if not found
         """
-        result = await db.execute(
-            select(User).where(User.id == user_id)
-        )
+        result = await db.execute(select(User).where(User.id == user_id))
         return result.scalar_one_or_none()
 
     async def authenticate_user(self, db: AsyncSession, code: str) -> Optional[User]:
