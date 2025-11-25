@@ -32,7 +32,7 @@ const WidgetGrid = () => {
     queryKey: ['widgets'],
     queryFn: async () => {
       const response = await widgetsApi.getAll()
-      return response.data.widgets
+      return response.data
     },
   })
 
