@@ -25,6 +25,7 @@ ERROR_USER_NOT_FOUND = "User not found"
 ERROR_USER_INACTIVE = "User account is inactive"
 ERROR_AUTH_REQUIRED = "Authentication required"
 ERROR_GOOGLE_OAUTH_NOT_CONFIGURED = "Google OAuth2 is not configured"
+ERROR_INVALID_REQUEST = "Invalid request parameters"
 
 # Cache Keys
 CACHE_KEY_PREFIX_WIDGET = "widget:"
@@ -35,3 +36,4 @@ RATE_LIMIT_WIDGET_DATA = "60/minute"
 RATE_LIMIT_WIDGET_REFRESH = "10/minute"
 RATE_LIMIT_AUTH_CALLBACK = "10/minute"
 RATE_LIMIT_AUTH_LOGIN = "5/minute"
+RATE_LIMIT_AUTH_ME = "30/minute"

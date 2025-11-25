@@ -1,13 +1,15 @@
 """API dependencies for authentication and authorization."""
+import logging
 from typing import Optional
-from fastapi import Depends, HTTPException, status
+from fastapi import Depends, HTTPException, status, Request
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.user import User
-from app.services.auth_service import auth_service
+from app.services.auth_service import auth_service, mask_email
 from app.services.database import get_db
 
+logger = logging.getLogger(__name__)
 security = HTTPBearer(auto_error=False)
 
 
@@ -35,6 +37,7 @@ async def get_current_user(
     # Verify token
     payload = auth_service.verify_token(token)
     if not payload:
+        logger.warning("Failed token verification - invalid or blacklisted token")
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid authentication credentials",

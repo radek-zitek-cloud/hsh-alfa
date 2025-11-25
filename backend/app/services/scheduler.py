@@ -50,6 +50,9 @@ class SchedulerService:
             # Schedule widget update
             self._schedule_widget_update(widget_id, widget.refresh_interval)
 
+        # Schedule auth cleanup tasks
+        self._schedule_auth_cleanup()
+
         # Start scheduler
         self._scheduler.start()
         self._is_running = True
@@ -93,6 +96,21 @@ class SchedulerService:
 
         logger.info(f"Scheduled widget {widget_id} to update every {interval_seconds}s")
 
+    def _schedule_auth_cleanup(self):
+        """Schedule periodic cleanup of expired auth tokens and states."""
+        # Run cleanup every 5 minutes (300 seconds)
+        cleanup_interval = 300
+
+        self._scheduler.add_job(
+            self._cleanup_auth_data,
+            trigger=IntervalTrigger(seconds=cleanup_interval),
+            id="auth_cleanup",
+            replace_existing=True,
+            max_instances=1
+        )
+
+        logger.info(f"Scheduled auth cleanup to run every {cleanup_interval}s")
+
     async def _update_widget(self, widget_id: str):
         """
         Update widget data in background.
@@ -130,6 +148,24 @@ class SchedulerService:
 
         except Exception as e:
             logger.error(f"Failed to update widget {widget_id}: {str(e)}")
+
+    async def _cleanup_auth_data(self):
+        """Clean up expired auth states and blacklisted tokens in background."""
+        logger.debug("Running auth cleanup task")
+
+        try:
+            from app.services.auth_service import auth_service
+
+            # Clean up expired state tokens
+            auth_service._cleanup_expired_states()
+
+            # Clean up expired blacklisted tokens
+            auth_service._cleanup_expired_blacklist()
+
+            logger.info("Auth cleanup completed successfully")
+
+        except Exception as e:
+            logger.error(f"Failed to run auth cleanup: {str(e)}")
 
     def is_running(self) -> bool:
         """Check if scheduler is running."""
