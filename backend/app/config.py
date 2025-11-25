@@ -43,14 +43,11 @@ class Settings(BaseSettings):
     # Frontend URL for redirects
     FRONTEND_URL: str = os.getenv("FRONTEND_URL", "http://localhost:3000")
 
-    # CORS Configuration
-    # Default to localhost for development. In production, set CORS_ORIGINS environment variable
-    # to a comma-separated list of allowed origins (e.g., "https://home.example.com,http://localhost:3000")
-    CORS_ORIGINS: list = Field(default_factory=list, exclude=True)
-
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
-        # Parse CORS_ORIGINS from environment variable if provided
+        # CORS Configuration - handled manually to avoid Pydantic parsing issues
+        # Default to localhost for development. In production, set CORS_ORIGINS environment variable
+        # to a comma-separated list of allowed origins (e.g., "https://home.example.com,http://localhost:3000")
         cors_env = os.getenv("CORS_ORIGINS", "")
         if cors_env:
             if cors_env.strip() == "*":
