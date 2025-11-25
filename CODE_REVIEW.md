@@ -1,924 +1,995 @@
-# Code Review Report: Home Sweet Home
+# Code Review - Security, Quality, and Test Coverage
 
-**Date**: November 24, 2025
-**Reviewer**: Code Review System
-**Scope**: Full codebase analysis (backend & frontend)
-**Focus Areas**: Code quality, readability, security, potential bugs, and architecture
-
----
-
-## 🎉 CRITICAL ISSUES RESOLVED (November 24, 2025)
-
-**All critical security issues identified in this review have been successfully addressed:**
-
-✅ **#1 - Hardcoded Secret Key**: RESOLVED - Removed default value, added validation, updated documentation
-✅ **#2 - API Rate Limiting**: RESOLVED - Implemented slowapi with appropriate limits on all endpoints
-✅ **#3 - Vulnerable Dependencies**: RESOLVED - Updated all packages, removed deprecated asyncio
-✅ **#4 - Automated Test Suite**: RESOLVED - Created complete test infrastructure with 22 test cases
-
-**See detailed resolution information in ACTION_ITEMS.md "RESOLVED ISSUES" section.**
+**Date:** 2025-11-25
+**Project:** Home Sweet Home (HSH-Alfa)
+**Reviewer:** Automated Security Analysis
+**Scope:** Complete codebase review focusing on security, code quality, and test coverage
 
 ---
 
 ## Executive Summary
 
-The **Home Sweet Home** application is a well-structured self-hosted browser homepage with a clean separation between backend (Python/FastAPI) and frontend (React). The codebase demonstrates solid architectural patterns, good use of modern frameworks, and reasonable security practices. However, there are several areas for improvement in code quality, security hardening, testing infrastructure, and error handling.
+**Technology Stack:** Python FastAPI backend, React/JavaScript frontend, SQLite database, Redis caching
+**Overall Security Posture:** MODERATE with several areas requiring immediate attention
+**Code Quality:** GOOD structure with room for improvements in consistency and type safety
+**Test Coverage:** LOW - significant gaps in security and integration testing
 
-**Overall Assessment**: **Good** (7/10)
+### Issue Summary
 
-### Key Strengths
-✅ Clean architecture with proper separation of concerns  
-✅ Well-documented API endpoints and configuration  
-✅ Good use of async patterns throughout  
-✅ Security-conscious SSRF protection in favicon service  
-✅ Docker multi-stage builds for optimization  
-✅ Proper use of dependency injection  
-
-### Critical Issues to Address
-✅ ~~**No automated tests** (unit, integration, or E2E)~~ - **RESOLVED**
-✅ ~~**Hardcoded default secret key** in config.py~~ - **RESOLVED**
-❌ **Missing input validation** in several endpoints
-✅ ~~**No rate limiting** on API endpoints~~ - **RESOLVED**
-✅ ~~**Outdated dependencies** with known vulnerabilities~~ - **RESOLVED**
-❌ **Some overly long files** affecting maintainability  
+| Severity | Count | Status |
+|----------|-------|--------|
+| Critical | 3 | Requires immediate action |
+| High | 5 | Address before production |
+| Medium | 8 | Address within sprint |
+| Low | 6 | Technical debt backlog |
 
 ---
 
-## 1. Security Analysis
+## 1. Critical Security Vulnerabilities
 
-### 1.1 Critical Security Issues
+### 1.1 Missing Authentication/Authorization Mechanisms
+**Severity:** CRITICAL
+**Impact:** Entire application is unprotected. Anyone with network access can create, modify, or delete all data.
 
-#### ✅ ~~🔴 **CRITICAL: Hardcoded Secret Key**~~ - **RESOLVED**
-**Location**: `backend/app/config.py:24`
-**Status**: ✅ FIXED (November 24, 2025)
+**Affected Files:**
+- `/backend/app/api/bookmarks.py`
+- `/backend/app/api/widgets.py`
+- `/backend/app/api/sections.py`
+- `/backend/app/api/preferences.py`
+
+**Issue:**
+- No authentication (JWT, API keys, or session-based)
+- No authorization checks on any endpoints
+- All CRUD operations fully accessible without credentials
+
+**Current Code:**
 ```python
-SECRET_KEY: str = "change-this-in-production"
+@router.post("/", response_model=BookmarkResponse, status_code=201)
+async def create_bookmark(
+    bookmark_data: BookmarkCreate,
+    db: AsyncSession = Depends(get_db)
+):
+    # ❌ No authentication required
 ```
 
-**Impact**: High  
-**Risk**: Default secret key could be used in production, compromising session security
+**Severity Justification:** While this is self-hosted, the threat model depends on network isolation. If exposed to untrusted networks, attackers can manipulate all data.
 
-**Recommendation**:
-- Remove the default value entirely
-- Make SECRET_KEY a required environment variable
-- Add startup validation to ensure it's been changed
-- Document secure key generation in README
-
+**Recommendation:**
 ```python
-# Recommended fix:
-SECRET_KEY: str = os.getenv('SECRET_KEY')  # Required, no default
+from fastapi import Depends, HTTPException
+from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 
-# Add validation in main.py:
-if not settings.SECRET_KEY or settings.SECRET_KEY == "change-this-in-production":
-    raise ValueError("SECRET_KEY must be set to a secure random value")
-```
+security = HTTPBearer()
 
----
+async def verify_api_key(
+    credentials: HTTPAuthorizationCredentials = Depends(security)
+) -> str:
+    if credentials.credentials != settings.API_KEY:
+        raise HTTPException(status_code=401, detail="Invalid API key")
+    return credentials.credentials
 
-#### ✅ ~~🔴 **CRITICAL: Missing Rate Limiting**~~ - **RESOLVED**
-**Location**: All API endpoints
-**Status**: ✅ IMPLEMENTED (November 24, 2025)
-
-**Impact**: High  
-**Risk**: API abuse, DoS attacks, excessive API key usage for external services
-
-**Recommendation**:
-- Implement rate limiting using `slowapi` or similar
-- Add per-endpoint rate limits (e.g., 100 requests/minute)
-- Implement stricter limits for expensive operations (widget refresh, favicon fetching)
-
-```python
-# Example implementation:
-from slowapi import Limiter, _rate_limit_exceeded_handler
-from slowapi.util import get_remote_address
-from slowapi.errors import RateLimitExceeded
-
-limiter = Limiter(key_func=get_remote_address)
-app.state.limiter = limiter
-app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
-
-@router.get("/{widget_id}/data")
-@limiter.limit("60/minute")
-async def get_widget_data(...):
+@router.post("/", response_model=BookmarkResponse, status_code=201)
+async def create_bookmark(
+    bookmark_data: BookmarkCreate,
+    db: AsyncSession = Depends(get_db),
+    _: str = Depends(verify_api_key)  # ✓ Protected
+):
     ...
 ```
 
 ---
 
-#### 🟡 **MEDIUM: Insufficient Input Validation**
-**Location**: Multiple endpoints
+### 1.2 Insecure Secret Key Configuration
+**Severity:** CRITICAL
+**Impact:** If deployed without changing SECRET_KEY, vulnerable to session fixation, CSRF attacks, and token forgery.
 
-**Issues**:
-1. `bookmarks.py:249` - Search query not sanitized
-2. `bookmarks.py:283` - Favicon proxy URL validation could be bypassed
-3. Missing length limits on text fields (title, description, tags)
+**Affected Files:**
+- `/backend/app/config.py:24`
+- `/backend/app/main.py:28-32`
+- `.env.example`
 
-**Recommendation**:
+**Issue:**
 ```python
-# Add Pydantic validators:
-from pydantic import validator, constr
+# config.py:24
+SECRET_KEY: str = os.getenv('SECRET_KEY', '')
 
-class BookmarkCreate(BaseModel):
-    title: constr(min_length=1, max_length=255)
-    url: constr(max_length=2048)
-    description: Optional[constr(max_length=5000)] = None
-    
-    @validator('url')
-    def validate_url(cls, v):
-        # Add URL scheme validation
-        if not v.startswith(('http://', 'https://')):
-            raise ValueError('URL must start with http:// or https://')
+# main.py:28-32
+if not settings.SECRET_KEY or settings.SECRET_KEY == "change-this-in-production":
+    raise ValueError(
+        "SECRET_KEY must be set to a secure random value. "
+        "Generate one with: python -c 'import secrets; print(secrets.token_urlsafe(32))'"
+    )
+```
+
+**Problems:**
+1. Runtime validation only (not during build)
+2. Only prevents startup, doesn't prevent misconfiguration in docker-compose
+3. `.env.example` exposes placeholder that might be accidentally used
+4. No minimum length validation
+
+**Recommendation:**
+```python
+import secrets
+
+SECRET_KEY: str = os.getenv('SECRET_KEY')
+
+if not SECRET_KEY:
+    raise ValueError("SECRET_KEY environment variable is required")
+if len(SECRET_KEY) < 32:
+    raise ValueError("SECRET_KEY must be at least 32 characters")
+if SECRET_KEY in ['change-this-in-production', 'change-this-to-a-random-secret-key-in-production']:
+    raise ValueError("SECRET_KEY contains insecure placeholder value")
+```
+
+---
+
+### 1.3 SSRF Vulnerability in Favicon Proxy
+**Severity:** CRITICAL
+**Impact:** Potential Server-Side Request Forgery and content-type based attacks.
+
+**Affected Files:**
+- `/backend/app/api/bookmarks.py:182-245`
+
+**Issue:**
+```python
+@router.get("/favicon/proxy")
+@limiter.limit("20/minute")
+async def proxy_favicon(
+    request: Request,
+    url: str = Query(..., description="Favicon URL to proxy")
+):
+    if not is_safe_url(url):
+        raise HTTPException(status_code=400, detail="Invalid or unsafe URL")
+
+    async with session.get(url, allow_redirects=True) as response:  # ❌ Allows redirects
+        content_type = response.headers.get('content-type', 'image/x-icon')
+        image_data = await response.read()
+
+        return Response(
+            content=image_data,
+            media_type=content_type,  # ❌ Trusts external server's content-type
+        )
+```
+
+**Problems:**
+1. Trusts the `Content-Type` header from external servers (could be HTML, JavaScript)
+2. `allow_redirects=True` bypasses SSRF checks if URL redirects to internal IP
+3. No size limit enforcement on favicon proxy (could be used for DoS)
+4. No validation of response content-type against expected image types
+
+**Recommendation:**
+```python
+@router.get("/favicon/proxy")
+@limiter.limit("20/minute")
+async def proxy_favicon(request: Request, url: str = Query(...)):
+    if not is_safe_url(url):
+        raise HTTPException(status_code=400, detail="Invalid or unsafe URL")
+
+    ALLOWED_CONTENT_TYPES = {'image/x-icon', 'image/png', 'image/jpeg', 'image/gif', 'image/svg+xml'}
+    MAX_SIZE = 100 * 1024  # 100KB
+
+    async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=5)) as session:
+        async with session.get(url, allow_redirects=False) as response:  # ✓ No redirects
+            content_type = response.headers.get('content-type', '').lower()
+
+            # Validate content type
+            if not any(ct in content_type for ct in ALLOWED_CONTENT_TYPES):
+                raise HTTPException(status_code=400, detail="Invalid content type")
+
+            # Check size before reading
+            content_length = int(response.headers.get('Content-Length', 0))
+            if content_length > MAX_SIZE:
+                raise HTTPException(status_code=413, detail="Favicon too large")
+
+            # Read and validate actual size
+            image_data = await response.read()
+            if len(image_data) > MAX_SIZE:
+                raise HTTPException(status_code=413, detail="Favicon too large")
+
+            return Response(content=image_data, media_type='image/x-icon')
+```
+
+---
+
+## 2. High Severity Issues
+
+### 2.1 CORS Configuration Allows Wildcard Origins
+**Severity:** HIGH
+**Impact:** Allows any external website to make requests to the API.
+
+**Affected Files:**
+- `/backend/app/config.py:29-48`
+- `/backend/app/main.py:226-233`
+
+**Issue:**
+```python
+def __init__(self, **kwargs):
+    cors_env = os.getenv('CORS_ORIGINS', '')
+    if cors_env:
+        if cors_env == '*':
+            self.CORS_ORIGINS = ['*']  # ❌ Allows any origin
+```
+
+**Problems:**
+1. If `CORS_ORIGINS='*'` is set, any website can access the API
+2. Combined with missing authentication (Issue 1.1), this is critical
+3. Documentation warns against it but doesn't enforce restriction
+
+**Recommendation:**
+```python
+if cors_env == '*':
+    logger.warning("Wildcard CORS origins are dangerous. Using localhost defaults.")
+    self.CORS_ORIGINS = [
+        'http://localhost:3000',
+        'http://localhost:5173',
+    ]
+else:
+    self.CORS_ORIGINS = [origin.strip() for origin in cors_env.split(',')]
+```
+
+---
+
+### 2.2 DNS Rebinding Race Condition in SSRF Protection
+**Severity:** HIGH
+**Impact:** Time-of-check-time-of-use (TOCTOU) vulnerability in SSRF protection.
+
+**Affected Files:**
+- `/backend/app/services/http_client.py:66-79`
+
+**Issue:**
+```python
+def is_safe_url(url: str) -> bool:
+    if parsed.hostname:
+        try:
+            addr_info = socket.getaddrinfo(parsed.hostname, None)
+            for addr in addr_info:
+                ip = ipaddress.ip_address(addr[4][0])
+                for blocked_range in BLOCKED_IP_RANGES:
+                    if ip in blocked_range:
+                        logger.warning(f"Blocked private/internal IP URL: {url} ({ip})")
+                        return False
+        except (socket.gaierror, ValueError) as e:
+            logger.debug(f"Could not resolve hostname {parsed.hostname}: {e}")
+            return False
+```
+
+**Problems:**
+1. DNS rebinding attack: Attacker controls DNS and changes resolution after validation
+2. URL is validated here, but actual request happens later
+3. Multiple DNS lookups could resolve to different IPs
+4. Time window between validation and request execution
+
+**Recommendation:**
+- Resolve hostname once and use the IP directly for connection
+- Implement connection-level IP validation
+- Consider using a proxy that validates at connection time
+
+---
+
+### 2.3 Potential SQL Injection via LIKE Wildcards
+**Severity:** HIGH
+**Impact:** SQL injection vulnerability through LIKE clause handling.
+
+**Affected Files:**
+- `/backend/app/services/bookmark_service.py:236-260`
+
+**Issue:**
+```python
+async def search_bookmarks(self, query: str) -> List[Bookmark]:
+    """Search bookmarks by title, description, URL, or tags."""
+    # Manual escaping is fragile
+    sanitized_query = query.replace('\\', '\\\\').replace('%', '\\%').replace('_', '\\_')
+    search_term = f"%{sanitized_query}%"
+
+    search_query = select(Bookmark).where(
+        or_(
+            Bookmark.title.ilike(search_term),
+            Bookmark.description.ilike(search_term),
+            Bookmark.url.ilike(search_term),
+            Bookmark.tags.ilike(search_term)
+        )
+    )
+```
+
+**Problems:**
+1. Manual escaping of LIKE wildcards is fragile
+2. SQLAlchemy's parameterized queries should be relied upon exclusively
+3. No validation of query length beyond API layer
+
+**Recommendation:**
+```python
+async def search_bookmarks(self, query: str) -> List[Bookmark]:
+    """Search bookmarks safely using parameterized queries."""
+    if len(query) > 100:
+        raise ValueError("Query too long")
+
+    # SQLAlchemy handles parameterization and LIKE escaping
+    search_pattern = f"%{query}%"
+
+    search_query = select(Bookmark).where(
+        or_(
+            Bookmark.title.ilike(search_pattern),
+            Bookmark.description.ilike(search_pattern),
+            Bookmark.url.ilike(search_pattern),
+            Bookmark.tags.ilike(search_pattern)
+        )
+    ).order_by(Bookmark.position, Bookmark.created)
+
+    result = await db.execute(search_query)
+    return result.scalars().all()
+```
+
+---
+
+### 2.4 Insecure API Response Logging
+**Severity:** HIGH
+**Impact:** Sensitive data could be logged to stdout/files.
+
+**Affected Files:**
+- `/backend/app/api/preferences.py:68`
+
+**Issue:**
+```python
+logger.debug(f"Setting preference: {key} = {preference_data.value}")  # ❌ Logs preference values
+```
+
+**Problems:**
+1. Could log API keys or sensitive configuration
+2. No filtering of sensitive query parameters
+3. Debug logs might contain sensitive data
+
+**Recommendation:**
+```python
+def sanitize_log_data(key: str, value: str) -> str:
+    """Remove sensitive data from logs."""
+    sensitive_keys = {'api_key', 'password', 'secret', 'token', 'auth'}
+    if any(sk in key.lower() for sk in sensitive_keys):
+        return "[REDACTED]"
+    return value[:50] + "..." if len(value) > 50 else value
+
+logger.debug(f"Setting preference: {key} = {sanitize_log_data(key, preference_data.value)}")
+```
+
+---
+
+### 2.5 Widget Configuration Injection Through JSON Config
+**Severity:** HIGH
+**Impact:** Arbitrary widget configuration could be injected.
+
+**Affected Files:**
+- `/backend/app/api/widgets.py:180-235`
+- `/backend/app/models/widget.py:64-79`
+
+**Issue:**
+```python
+class WidgetCreate(BaseModel):
+    type: str = Field(min_length=1, max_length=100)
+    config: Dict[str, Any] = Field(default_factory=dict)  # ❌ No schema validation
+
+@router.post("/", response_model=WidgetResponse, status_code=201)
+async def create_widget(widget_data: WidgetCreate, ...):
+    widget = Widget(
+        widget_id=widget_id,
+        widget_type=widget_data.type,
+        config=json.dumps(widget_data.config)  # ❌ Arbitrary dict stored
+    )
+```
+
+**Problems:**
+1. `widget_data.config` is `Dict[str, Any]` with no validation
+2. No schema validation for widget-specific config
+3. Widget implementations trust the config without validation
+
+**Recommendation:**
+```python
+from pydantic import BaseModel, Field
+
+class WeatherWidgetConfig(BaseModel):
+    location: str = Field(..., max_length=255)
+    units: str = Field(default="metric", pattern="^(metric|imperial|standard)$")
+    show_forecast: bool = Field(default=False)
+
+class NewsWidgetConfig(BaseModel):
+    rss_feeds: list[str] = Field(default_factory=list)
+    use_news_api: bool = Field(default=False)
+    max_articles: int = Field(default=10, le=50)
+
+# Validate based on widget type
+if widget_data.type == "weather":
+    validated_config = WeatherWidgetConfig(**widget_data.config)
+elif widget_data.type == "news":
+    validated_config = NewsWidgetConfig(**widget_data.config)
+```
+
+---
+
+## 3. Medium Severity Issues
+
+### 3.1 No Rate Limiting on Most Endpoints
+**Severity:** MEDIUM
+**Impact:** Denial of Service attacks possible on unprotected endpoints.
+
+**Affected Files:**
+- `/backend/app/api/bookmarks.py`
+- `/backend/app/api/sections.py`
+- `/backend/app/api/preferences.py`
+- `/backend/app/api/widgets.py`
+
+**Issue:**
+Only the favicon proxy endpoint has rate limiting. All other endpoints are unprotected.
+
+**Recommendation:**
+```python
+@router.get("/", response_model=List[BookmarkResponse])
+@limiter.limit("100/minute")
+async def list_bookmarks(request: Request, ...):
+
+@router.post("/", response_model=BookmarkResponse, status_code=201)
+@limiter.limit("20/minute")
+async def create_bookmark(request: Request, ...):
+```
+
+---
+
+### 3.2 Unvalidated External API Keys in Environment
+**Severity:** MEDIUM
+**Impact:** Leaked API keys in logs, environment dumps, or debugging.
+
+**Affected Files:**
+- `/backend/app/config.py:54-57`
+
+**Issue:**
+```python
+WEATHER_API_KEY: Optional[str] = None
+EXCHANGE_RATE_API_KEY: Optional[str] = None
+NEWS_API_KEY: Optional[str] = None
+```
+
+**Problems:**
+1. No validation that these are actual valid API keys
+2. Could be printed in debug logs or error messages
+3. No secrets management solution
+4. Stored in plaintext in environment
+
+**Recommendation:**
+```python
+from pydantic import field_validator, SecretStr
+
+class Settings(BaseSettings):
+    WEATHER_API_KEY: Optional[SecretStr] = None
+
+    @field_validator('WEATHER_API_KEY')
+    @classmethod
+    def validate_api_key(cls, v):
+        if v and len(str(v)) < 10:
+            raise ValueError('API key appears invalid')
         return v
 ```
 
 ---
 
-#### 🟡 **MEDIUM: CORS Configuration Too Permissive**
-**Location**: `backend/app/config.py:25`
+### 3.3 No Database Query Pagination
+**Severity:** MEDIUM
+**Impact:** Memory exhaustion and slow API responses with large datasets.
+
+**Affected Files:**
+- `/backend/app/api/bookmarks.py:20-40`
+- `/backend/app/api/widgets.py:21-36`
+
+**Issue:**
 ```python
-CORS_ORIGINS: list = ["*"]
+@router.get("/", response_model=List[BookmarkResponse])
+async def list_bookmarks(...):
+    bookmarks = await service.list_bookmarks(category=category, sort_by=sort_by)
+    return [BookmarkResponse(**bookmark.to_dict()) for bookmark in bookmarks]
+    # ❌ Returns ALL bookmarks without pagination
 ```
 
-**Impact**: Medium  
-**Risk**: Allows any origin to access the API
-
-**Recommendation**:
+**Recommendation:**
 ```python
-# In .env or config:
-CORS_ORIGINS: list = ["https://home.zitek.cloud", "http://localhost:3000"]
+@router.get("/", response_model=List[BookmarkResponse])
+async def list_bookmarks(
+    skip: int = Query(0, ge=0),
+    limit: int = Query(50, ge=1, le=500),
+    ...
+):
+    bookmarks = await service.list_bookmarks(
+        skip=skip,
+        limit=limit,
+        category=category
+    )
 ```
 
 ---
 
-#### 🟡 **MEDIUM: SQL Injection Risk (Low but exists)**
-**Location**: `backend/app/api/bookmarks.py:264-273`
+### 3.4 Insufficient Validation in News Widget RSS Feed URLs
+**Severity:** MEDIUM
+**Impact:** Could fetch data from malicious or internal RSS feeds.
 
-While using SQLAlchemy ORM which provides parameterization, the search uses `.ilike()` with user input.
+**Affected Files:**
+- `/backend/app/widgets/news_widget.py:66-90`
 
-**Status**: Currently safe due to ORM, but should add explicit sanitization  
-**Recommendation**: Add input sanitization for special SQL wildcards
-
+**Issue:**
 ```python
-# Sanitize search term:
-search_term = q.replace('%', '\\%').replace('_', '\\_')
-search_term = f"%{search_term}%"
+async def _fetch_rss_feeds(self, feeds: List[str]) -> List[Dict[str, Any]]:
+    async with aiohttp.ClientSession() as session:
+        for feed_url in feeds:
+            # ❌ feed_url is not validated!
+            async with session.get(feed_url) as response:
 ```
 
----
-
-#### 🟢 **GOOD: SSRF Protection Implemented**
-**Location**: `backend/app/services/favicon.py:27-71`
-
-The favicon service properly validates URLs and blocks private IP ranges, localhost, and non-HTTP(S) schemes. This is excellent security practice.
-
-**Minor improvement**: Consider adding DNS rebinding protection by re-validating IPs after redirect follows.
-
----
-
-### 1.2 Dependency Vulnerabilities
-
-#### ✅ ~~🟡 **MEDIUM: Outdated Dependencies**~~ - **RESOLVED**
-**Status**: ✅ UPDATED (November 24, 2025)
-
-**Backend** (`requirements.txt`):
-- `aiohttp==3.9.1` → Latest is 3.9.5+ (security fixes for HTTP request smuggling)
-- `beautifulsoup4==4.12.2` → Latest is 4.12.3
-- `feedparser==6.0.11` → Check for updates
-- `asyncio==3.4.3` → This package is deprecated! Use built-in asyncio
-
-**Frontend** (`package.json`):
-- Dependencies appear reasonably current
-- Should run `npm audit` regularly
-
-**Recommendations**:
-1. Remove `asyncio==3.4.3` from requirements.txt (use built-in Python asyncio)
-2. Update aiohttp to latest version
-3. Set up automated dependency scanning (Dependabot, Snyk)
-4. Pin versions with hash verification for production
-
----
-
-### 1.3 Docker Security
-
-#### 🟡 **MEDIUM: Running as Root**
-**Location**: Both Dockerfiles
-
-Containers run as root user by default.
-
-**Recommendation**:
-```dockerfile
-# Add to backend/Dockerfile before CMD:
-RUN useradd -m -u 1000 appuser && \
-    chown -R appuser:appuser /app /data
-USER appuser
-
-# Add to frontend/Dockerfile:
-# Nginx already runs as nginx user in alpine, but verify
-```
-
----
-
-#### 🟢 **GOOD: Multi-stage Builds**
-Both Dockerfiles use multi-stage builds to minimize image size and reduce attack surface.
-
----
-
-## 2. Code Quality Analysis
-
-### 2.1 Code Organization & Structure
-
-#### 🟢 **GOOD: Architecture**
-- Clean separation between API, models, services, and widgets
-- Good use of dependency injection pattern
-- Abstract base classes for widgets promote consistency
-
-#### 🟡 **MODERATE: File Length Issues**
-
-Some files are quite long and could benefit from splitting:
-
-| File | Lines | Recommendation |
-|------|-------|----------------|
-| `backend/app/api/bookmarks.py` | 340 | Split into separate controller and service |
-| `frontend/src/components/BookmarkForm.jsx` | 259 | Extract validation logic into hooks |
-| `frontend/src/components/BookmarkGrid.jsx` | 257 | Split into smaller components |
-| `backend/app/widgets/news_widget.py` | 226 | Separate RSS and API fetchers |
-| `backend/app/widgets/market_widget.py` | 220 | Split into data fetcher and transformer |
-| `backend/app/api/sections.py` | 210 | Extract business logic to service layer |
-| `backend/app/services/favicon.py` | 205 | Split strategies into separate classes |
-
-**Recommendation**: Apply Single Responsibility Principle - aim for files under 200 lines
-
----
-
-### 2.2 Code Duplication
-
-#### 🟡 **MODERATE: Duplicated Patterns**
-
-1. **Widget Data Fetching Pattern**: Each widget repeats similar async HTTP fetching logic
-   - **Fix**: Create a shared `HttpClient` service with retry logic and error handling
-
-2. **Cache Key Generation**: MD5 hashing of config is repeated
-   - **Fix**: Move to utility function or base class
-
-3. **Error Response Format**: Inconsistent error response structures across endpoints
-   - **Fix**: Create a standardized error handler middleware
-
-**Example Refactor**:
+**Recommendation:**
 ```python
-# app/services/http_client.py
-class HttpClient:
-    async def fetch_json(self, url: str, params: dict = None, timeout: int = 10):
-        """Centralized HTTP fetching with error handling, retries, and logging"""
-        async with aiohttp.ClientSession() as session:
-            # Add retry logic, error handling, timeout, logging
-            ...
+from app.services.http_client import is_safe_url
+
+async def _fetch_rss_feeds(self, feeds: List[str]):
+    for feed_url in feeds:
+        if not is_safe_url(feed_url):
+            logger.warning(f"Blocked unsafe RSS feed: {feed_url}")
+            continue
+        # Proceed with fetch
 ```
 
 ---
 
-### 2.3 Error Handling
+### 3.5 No HTTPS Enforcement
+**Severity:** MEDIUM
+**Impact:** Man-in-the-middle attacks possible if accessed over HTTP.
 
-#### 🟡 **MODERATE: Inconsistent Error Handling**
+**Issue:**
+1. No `SECURE` cookie flag enforcement
+2. No HSTS headers configured
+3. Backend listens on HTTP (relying on Traefik for HTTPS)
 
-**Issues**:
-1. Some functions catch all exceptions with bare `except Exception`
-2. Not all error cases return meaningful messages to clients
-3. Missing error context in logs (e.g., widget_id, bookmark_id)
-
-**Examples**:
+**Recommendation:**
 ```python
-# backend/app/main.py:36
-except Exception as e:
-    logger.error(f"Migration failed: {e}")
-    # Continues startup - good, but should check if migration is critical
-```
-
-```python
-# backend/app/widgets/base_widget.py:111
-except Exception as e:
-    logger.error(f"Error fetching data for widget {self.widget_id}: {str(e)}")
-    # Good - captures widget_id for debugging
-```
-
-**Recommendations**:
-1. Create custom exception classes for different error types
-2. Use structured logging with context (add widget_id, user_id, etc.)
-3. Return specific HTTP status codes (400 for validation, 502 for upstream errors)
-4. Add exception tracking (Sentry, Rollbar)
-
-```python
-# Recommended pattern:
-class WidgetConfigurationError(Exception):
-    """Widget configuration is invalid"""
-    pass
-
-class WidgetDataFetchError(Exception):
-    """Failed to fetch widget data from external source"""
-    pass
+@app.middleware("http")
+async def add_security_headers(request: Request, call_next):
+    response = await call_next(request)
+    response.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains"
+    response.headers["X-Content-Type-Options"] = "nosniff"
+    response.headers["X-Frame-Options"] = "DENY"
+    response.headers["X-XSS-Protection"] = "1; mode=block"
+    return response
 ```
 
 ---
 
-### 2.4 Type Hints & Documentation
+### 3.6 No Protection Against CSV Injection
+**Severity:** MEDIUM
+**Impact:** If CSV/export functionality is added, XSS via spreadsheet formulas is possible.
 
-#### 🟢 **GOOD: Type Hints**
-Most functions have proper type hints using Python's typing module and Pydantic models.
-
-#### 🟡 **MODERATE: Missing Docstrings**
-While API endpoints have good docstrings, some utility functions lack documentation.
-
-**Files needing better documentation**:
-- `backend/app/services/widget_registry.py` - Some methods lack docstrings
-- `backend/app/widgets/market_widget.py` - Transform methods undocumented
-- Frontend components - JSDoc comments would help
-
-**Recommendation**: Add docstrings following Google or NumPy style:
+**Recommendation:**
+Add security headers middleware:
 ```python
-def transform_data(self, articles: List[Dict[str, Any]]) -> Dict[str, Any]:
-    """
-    Transform articles to widget format.
-    
-    Cleans HTML from descriptions and truncates to configured length.
-    
-    Args:
-        articles: List of article dictionaries with title, description, url, etc.
-    
-    Returns:
-        Dict containing:
-            - articles: List of cleaned article dictionaries
-            - total: Total number of articles
-            - source_type: Either 'rss' or 'api'
-    
-    Note:
-        HTML tags are stripped using regex. Description length is controlled
-        by config.description_length (default: 200 characters).
-    """
+response.headers["X-Content-Type-Options"] = "nosniff"
+response.headers["Content-Security-Policy"] = "default-src 'self'; script-src 'self' 'unsafe-inline'"
 ```
 
 ---
 
-### 2.5 Frontend Code Quality
+### 3.7 Session Fixation Risk in Frontend
+**Severity:** MEDIUM
+**Impact:** Theme preference stored in localStorage without integrity checks.
 
-#### 🟢 **GOOD: React Practices**
-- Proper use of hooks (useState, useEffect, useMemo)
-- React Query for data fetching and caching
-- Component composition
+**Affected Files:**
+- `/frontend/src/App.jsx:5-13`
 
-#### 🟡 **MODERATE: Frontend Issues**
+**Issue:**
+```javascript
+const [theme, setTheme] = useState(() => {
+    const savedTheme = localStorage.getItem('theme')  // ❌ No validation
+    return savedTheme || 'light'
+})
 
-1. **Large Components**: BookmarkForm.jsx (259 lines) and BookmarkGrid.jsx (257 lines)
-   - Split into smaller, focused components
-   - Extract custom hooks for form logic
+useEffect(() => {
+    document.documentElement.setAttribute('data-theme', theme)  // ❌ Could be XSS
+    localStorage.setItem('theme', theme)
+}, [theme])
+```
 
-2. **Inline Styles**: Some components use inline className strings
-   - Consider extracting to CSS modules or styled-components
+**Recommendation:**
+```javascript
+const VALID_THEMES = ['light', 'dark']
 
-3. **No PropTypes/TypeScript**: Missing type checking
-   - **Recommendation**: Migrate to TypeScript for type safety
-
-4. **Magic Numbers**: Several hardcoded values (sizes, delays)
-   ```jsx
-   // BookmarkGrid.jsx - extract to constants
-   const FAVICON_SIZE = 64
-   const DEFAULT_TIMEOUT = 10000
-   ```
+const [theme, setTheme] = useState(() => {
+    const saved = localStorage.getItem('theme')
+    return VALID_THEMES.includes(saved) ? saved : 'light'
+})
+```
 
 ---
 
-## 3. Testing & Quality Assurance
+### 3.8 Preference API Allows Arbitrary Key-Value Storage
+**Severity:** MEDIUM
+**Impact:** Could be used to store arbitrary data.
 
-### 3.1 Testing Infrastructure
+**Affected Files:**
+- `/backend/app/api/preferences.py:49-70`
 
-#### ✅ ~~🔴 **CRITICAL: No Automated Tests**~~ - **RESOLVED**
-**Status**: ✅ IMPLEMENTED (November 24, 2025)
-
-**Finding**: The repository has **zero test files**:
-- No unit tests
-- No integration tests  
-- No E2E tests
-- No test configuration (pytest.ini, jest.config.js)
-
-**Impact**: Critical  
-**Risk**: No safety net for refactoring, high risk of regressions, hard to validate bug fixes
-
-**Recommendations**:
-
-**Backend Testing**:
-```bash
-# Add to requirements-dev.txt:
-pytest==7.4.3
-pytest-asyncio==0.21.1
-pytest-cov==4.1.0
-httpx==0.25.1  # For testing FastAPI
-faker==20.0.0  # For test data generation
-```
-
-**Sample test structure**:
-```
-backend/
-├── tests/
-│   ├── __init__.py
-│   ├── conftest.py  # Fixtures
-│   ├── unit/
-│   │   ├── test_widgets.py
-│   │   ├── test_models.py
-│   │   └── test_services.py
-│   └── integration/
-│       ├── test_api_bookmarks.py
-│       ├── test_api_widgets.py
-│       └── test_database.py
-```
-
-**Example Unit Test**:
+**Issue:**
 ```python
-# tests/unit/test_widgets.py
-import pytest
-from app.widgets.weather_widget import WeatherWidget
-
-@pytest.mark.asyncio
-async def test_weather_widget_validation():
-    # Test config validation
-    widget = WeatherWidget("test-1", {"location": "Prague"})
-    # Should fail without API key
-    assert not widget.validate_config()
-    
-    # With API key should pass
-    widget.config["api_key"] = "test-key"
-    assert widget.validate_config()
+@router.put("/{key}", response_model=PreferenceResponse)
+async def set_preference(
+    request: Request,
+    key: str,  # ❌ No whitelist of allowed keys
+    preference_data: PreferenceUpdate,
+    ...
+):
 ```
 
-**Frontend Testing**:
-```bash
-# Add to package.json devDependencies:
-"@testing-library/react": "^14.0.0",
-"@testing-library/jest-dom": "^6.1.4",
-"@testing-library/user-event": "^14.5.1",
-"vitest": "^1.0.0",
-"@vitest/ui": "^1.0.0"
-```
-
-**Test Coverage Goals**:
-- Unit tests: 80%+ coverage
-- Integration tests: Critical paths
-- E2E tests: Main user workflows
-
----
-
-### 3.2 Code Linting & Formatting
-
-#### 🟡 **MODERATE: No Linting Configuration**
-
-**Missing**:
-- No `.pylintrc`, `.flake8`, or `pyproject.toml` for Python linting
-- No ESLint configuration for frontend
-- No pre-commit hooks
-
-**Recommendations**:
-
-**Python**:
-```toml
-# pyproject.toml
-[tool.black]
-line-length = 100
-target-version = ['py311']
-
-[tool.isort]
-profile = "black"
-line_length = 100
-
-[tool.pylint.messages_control]
-max-line-length = 100
-disable = ["C0111"]  # missing-docstring - enable after adding docs
-```
-
-**Frontend**:
-```json
-// .eslintrc.json
-{
-  "extends": ["react-app", "prettier"],
-  "rules": {
-    "no-console": "warn",
-    "no-unused-vars": "error"
-  }
+**Recommendation:**
+```python
+ALLOWED_PREFERENCE_KEYS = {
+    'theme', 'language', 'notifications_enabled', 'sidebar_collapsed'
 }
-```
 
-**Pre-commit hooks** (`.pre-commit-config.yaml`):
-```yaml
-repos:
-  - repo: https://github.com/psf/black
-    rev: 23.11.0
-    hooks:
-      - id: black
-  - repo: https://github.com/pycqa/isort
-    rev: 5.12.0
-    hooks:
-      - id: isort
+if key not in ALLOWED_PREFERENCE_KEYS:
+    raise HTTPException(
+        status_code=400,
+        detail=f"Invalid preference key. Allowed: {ALLOWED_PREFERENCE_KEYS}"
+    )
 ```
 
 ---
 
-### 3.3 CI/CD Pipeline
+## 4. Low Severity Issues
 
-#### 🟡 **MODERATE: No CI/CD Configuration**
+### 4.1 Missing Test Coverage for Security Functions
+**Severity:** LOW
+**Impact:** Security features not tested.
 
-**Missing**: No `.github/workflows/` or CI configuration
+**Test Files Found:**
+- `/backend/tests/integration/test_bookmarks.py` - 181 lines (basic CRUD tests only)
+- `/backend/tests/unit/test_widgets.py` - 97 lines (basic widget tests)
+- `/backend/tests/integration/test_health.py` - 27 lines (just health checks)
+- **Frontend tests:** NONE found
 
-**Recommendation**: Add GitHub Actions workflow:
-```yaml
-# .github/workflows/test.yml
-name: Tests
+**Missing Tests:**
+- SSRF protection validation
+- Rate limiting enforcement
+- Input validation edge cases
+- SQL injection prevention
+- Error handling paths
+- Concurrent request handling
 
-on: [push, pull_request]
-
-jobs:
-  backend-tests:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v3
-      - uses: actions/setup-python@v4
-        with:
-          python-version: '3.11'
-      - run: pip install -r requirements.txt -r requirements-dev.txt
-      - run: pytest tests/ --cov=app --cov-report=xml
-      - uses: codecov/codecov-action@v3
-  
-  frontend-tests:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v3
-      - uses: actions/setup-node@v3
-        with:
-          node-version: '18'
-      - run: npm ci
-      - run: npm test
-      - run: npm run build
-  
-  security-scan:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v3
-      - run: pip install safety
-      - run: safety check -r requirements.txt
-```
-
----
-
-## 4. Potential Bugs & Edge Cases
-
-### 4.1 Backend Issues
-
-#### 🟡 Bug 1: Race Condition in Database Session
-**Location**: `backend/app/services/database.py:32-42`
-
+**Recommendation:**
+Create comprehensive security test suite:
 ```python
-async def get_db() -> AsyncSession:
-    async with AsyncSessionLocal() as session:
-        try:
-            yield session
-            await session.commit()  # Auto-commit might not always be desired
-        except Exception:
-            await session.rollback()
-            raise
+# Test SSRF protection
+def test_is_safe_url_blocks_localhost():
+    assert not is_safe_url("http://localhost:8000")
+    assert not is_safe_url("http://127.0.0.1:8000")
+    assert not is_safe_url("http://169.254.169.254")  # AWS metadata
+
+# Test rate limiting
+async def test_rate_limiting_enforced():
+    for i in range(21):
+        response = await client.get("/api/bookmarks/favicon/proxy?url=...")
+        if i < 20:
+            assert response.status_code == 200
+        else:
+            assert response.status_code == 429  # Too Many Requests
 ```
-
-**Issue**: Auto-commit after every request might cause issues with nested transactions.
-
-**Recommendation**: Let caller control commit/rollback explicitly for complex operations.
 
 ---
 
-#### 🟡 Bug 2: Favicon Fetching Memory Issue
-**Location**: `backend/app/services/favicon.py:170`
+### 4.2 No Logging of Security Events
+**Severity:** LOW
+**Impact:** Cannot audit security-related activities.
 
+**Recommendation:**
+Add comprehensive audit logging for:
+- Failed validations
+- SSRF rejections
+- Rate limit violations
+- Authentication failures (when implemented)
+- Suspicious query patterns
+
+---
+
+### 4.3 Incomplete Error Handling
+**Severity:** LOW
+**Impact:** Unhandled exceptions could crash application.
+
+**Affected Files:**
+- `/backend/app/services/http_client.py:119-169`
+
+**Issue:**
+Missing handlers for:
+- `asyncio.TimeoutError`
+- `ConnectionError`
+- Other socket exceptions
+
+---
+
+### 4.4 Hardcoded User-Agent Strings
+**Severity:** LOW
+**Impact:** Could be used to identify and block requests.
+
+**Affected Files:**
+- `/backend/app/widgets/market_widget.py:71-73`
+
+**Recommendation:**
+Use a library like `fake-useragent` or randomize user agents.
+
+---
+
+### 4.5 Debug Mode Detectable in Production
+**Severity:** LOW
+**Impact:** Could expose debug information.
+
+**Affected Files:**
+- `/backend/app/config.py`
+- `/docker-compose.yml`
+
+**Issue:**
 ```python
-html = await response.text()
-if len(html) > MAX_HTML_SIZE:
-    logger.warning(f"HTML content too large ({len(html)} bytes)")
+# If DEBUG=true, SQLAlchemy echoes all queries:
+engine = create_async_engine(
+    settings.DATABASE_URL,
+    echo=settings.DEBUG,  # ❌ Logs all SQL to stdout
+)
 ```
 
-**Issue**: HTML is loaded into memory before size check, potentially causing OOM on huge responses.
-
-**Fix**:
+**Recommendation:**
 ```python
-# Check Content-Length first
-content_length = response.headers.get('Content-Length')
-if content_length and int(content_length) > MAX_HTML_SIZE:
-    return None
+DEBUG: bool = os.getenv('DEBUG', 'false').lower() == 'true'
 
-# Then stream with limit
-html = await response.text()[:MAX_HTML_SIZE]
+if DEBUG and os.getenv('ENVIRONMENT') != 'production':
+    engine = create_async_engine(..., echo=True)
+else:
+    engine = create_async_engine(..., echo=False)
 ```
 
 ---
 
-#### 🟡 Bug 3: Missing NULL Check in Tags Parsing
-**Location**: `backend/app/models/bookmark.py:37`
+### 4.6 No Content-Type Validation on Requests
+**Severity:** LOW
+**Impact:** Could process unexpected content types.
 
+**Recommendation:**
 ```python
-"tags": self.tags.split(",") if self.tags else [],
+@app.middleware("http")
+async def validate_content_type(request: Request, call_next):
+    if request.method in ["POST", "PUT"] and "/api/" in request.url.path:
+        content_type = request.headers.get("content-type", "")
+        if not content_type.startswith("application/json"):
+            return JSONResponse(
+                status_code=415,
+                content={"error": "Content-Type must be application/json"}
+            )
+    return await call_next(request)
 ```
 
-**Issue**: Works, but should handle None explicitly.
+---
 
-**Better**:
+## 5. Code Quality Assessment
+
+### 5.1 Positive Findings ✅
+
+**Good Structure:**
+- Clean separation of API, services, models layers
+- Proper use of SQLAlchemy ORM (parameterized queries)
+- Type hints throughout codebase
+- Pydantic models for validation
+
+**Good Error Handling:**
+- Custom exceptions (AppException, NotFoundError, etc.)
+- Graceful error responses from API
+- Proper HTTP status codes
+
+**Good Security Basics:**
+- No SQL injection via ORM usage
+- No use of pickle or eval
+- SSRF protection attempt in place
+- Input validation on models
+
+**Docker Security:**
+- Non-root user (appuser) in Dockerfile
+- Multi-stage build
+- Health checks configured
+- Read-only config volume
+
+### 5.2 Code Quality Issues ❌
+
+**Inconsistent Error Handling:**
+Some places have good error handling with graceful returns, others just re-raise exceptions without context.
+
+**Magic Numbers:**
 ```python
-"tags": self.tags.split(",") if self.tags is not None and self.tags else [],
+MAX_CONTENT_SIZE = 10 * 1024 * 1024  # 10MB - inconsistent limits
+DEFAULT_TIMEOUT = 10  # Hardcoded timeout
+MAX_HTML_SIZE = 5 * 1024 * 1024  # Different limit - why different?
+```
+
+**Type Safety:**
+Frontend has no TypeScript - all JavaScript with potential type errors.
+
+**Code Duplication:**
+URL validation logic appears in multiple files:
+- BookmarkCreate validation
+- BookmarkUpdate validation
+- favicon.py
+- http_client.py
+
+---
+
+## 6. Dependency Security Analysis
+
+### 6.1 Backend Dependencies
+
+**Current versions (`/backend/requirements.txt`):**
+```
+fastapi==0.109.0          ✓ Current stable
+uvicorn[standard]==0.27.0 ✓ Current
+sqlalchemy==2.0.25        ✓ Current
+redis==5.0.1              ✓ Current
+aiohttp==3.9.5            ✓ Current (check for known CVEs)
+pydantic==2.5.3           ✓ Current
+python-dotenv==1.0.1      ✓ Current
+pyyaml==6.0.1             ⚠️ Known YAML issues - use safe_load only
+apscheduler==3.10.4       ✓ Current
+slowapi==0.1.9            ✓ Rate limiting
+beautifulsoup4==4.12.3    ⚠️ Can parse malicious HTML
+feedparser==6.0.11        ⚠️ RSS parsing - XXE risk
+```
+
+**Concerns:**
+1. **pyyaml** - Ensure only `yaml.safe_load()` is used
+2. **feedparser** - Potential XXE vulnerability
+3. **beautifulsoup4** - Used in favicon extraction, needs careful validation
+
+### 6.2 Frontend Dependencies
+
+```
+react: ^18.2.0                    ✓ Current
+axios: ^1.6.2                     ✓ Current
+@tanstack/react-query: ^5.8.4     ✓ Current
+lucide-react: ^0.294.0            ✓ Current
+```
+
+**Missing:**
+- No `npm audit` in CI/CD
+- No security scanning tools
+- No lock file enforcement
+
+---
+
+## 7. Test Coverage Analysis
+
+### 7.1 Current Coverage
+
+**Backend Tests:**
+- Unit Tests: 97 lines (widget validation only)
+- Integration Tests: 181 lines (bookmarks CRUD)
+- Health Checks: 27 lines
+
+**Frontend Tests:**
+- NONE FOUND
+
+### 7.2 Missing Critical Tests
+
+- [ ] Authentication/Authorization tests (N/A - no auth yet)
+- [ ] Rate limiting verification
+- [ ] SSRF protection validation
+- [ ] SQL injection prevention
+- [ ] XSS prevention (frontend)
+- [ ] Input validation edge cases
+- [ ] Error handling paths
+- [ ] Database transaction rollback
+- [ ] Concurrent request handling
+- [ ] Widget configuration validation
+- [ ] Favicon proxy security
+
+### 7.3 Recommended Test Structure
+
+```
+tests/security/
+├── test_ssrf_protection.py       (CRITICAL)
+├── test_rate_limiting.py         (HIGH)
+├── test_input_validation.py      (HIGH)
+├── test_authentication.py        (When implemented)
+├── test_sql_injection.py         (MEDIUM)
+└── test_api_security.py          (MEDIUM)
 ```
 
 ---
 
-#### 🟡 Bug 4: Scheduler Not Handling Widget Removal
-**Location**: `backend/app/services/scheduler.py:145-146`
+## 8. Deployment Security Checklist
 
-If widget configuration is reloaded and a widget is removed, the scheduler job remains active.
+### ✅ Currently Implemented
 
-**Fix**: Add cleanup when reloading config:
-```python
-def reload_config(self):
-    """Reload widget configuration from file."""
-    # Remove old jobs
-    if self._scheduler:
-        for job in self._scheduler.get_jobs():
-            job.remove()
-    self._widget_instances.clear()
-    self.load_config()
-```
+- [x] Non-root Docker user
+- [x] Health checks configured
+- [x] HTTPS via Traefik
+- [x] Redis persistence enabled
+- [x] Database isolation in Docker
+- [x] Request size limits (1MB)
 
----
+### ❌ Missing
 
-### 4.2 Frontend Issues
-
-#### 🟡 Bug 5: Favicon Proxy URL Encoding Issue
-**Location**: `frontend/src/components/BookmarkGrid.jsx:70`
-
-```jsx
-return `${apiBaseUrl}/bookmarks/favicon/proxy?url=${encodeURIComponent(faviconUrl)}`
-```
-
-**Issue**: If API base URL is not set, defaults to '/api' which might fail in some deployments.
-
-**Fix**:
-```jsx
-const apiBaseUrl = import.meta.env.VITE_API_BASE_URL || 
-  (window.location.origin + '/api')
-```
+- [ ] SECRET_KEY validation before deployment
+- [ ] Environment variable validation script
+- [ ] Backup strategy documentation
+- [ ] Log retention policy
+- [ ] Secrets management (Vault/Secrets Manager)
+- [ ] Network isolation documentation
+- [ ] Database encryption at rest
+- [ ] Database backup encryption
+- [ ] Audit logging
+- [ ] Intrusion detection
+- [ ] WAF (Web Application Firewall)
+- [ ] DDoS protection
+- [ ] API authentication/authorization
 
 ---
 
-#### 🟡 Bug 6: Infinite Rerender Risk
-**Location**: `frontend/src/components/WidgetGrid.jsx:57-76`
+## 9. Recommendations Summary
 
-The `useMemo` for `widgetsBySection` depends on `widgetsData` and `sectionsData`, but these are objects that might be recreated on every query success.
+### IMMEDIATE (Before Production Deployment)
+1. **[CRITICAL]** Implement authentication/authorization on all API endpoints
+2. **[CRITICAL]** Enforce SECRET_KEY validation with minimum length requirements
+3. **[CRITICAL]** Fix CORS wildcard vulnerability - never allow `*`
+4. **[HIGH]** Fix SSRF redirect vulnerability in favicon proxy - disable redirects
+5. **[HIGH]** Fix favicon proxy content-type validation
+6. **[HIGH]** Add rate limiting to all endpoints
+7. **[HIGH]** Validate widget configurations against schemas
 
-**Fix**: Add deep equality check or use react-query's structural sharing (already enabled by default).
+### SHORT-TERM (Within 1 Month)
+8. Add comprehensive security test suite
+9. Implement preference key whitelist
+10. Add security headers middleware
+11. Implement pagination for large datasets
+12. Add audit logging for sensitive operations
+13. Validate RSS feed URLs in news widget
+14. Add Content-Type validation middleware
 
----
+### MEDIUM-TERM (Within 3 Months)
+15. Implement secrets management (HashiCorp Vault)
+16. Migrate frontend to TypeScript
+17. Add Web Application Firewall (WAF)
+18. Implement database backup encryption
+19. Add intrusion detection logging
+20. Create comprehensive security documentation
+21. Perform penetration testing
+22. Implement HSTS and other security headers
 
-## 5. Performance Considerations
-
-### 5.1 Backend Performance
-
-#### 🟡 **Database N+1 Queries**
-Not currently an issue but could become one with relationships.
-
-**Recommendation**: Use `selectinload()` or `joinedload()` when adding foreign key relationships.
-
----
-
-#### 🟡 **No Connection Pooling**
-SQLite doesn't need it, but if migrating to PostgreSQL, ensure connection pooling is configured.
-
----
-
-#### 🟢 **Good: Redis Caching**
-Widget data is properly cached with TTL.
-
-**Improvement**: Add cache warming on startup for critical widgets.
-
----
-
-### 5.2 Frontend Performance
-
-#### 🟡 **No Code Splitting**
-All components are loaded in main bundle.
-
-**Recommendation**: Use React lazy loading:
-```jsx
-const WeatherWidget = lazy(() => import('./widgets/WeatherWidget'))
-```
+### LONG-TERM (Ongoing)
+23. Regular dependency security updates
+24. Quarterly security audits
+25. Implement CI/CD security scanning
+26. Add SIEM integration for log monitoring
+27. Establish bug bounty program (if public-facing)
+28. Regular penetration testing
 
 ---
 
-#### 🟡 **Missing Image Optimization**
-Favicon images are not optimized or cached client-side.
+## 10. Conclusion
 
-**Recommendation**: 
-- Add `Cache-Control` headers (already done on backend ✅)
-- Use browser caching effectively
+The Home Sweet Home application has a **MODERATE security posture** with good foundational practices but critical gaps that must be addressed:
 
----
+**Strengths:**
+- Well-structured codebase with clean separation of concerns
+- Proper use of ORM preventing basic SQL injection
+- Type hints and Pydantic validation
+- Docker security best practices
+- Basic SSRF protection attempt
 
-## 6. Documentation Quality
+**Critical Weaknesses:**
+- Complete lack of authentication/authorization
+- CORS wildcard configuration vulnerability
+- SSRF vulnerabilities in favicon proxy
+- Missing rate limiting on most endpoints
+- Insufficient test coverage for security features
 
-### 6.1 README.md
+**Estimated Timeline:**
+- Address Critical Issues: 1-2 weeks
+- Full Security Implementation: 2-3 months
 
-#### 🟢 **GOOD: Comprehensive User Documentation**
-- Clear installation instructions
-- Good troubleshooting section
-- Examples for all major features
-
-#### 🟡 **MODERATE: Developer Documentation**
-Missing:
-- Architecture diagrams
-- Development setup (virtual env, local dev without Docker)
-- Contribution guidelines
-- API documentation (though auto-generated via FastAPI is good)
-
----
-
-### 6.2 Code Comments
-
-#### 🟢 **GOOD: API Endpoint Docs**
-All FastAPI endpoints have proper docstrings.
-
-#### 🟡 **MODERATE: Complex Logic**
-Some complex algorithms (like news widget RSS parsing) could use inline comments explaining the logic.
+The codebase is well-positioned for security improvements. The clean architecture will make it straightforward to implement the recommended mitigations.
 
 ---
 
-## 7. Architecture & Design Patterns
-
-### 7.1 Backend Architecture
-
-#### 🟢 **GOOD: Layered Architecture**
-```
-Controllers (API) → Services → Models/Database
-                 ↓
-              Widgets (Plugins)
-```
-
-#### 🟢 **GOOD: Widget Plugin System**
-The BaseWidget abstract class and registry pattern is well-designed and extensible.
-
-#### 🟡 **MODERATE: Missing Service Layer**
-Business logic is mixed in API controllers (e.g., bookmark creation with favicon fetching).
-
-**Recommendation**: Extract to service layer:
-```python
-# app/services/bookmark_service.py
-class BookmarkService:
-    async def create_bookmark(self, data: BookmarkCreate) -> Bookmark:
-        # Handle favicon fetching
-        # Handle validation
-        # Create bookmark
-        # Return result
-```
-
----
-
-### 7.2 Frontend Architecture
-
-#### 🟢 **GOOD: Component-Based Architecture**
-React components are reasonably separated.
-
-#### 🟡 **MODERATE: State Management**
-Currently using React Query for server state (good) but no global client state management.
-
-**Recommendation**: If app grows, consider Zustand or Redux Toolkit for complex client state.
-
----
-
-## 8. Configuration Management
-
-#### 🟢 **GOOD: Environment-Based Config**
-Using Pydantic Settings with `.env` file is excellent practice.
-
-#### 🟡 **MODERATE: Widget Config**
-YAML configuration for widgets is good, but:
-- No schema validation for widget configs
-- No UI for editing configurations (must edit YAML files)
-
-**Recommendation**: Add JSON Schema validation for widget configs.
-
----
-
-## 9. Logging & Monitoring
-
-### 9.1 Logging
-
-#### 🟢 **GOOD: Structured Logging**
-Proper use of Python's logging module with different levels.
-
-#### 🟡 **MODERATE: Missing Request Logging**
-No request/response logging middleware.
-
-**Recommendation**:
-```python
-# Add middleware for request logging
-from starlette.middleware.base import BaseHTTPMiddleware
-
-class RequestLoggingMiddleware(BaseHTTPMiddleware):
-    async def dispatch(self, request, call_next):
-        logger.info(f"{request.method} {request.url.path}")
-        response = await call_next(request)
-        logger.info(f"Status: {response.status_code}")
-        return response
-
-app.add_middleware(RequestLoggingMiddleware)
-```
-
----
-
-### 9.2 Monitoring
-
-#### 🔴 **MISSING: Application Metrics**
-No metrics collection (Prometheus, StatsD).
-
-**Recommendation**: Add metrics for:
-- Request count/duration
-- Widget fetch success/failure rates  
-- Cache hit/miss rates
-- Database query performance
-
----
-
-## 10. Accessibility & UX
-
-#### 🟢 **GOOD: Semantic HTML**
-Components use appropriate semantic tags.
-
-#### 🟡 **MODERATE: Missing ARIA Labels**
-Some interactive elements lack proper ARIA labels.
-
-**Fix**: Already partially done (Edit/Delete buttons have aria-label ✅), ensure consistency.
-
----
-
-## Action Items Summary
-
-### 🔴 Critical (Fix Immediately) - ✅ ALL COMPLETED
-
-1. ✅ ~~**Remove hardcoded SECRET_KEY default**~~ - **RESOLVED** - Added validation to prevent production use
-2. ✅ ~~**Implement rate limiting**~~ - **RESOLVED** - Implemented on all API endpoints
-3. ✅ ~~**Create comprehensive test suite**~~ - **RESOLVED** - 22 test cases created (unit + integration tests)
-4. ✅ ~~**Update vulnerable dependencies**~~ - **RESOLVED** - Updated aiohttp, removed deprecated asyncio
-
-### 🟡 High Priority (Fix Soon)
-
-5. **Split large files** (>200 lines) into smaller, focused modules
-6. **Add input validation** to all API endpoints with Pydantic validators
-7. **Configure CORS properly** - Remove wildcard `*` origin
-8. **Add CI/CD pipeline** with automated testing
-9. **Implement proper error handling** with custom exception classes
-10. **Run containers as non-root user** in Docker
-
-### 🟢 Medium Priority (Improve Over Time)
-
-11. **Add code linting** configuration (black, isort, flake8, ESLint)
-12. **Reduce code duplication** - Create shared HttpClient service
-13. **Add comprehensive docstrings** to all functions
-14. **Implement logging middleware** for request tracking
-15. **Add metrics collection** (Prometheus)
-16. **Create architecture documentation** with diagrams
-17. **Set up pre-commit hooks** for code quality
-
-### 🔵 Low Priority (Nice to Have)
-
-18. **Migrate frontend to TypeScript** for type safety
-19. **Add code splitting** for better performance
-20. **Create admin UI** for widget configuration
-21. **Add JSON Schema validation** for widget configs
-22. **Implement cache warming** on startup
-23. **Add structured logging** with correlation IDs
-
----
-
-## Conclusion
-
-The **Home Sweet Home** application demonstrates solid fundamentals with clean architecture and good use of modern frameworks. The widget system is well-designed and extensible. However, the lack of automated testing is the most significant gap that needs immediate attention.
-
-**Priority 1**: Security hardening (secret key, rate limiting, dependency updates)  
-**Priority 2**: Testing infrastructure (pytest, test coverage)  
-**Priority 3**: Code quality improvements (linting, file splitting, documentation)  
-
-With these improvements, the codebase would be production-ready and maintainable for long-term development.
-
----
-
-**Next Steps**:
-1. Review and prioritize action items with the team
-2. Create GitHub issues for each critical and high-priority item
-3. Estimate effort for each improvement
-4. Create a remediation roadmap with milestones
-5. Implement changes incrementally with proper testing
-
-**Estimated Effort**:
-- Critical fixes: 2-3 days
-- High priority items: 1-2 weeks
-- Medium priority items: 2-3 weeks
-- Low priority items: Ongoing improvements
-
----
-
-*This code review was conducted according to industry best practices for security, maintainability, and code quality.*
+**Review completed:** 2025-11-25
+**Next review scheduled:** After critical issues are addressed
