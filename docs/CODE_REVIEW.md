@@ -121,6 +121,8 @@ if SECRET_KEY in ['change-this-in-production', 'change-this-to-a-random-secret-k
     raise ValueError("SECRET_KEY contains insecure placeholder value")
 ```
 
+**Status:** Resolved. SECRET_KEY is now a required environment variable validated during configuration load for length (>=32) and checked against known placeholders, preventing insecure defaults from passing startup validation.
+
 ---
 
 ### 1.3 SSRF Vulnerability in Favicon Proxy
@@ -188,6 +190,8 @@ async def proxy_favicon(request: Request, url: str = Query(...)):
 
             return Response(content=image_data, media_type='image/x-icon')
 ```
+
+**Status:** Resolved. The favicon proxy now validates redirect chains, enforces a 100KB response cap, and restricts proxied responses to a safe list of image content types to prevent SSRF and malicious content exposure.
 
 ---
 
