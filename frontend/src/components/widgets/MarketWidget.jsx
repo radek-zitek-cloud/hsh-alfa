@@ -59,50 +59,85 @@ const MarketWidget = ({ widgetId, config }) => {
     const price = item.price ?? 0
     const currency = item.currency || 'USD'
 
+    // Helper function to render period change indicator
+    const renderPeriodChange = (label, changePercent) => {
+      if (changePercent === null || changePercent === undefined) {
+        return null
+      }
+
+      const isUp = changePercent > 0
+      const isDown = changePercent < 0
+      const colorClass = isUp ? 'text-green-500' : isDown ? 'text-red-500' : 'text-[var(--text-secondary)]'
+
+      return (
+        <div className={`flex items-center gap-1 ${colorClass}`}>
+          {isUp && <TrendingUp size={10} />}
+          {isDown && <TrendingDown size={10} />}
+          <span className="font-mono text-xs">
+            {label}: {isUp ? '+' : ''}{changePercent.toFixed(2)}%
+          </span>
+        </div>
+      )
+    }
+
     return (
       <div
         key={item.symbol}
-        className="flex items-center justify-between p-3 bg-[var(--bg-primary)] rounded border border-[var(--border-color)] hover:border-[var(--accent-color)] transition-colors"
+        className="flex flex-col p-3 bg-[var(--bg-primary)] rounded border border-[var(--border-color)] hover:border-[var(--accent-color)] transition-colors"
       >
-        {/* Left: Symbol and Name */}
-        <div className="flex flex-col">
-          <span className="font-semibold text-[var(--text-primary)]">
-            {item.symbol}
-          </span>
-          {item.name && item.name !== item.symbol && (
-            <span className="text-xs text-[var(--text-secondary)]">
-              {item.name}
+        {/* Top Row: Symbol and Price */}
+        <div className="flex items-start justify-between mb-2">
+          {/* Left: Symbol and Name */}
+          <div className="flex flex-col">
+            <span className="font-semibold text-[var(--text-primary)]">
+              {item.symbol}
             </span>
-          )}
-        </div>
-
-        {/* Right: Price and Change */}
-        <div className="flex flex-col items-end">
-          <div className="font-mono text-[var(--text-primary)] font-semibold">
-            {price.toLocaleString(undefined, {
-              minimumFractionDigits: 2,
-              maximumFractionDigits: price < 1 ? 6 : 2
-            })}
-            <span className="text-xs text-[var(--text-secondary)] ml-1">
-              {currency}
-            </span>
+            {item.name && item.name !== item.symbol && (
+              <span className="text-xs text-[var(--text-secondary)]">
+                {item.name}
+              </span>
+            )}
           </div>
 
-          {/* Change indicator */}
-          {item.change_percent !== null && item.change_percent !== undefined && (
-            <div className={`flex items-center gap-1 text-sm ${
-              isPositive ? 'text-green-500' :
-              isNegative ? 'text-red-500' :
-              'text-[var(--text-secondary)]'
-            }`}>
-              {isPositive && <TrendingUp size={14} />}
-              {isNegative && <TrendingDown size={14} />}
-              <span className="font-mono">
-                {isPositive ? '+' : ''}{item.change_percent.toFixed(2)}%
+          {/* Right: Price and 1-day Change */}
+          <div className="flex flex-col items-end">
+            <div className="font-mono text-[var(--text-primary)] font-semibold">
+              {price.toLocaleString(undefined, {
+                minimumFractionDigits: 2,
+                maximumFractionDigits: price < 1 ? 6 : 2
+              })}
+              <span className="text-xs text-[var(--text-secondary)] ml-1">
+                {currency}
               </span>
             </div>
-          )}
+
+            {/* 1-day Change indicator */}
+            {item.change_percent !== null && item.change_percent !== undefined && (
+              <div className={`flex items-center gap-1 text-sm ${
+                isPositive ? 'text-green-500' :
+                isNegative ? 'text-red-500' :
+                'text-[var(--text-secondary)]'
+              }`}>
+                {isPositive && <TrendingUp size={14} />}
+                {isNegative && <TrendingDown size={14} />}
+                <span className="font-mono">
+                  {isPositive ? '+' : ''}{item.change_percent.toFixed(2)}%
+                </span>
+              </div>
+            )}
+          </div>
         </div>
+
+        {/* Bottom Row: Period Changes */}
+        {(item.change_5d_percent !== null && item.change_5d_percent !== undefined ||
+          item.change_30d_percent !== null && item.change_30d_percent !== undefined ||
+          item.change_ytd_percent !== null && item.change_ytd_percent !== undefined) && (
+          <div className="flex flex-wrap gap-3 pt-2 border-t border-[var(--border-color)]">
+            {renderPeriodChange('5D', item.change_5d_percent)}
+            {renderPeriodChange('30D', item.change_30d_percent)}
+            {renderPeriodChange('YTD', item.change_ytd_percent)}
+          </div>
+        )}
       </div>
     )
   }

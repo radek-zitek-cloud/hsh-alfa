@@ -2,6 +2,7 @@
 import aiohttp
 import logging
 from typing import Dict, Any, List
+from datetime import datetime
 from app.widgets.base_widget import BaseWidget
 
 logger = logging.getLogger(__name__)
@@ -74,10 +75,11 @@ class MarketWidget(BaseWidget):
         async with aiohttp.ClientSession(headers=headers) as session:
             for symbol in symbols:
                 try:
+                    # Fetch YTD data to get all historical data we need
                     url = f"{base_url}/{symbol}"
                     params = {
                         "interval": "1d",
-                        "range": "5d"  # Get 5 days for trend calculation
+                        "range": "1y"  # Get 1 year for YTD, 30d, and 5d calculations
                     }
 
                     async with session.get(url, params=params) as response:
@@ -99,6 +101,7 @@ class MarketWidget(BaseWidget):
                         meta = quote_data.get("meta", {})
                         indicators = quote_data.get("indicators", {})
                         quote = indicators.get("quote", [{}])[0]
+                        timestamps = quote_data.get("timestamp", [])
 
                         # Get current price
                         current_price = meta.get("regularMarketPrice")
@@ -108,12 +111,26 @@ class MarketWidget(BaseWidget):
                             logger.warning(f"No price data for {symbol}")
                             continue
 
-                        # Calculate change
+                        # Calculate 1-day change
                         change = None
                         change_percent = None
                         if previous_close:
                             change = current_price - previous_close
                             change_percent = (change / previous_close) * 100
+
+                        # Get historical prices for period calculations
+                        close_prices = quote.get("close", [])
+
+                        # Calculate period changes
+                        change_5d_percent = self._calculate_period_change(
+                            current_price, close_prices, timestamps, days=5
+                        )
+                        change_30d_percent = self._calculate_period_change(
+                            current_price, close_prices, timestamps, days=30
+                        )
+                        change_ytd_percent = self._calculate_ytd_change(
+                            current_price, close_prices, timestamps
+                        )
 
                         results.append({
                             "symbol": symbol,
@@ -121,6 +138,9 @@ class MarketWidget(BaseWidget):
                             "price": round(current_price, 2),
                             "change": round(change, 2) if change else None,
                             "change_percent": round(change_percent, 2) if change_percent else None,
+                            "change_5d_percent": round(change_5d_percent, 2) if change_5d_percent is not None else None,
+                            "change_30d_percent": round(change_30d_percent, 2) if change_30d_percent is not None else None,
+                            "change_ytd_percent": round(change_ytd_percent, 2) if change_ytd_percent is not None else None,
                             "currency": meta.get("currency", "USD"),
                             "market_state": meta.get("marketState", "REGULAR")
                         })
@@ -130,6 +150,97 @@ class MarketWidget(BaseWidget):
                     continue
 
         return results
+
+    def _calculate_period_change(
+        self,
+        current_price: float,
+        close_prices: List[float],
+        timestamps: List[int],
+        days: int
+    ) -> float:
+        """
+        Calculate percentage change for a given period.
+
+        Args:
+            current_price: Current price
+            close_prices: List of historical close prices
+            timestamps: List of timestamps corresponding to prices
+            days: Number of days to look back
+
+        Returns:
+            Percentage change, or None if data is insufficient
+        """
+        if not close_prices or not timestamps:
+            return None
+
+        # Convert timestamps to datetime and find the target date
+        current_time = datetime.now()
+        target_time = current_time.timestamp() - (days * 24 * 60 * 60)
+
+        # Find the closest price to the target time
+        closest_idx = None
+        closest_diff = float('inf')
+
+        for idx, ts in enumerate(timestamps):
+            if close_prices[idx] is None:  # Skip None values
+                continue
+
+            diff = abs(ts - target_time)
+            if diff < closest_diff:
+                closest_diff = diff
+                closest_idx = idx
+
+        if closest_idx is None:
+            return None
+
+        historical_price = close_prices[closest_idx]
+        if historical_price and historical_price > 0:
+            return ((current_price - historical_price) / historical_price) * 100
+
+        return None
+
+    def _calculate_ytd_change(
+        self,
+        current_price: float,
+        close_prices: List[float],
+        timestamps: List[int]
+    ) -> float:
+        """
+        Calculate year-to-date percentage change.
+
+        Args:
+            current_price: Current price
+            close_prices: List of historical close prices
+            timestamps: List of timestamps corresponding to prices
+
+        Returns:
+            YTD percentage change, or None if data is insufficient
+        """
+        if not close_prices or not timestamps:
+            return None
+
+        # Find the first trading day of the current year
+        current_year = datetime.now().year
+        year_start = datetime(current_year, 1, 1).timestamp()
+
+        # Find the first price after year start
+        year_start_idx = None
+        for idx, ts in enumerate(timestamps):
+            if close_prices[idx] is None:  # Skip None values
+                continue
+
+            if ts >= year_start:
+                year_start_idx = idx
+                break
+
+        if year_start_idx is None:
+            return None
+
+        year_start_price = close_prices[year_start_idx]
+        if year_start_price and year_start_price > 0:
+            return ((current_price - year_start_price) / year_start_price) * 100
+
+        return None
 
     async def _fetch_crypto_data(self, symbols: List[str]) -> List[Dict[str, Any]]:
         """
@@ -158,59 +269,175 @@ class MarketWidget(BaseWidget):
         }
 
         # Convert symbols to IDs
+        id_to_symbol = {}
         crypto_ids = []
         for symbol in symbols:
             symbol_upper = symbol.upper()
             if symbol_upper in symbol_map:
-                crypto_ids.append(symbol_map[symbol_upper])
+                crypto_id = symbol_map[symbol_upper]
+                crypto_ids.append(crypto_id)
+                id_to_symbol[crypto_id] = symbol_upper
             else:
                 # Try to use as lowercase ID directly
-                crypto_ids.append(symbol.lower())
+                crypto_id = symbol.lower()
+                crypto_ids.append(crypto_id)
+                id_to_symbol[crypto_id] = symbol.upper()
 
         if not crypto_ids:
             return results
 
-        # CoinGecko API endpoint
-        url = "https://api.coingecko.com/api/v3/simple/price"
-        params = {
-            "ids": ",".join(crypto_ids),
-            "vs_currencies": "usd",
-            "include_24hr_change": "true"
-        }
+        async with aiohttp.ClientSession() as session:
+            # Fetch current prices and 24h change
+            price_url = "https://api.coingecko.com/api/v3/simple/price"
+            price_params = {
+                "ids": ",".join(crypto_ids),
+                "vs_currencies": "usd",
+                "include_24hr_change": "true"
+            }
 
-        try:
-            async with aiohttp.ClientSession() as session:
-                async with session.get(url, params=params) as response:
+            try:
+                async with session.get(price_url, params=price_params) as response:
                     if response.status != 200:
                         logger.error(f"CoinGecko API error: {response.status}")
                         return results
 
-                    data = await response.json()
+                    price_data = await response.json()
 
-                    # Build results
-                    for symbol, crypto_id in zip(symbols, crypto_ids):
-                        if crypto_id in data:
-                            crypto_data = data[crypto_id]
-                            price = crypto_data.get("usd")
-                            change_24h = crypto_data.get("usd_24h_change")
+                    # For each crypto, fetch historical data for period calculations
+                    for crypto_id in crypto_ids:
+                        if crypto_id not in price_data:
+                            logger.warning(f"No data for crypto {id_to_symbol[crypto_id]}")
+                            continue
 
-                            if price is not None:
-                                results.append({
-                                    "symbol": symbol.upper(),
-                                    "name": symbol.upper(),
-                                    "price": round(price, 2) if price >= 1 else round(price, 6),
-                                    "change": None,  # Not directly available
-                                    "change_percent": round(change_24h, 2) if change_24h else None,
-                                    "currency": "USD",
-                                    "market_state": "24/7"
-                                })
-                        else:
-                            logger.warning(f"No data for crypto {symbol}")
+                        current_data = price_data[crypto_id]
+                        price = current_data.get("usd")
+                        change_24h = current_data.get("usd_24h_change")
 
-        except Exception as e:
-            logger.error(f"Error fetching crypto data: {str(e)}")
+                        if price is None:
+                            continue
+
+                        # Fetch historical data for period calculations
+                        market_chart_url = f"https://api.coingecko.com/api/v3/coins/{crypto_id}/market_chart"
+                        market_params = {
+                            "vs_currency": "usd",
+                            "days": "365",  # Get 1 year for YTD calculation
+                            "interval": "daily"
+                        }
+
+                        change_5d = None
+                        change_30d = None
+                        change_ytd = None
+
+                        try:
+                            async with session.get(market_chart_url, params=market_params) as hist_response:
+                                if hist_response.status == 200:
+                                    hist_data = await hist_response.json()
+                                    prices = hist_data.get("prices", [])
+
+                                    if prices:
+                                        # Calculate period changes
+                                        change_5d = self._calculate_crypto_period_change(price, prices, days=5)
+                                        change_30d = self._calculate_crypto_period_change(price, prices, days=30)
+                                        change_ytd = self._calculate_crypto_ytd_change(price, prices)
+                                else:
+                                    logger.warning(f"Failed to fetch historical data for {crypto_id}: {hist_response.status}")
+                        except Exception as e:
+                            logger.error(f"Error fetching historical data for {crypto_id}: {str(e)}")
+
+                        results.append({
+                            "symbol": id_to_symbol[crypto_id],
+                            "name": id_to_symbol[crypto_id],
+                            "price": round(price, 2) if price >= 1 else round(price, 6),
+                            "change": None,  # Not directly available
+                            "change_percent": round(change_24h, 2) if change_24h else None,
+                            "change_5d_percent": round(change_5d, 2) if change_5d is not None else None,
+                            "change_30d_percent": round(change_30d, 2) if change_30d is not None else None,
+                            "change_ytd_percent": round(change_ytd, 2) if change_ytd is not None else None,
+                            "currency": "USD",
+                            "market_state": "24/7"
+                        })
+
+            except Exception as e:
+                logger.error(f"Error fetching crypto data: {str(e)}")
 
         return results
+
+    def _calculate_crypto_period_change(
+        self,
+        current_price: float,
+        prices: List[List[float]],
+        days: int
+    ) -> float:
+        """
+        Calculate percentage change for a given period for crypto.
+
+        Args:
+            current_price: Current price
+            prices: List of [timestamp, price] pairs
+            days: Number of days to look back
+
+        Returns:
+            Percentage change, or None if data is insufficient
+        """
+        if not prices:
+            return None
+
+        # Find the price closest to the target date
+        current_time = datetime.now().timestamp() * 1000  # CoinGecko uses milliseconds
+        target_time = current_time - (days * 24 * 60 * 60 * 1000)
+
+        closest_price = None
+        closest_diff = float('inf')
+
+        for timestamp, price in prices:
+            if price is None:
+                continue
+
+            diff = abs(timestamp - target_time)
+            if diff < closest_diff:
+                closest_diff = diff
+                closest_price = price
+
+        if closest_price and closest_price > 0:
+            return ((current_price - closest_price) / closest_price) * 100
+
+        return None
+
+    def _calculate_crypto_ytd_change(
+        self,
+        current_price: float,
+        prices: List[List[float]]
+    ) -> float:
+        """
+        Calculate year-to-date percentage change for crypto.
+
+        Args:
+            current_price: Current price
+            prices: List of [timestamp, price] pairs
+
+        Returns:
+            YTD percentage change, or None if data is insufficient
+        """
+        if not prices:
+            return None
+
+        # Find the first price of the current year
+        current_year = datetime.now().year
+        year_start = datetime(current_year, 1, 1).timestamp() * 1000  # CoinGecko uses milliseconds
+
+        year_start_price = None
+        for timestamp, price in prices:
+            if price is None:
+                continue
+
+            if timestamp >= year_start:
+                year_start_price = price
+                break
+
+        if year_start_price and year_start_price > 0:
+            return ((current_price - year_start_price) / year_start_price) * 100
+
+        return None
 
     def transform_data(self, raw_data: Dict[str, Any]) -> Dict[str, Any]:
         """
