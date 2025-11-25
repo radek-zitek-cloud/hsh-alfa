@@ -66,7 +66,12 @@ class MarketWidget(BaseWidget):
         # Yahoo Finance query API
         base_url = "https://query1.finance.yahoo.com/v8/finance/chart"
 
-        async with aiohttp.ClientSession() as session:
+        # Add headers to avoid being blocked by Yahoo Finance
+        headers = {
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36"
+        }
+
+        async with aiohttp.ClientSession(headers=headers) as session:
             for symbol in symbols:
                 try:
                     url = f"{base_url}/{symbol}"
