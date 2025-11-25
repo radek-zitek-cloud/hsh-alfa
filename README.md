@@ -425,50 +425,134 @@ docker-compose up -d
 - Run behind VPN or firewall for personal use
 - Regular dependency updates
 
-## Code Review & Quality
+## Documentation
 
-A comprehensive code review has been conducted to assess code quality, security, and maintainability:
+Comprehensive documentation is available in the `/docs` folder:
 
-- **[CODE_REVIEW.md](CODE_REVIEW.md)** - Detailed in-depth analysis covering security, code quality, testing, and architecture
-- **[ACTION_ITEMS.md](ACTION_ITEMS.md)** - Prioritized action items with implementation guidance
+### Getting Started
+- **[README.md](README.md)** - This file: overview and quick start
+- **[CONTRIBUTING.md](CONTRIBUTING.md)** - How to contribute to the project
+- **[DEVELOPMENT.md](docs/DEVELOPMENT.md)** - Development workflow and environment setup
 
-**Key Recommendations**:
-- Add automated testing infrastructure (currently missing)
-- Implement API rate limiting for security
-- Update dependencies to address vulnerabilities
-- Enhance input validation across all endpoints
-- See documents above for complete findings and roadmap
+### Architecture & Design
+- **[FRONTEND_ARCHITECTURE.md](docs/FRONTEND_ARCHITECTURE.md)** - React app architecture, state management, and patterns
+- **[API_DOCUMENTATION.md](docs/API_DOCUMENTATION.md)** - Complete API reference with examples
+- **[DATABASE_SCHEMA.md](docs/DATABASE_SCHEMA.md)** - Database design, schema, and migrations
+
+### Development Guides
+- **[WIDGET_DEVELOPMENT_GUIDE.md](docs/WIDGET_DEVELOPMENT_GUIDE.md)** - Creating custom widgets step-by-step
+- **[TESTING.md](docs/TESTING.md)** - Testing strategy, framework setup, and best practices
+- **[DEPLOYMENT.md](docs/DEPLOYMENT.md)** - Production deployment, SSL, monitoring, and backups
+
+### Reference
+- **[WIDGET_DATA_SOURCES.md](docs/WIDGET_DATA_SOURCES.md)** - API documentation for widget data sources
+- **[GOOGLE_OAUTH_SETUP.md](docs/GOOGLE_OAUTH_SETUP.md)** - Google OAuth configuration guide
+- **[redis-caching.md](docs/redis-caching.md)** - Caching architecture and strategy
+
+### Code Quality
+- **[CODE_REVIEW.md](docs/CODE_REVIEW.md)** - Security and code quality analysis
+- **[ACTION_ITEMS.md](docs/ACTION_ITEMS.md)** - Prioritized improvement tasks
+- **[REQUIREMENTS.md](docs/REQUIREMENTS.md)** - Functional specifications
 
 ## Contributing
 
-Contributions are welcome! Please:
+We welcome contributions! Please see:
+
+1. **[CONTRIBUTING.md](CONTRIBUTING.md)** - Contribution guidelines and workflow
+2. **[DEVELOPMENT.md](docs/DEVELOPMENT.md)** - Development environment setup
+3. **[CODE_REVIEW.md](docs/CODE_REVIEW.md)** - Code quality standards
+
+**Quick Start for Contributors**:
 1. Fork the repository
-2. Create a feature branch
-3. Make your changes
-4. Follow the recommendations in [CODE_REVIEW.md](CODE_REVIEW.md)
-5. Submit a pull request
+2. Create a feature branch (`git checkout -b feature/amazing-feature`)
+3. Make your changes following our coding standards
+4. Add tests for new features
+5. Ensure all tests pass (`pytest` for backend, `npm test` for frontend)
+6. Update documentation as needed
+7. Submit a pull request
 
 ## License
 
 See LICENSE file for details.
 
+## API Documentation
+
+Interactive API documentation is available when the backend is running:
+
+- **Swagger UI**: http://localhost:8000/docs
+- **ReDoc**: http://localhost:8000/redoc
+- **OpenAPI JSON**: http://localhost:8000/openapi.json
+
+For detailed API reference, see **[API_DOCUMENTATION.md](docs/API_DOCUMENTATION.md)**
+
+## Testing
+
+Run the test suite:
+
+```bash
+# Backend tests
+cd backend
+pytest
+
+# With coverage report
+pytest --cov=app --cov-report=html
+
+# Frontend tests (future)
+cd frontend
+npm test
+```
+
+See **[TESTING.md](docs/TESTING.md)** for comprehensive testing documentation.
+
 ## Support
 
 For issues and questions:
-- Check existing issues on GitHub
-- Review troubleshooting section
-- Check logs: `docker-compose logs`
+
+- **Documentation**: Check the `/docs` folder for detailed guides
+- **GitHub Issues**: Report bugs or request features
+- **GitHub Discussions**: Ask questions and share ideas
+- **Troubleshooting**: See [DEPLOYMENT.md](docs/DEPLOYMENT.md#troubleshooting) for common issues
+- **Logs**: Check with `docker-compose logs`
 
 ## Roadmap
 
-- [ ] News/RSS widget
-- [ ] Market data widget
-- [ ] Drag-and-drop widget editing
-- [ ] Bookmark import/export
-- [ ] Multi-user support
-- [ ] Browser extension
-- [ ] Mobile app
+### Implemented ✅
+- [x] Bookmark management with categories and tags
+- [x] Weather widget
+- [x] Exchange rate widget
+- [x] News widget
+- [x] Market data widget
+- [x] Google OAuth authentication
+- [x] Redis caching
+- [x] Docker deployment
+- [x] Traefik integration
+
+### Planned 🚧
+- [ ] Drag-and-drop widget repositioning
+- [ ] Bookmark import/export (JSON, CSV, browser bookmarks)
+- [ ] RSS feed widget
+- [ ] Multi-user support with permissions
+- [ ] Browser extension for quick bookmark saving
+- [ ] Mobile app (React Native)
+- [ ] Internationalization (i18n)
+- [ ] Dark/light theme customization
+- [ ] Backup and restore functionality
+- [ ] PostgreSQL support for scalability
+
+See **[ACTION_ITEMS.md](docs/ACTION_ITEMS.md)** for detailed development roadmap.
+
+## License
+
+This project is licensed under the terms specified in the LICENSE file.
+
+## Acknowledgments
+
+- Built with modern web technologies: FastAPI, React, SQLite, Redis
+- Icons by [Lucide](https://lucide.dev/)
+- Deployed with Docker and Traefik
 
 ---
 
 Built with ❤️ for homelabbers and self-hosters
+
+**Star this project** if you find it useful! ⭐
