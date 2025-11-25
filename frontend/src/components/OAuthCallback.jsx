@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 
@@ -6,9 +6,15 @@ const OAuthCallback = () => {
   const navigate = useNavigate();
   const { handleCallback } = useAuth();
   const [error, setError] = useState(null);
+  const hasProcessed = useRef(false);
 
   useEffect(() => {
     const processCallback = async () => {
+      // Prevent processing the callback multiple times
+      if (hasProcessed.current) {
+        return;
+      }
+      hasProcessed.current = true;
       try {
         // Get authorization code and state from URL query parameters
         const urlParams = new URLSearchParams(window.location.search);
