@@ -1,6 +1,6 @@
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { bookmarksApi } from '../services/api'
+import { bookmarksApi, preferencesApi } from '../services/api'
 import { ExternalLink, Loader, Edit2, Trash2 } from 'lucide-react'
 import BookmarkModal from './BookmarkModal'
 import BookmarkForm from './BookmarkForm'
@@ -170,6 +170,40 @@ const BookmarkCard = ({ bookmark }) => {
 
 const BookmarkGrid = () => {
   const [sortBy, setSortBy] = useState('position')
+  const [isLoadingPreference, setIsLoadingPreference] = useState(true)
+
+  // Load saved sort preference on mount
+  useEffect(() => {
+    const loadSortPreference = async () => {
+      try {
+        const response = await preferencesApi.get('bookmarks_sort_order')
+        if (response.data && response.data.value) {
+          setSortBy(response.data.value)
+        }
+      } catch (error) {
+        // If preference doesn't exist yet, that's ok - use default
+        console.debug('No saved sort preference found, using default')
+      } finally {
+        setIsLoadingPreference(false)
+      }
+    }
+    loadSortPreference()
+  }, [])
+
+  // Save sort preference whenever it changes
+  useEffect(() => {
+    // Skip saving during initial load
+    if (isLoadingPreference) return
+
+    const saveSortPreference = async () => {
+      try {
+        await preferencesApi.set('bookmarks_sort_order', sortBy)
+      } catch (error) {
+        console.error('Failed to save sort preference:', error)
+      }
+    }
+    saveSortPreference()
+  }, [sortBy, isLoadingPreference])
 
   const { data: bookmarks, isLoading, error } = useQuery({
     queryKey: ['bookmarks', sortBy],
