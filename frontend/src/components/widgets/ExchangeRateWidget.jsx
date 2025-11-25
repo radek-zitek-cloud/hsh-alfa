@@ -55,23 +55,30 @@ const ExchangeRateWidget = ({ widgetId, config }) => {
 
         {/* Rates */}
         <div className="space-y-3 flex-1">
-          {rateData.rates.map((rate) => (
-            <div
-              key={rate.currency}
-              className="flex items-center justify-between p-2 bg-[var(--bg-primary)] rounded border border-[var(--border-color)]"
-            >
-              <div className="flex items-center gap-2">
-                <span className="font-semibold text-[var(--text-primary)]">
-                  {rate.currency}
-                </span>
-              </div>
-              <div className="text-right">
-                <div className="font-mono text-[var(--text-primary)]">
-                  {rate.rate.toFixed(4)} / {rate.reverse_rate.toFixed(4)}
+          {rateData.rates.map((rate) => {
+            // Defensive checks to prevent crashes
+            if (!rate || !rate.currency) return null
+            const rateValue = rate.rate ?? 0
+            const reverseRateValue = rate.reverse_rate ?? 0
+
+            return (
+              <div
+                key={rate.currency}
+                className="flex items-center justify-between p-2 bg-[var(--bg-primary)] rounded border border-[var(--border-color)]"
+              >
+                <div className="flex items-center gap-2">
+                  <span className="font-semibold text-[var(--text-primary)]">
+                    {rate.currency}
+                  </span>
+                </div>
+                <div className="text-right">
+                  <div className="font-mono text-[var(--text-primary)]">
+                    {rateValue.toFixed(4)} / {reverseRateValue.toFixed(4)}
+                  </div>
                 </div>
               </div>
-            </div>
-          ))}
+            )
+          })}
         </div>
 
         {/* Last Update */}

@@ -7,7 +7,34 @@ const api = axios.create({
   headers: {
     'Content-Type': 'application/json',
   },
+  timeout: 10000, // 10 second timeout
 });
+
+// Add response interceptor for better error handling
+api.interceptors.response.use(
+  (response) => response,
+  (error) => {
+    // Handle network errors gracefully
+    if (error.code === 'ECONNABORTED') {
+      console.error('Request timeout:', error.message);
+      error.message = 'Request timed out. Please check your connection.';
+    } else if (error.code === 'ERR_NETWORK' || !error.response) {
+      console.error('Network error:', error.message);
+      error.message = 'Unable to connect to server. Please check your connection.';
+    } else if (error.response) {
+      // Server responded with error status
+      const status = error.response.status;
+      if (status >= 500) {
+        console.error('Server error:', error.message);
+        error.message = 'Server error. Please try again later.';
+      } else if (status === 404) {
+        console.error('Resource not found:', error.message);
+        error.message = 'Resource not found.';
+      }
+    }
+    return Promise.reject(error);
+  }
+);
 
 // Bookmarks API
 export const bookmarksApi = {
