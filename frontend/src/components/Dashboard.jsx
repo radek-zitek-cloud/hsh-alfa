@@ -24,20 +24,6 @@ const Dashboard = ({ theme, toggleTheme }) => {
           Home Sweet Home
         </h1>
         <div className="flex items-center gap-4">
-          {user && (
-            <div className="flex items-center gap-3">
-              {user.picture && (
-                <img
-                  src={user.picture}
-                  alt={user.name || user.email}
-                  className="w-8 h-8 rounded-full"
-                />
-              )}
-              <span className="text-sm text-[var(--text-secondary)] hidden sm:inline">
-                {user.name || user.email}
-              </span>
-            </div>
-          )}
           <button
             onClick={toggleTheme}
             className="p-2 rounded-lg bg-[var(--bg-secondary)] hover:bg-[var(--border-color)] transition-colors"
@@ -53,6 +39,20 @@ const Dashboard = ({ theme, toggleTheme }) => {
           >
             <LogOut size={24} />
           </button>
+          {user && (
+            <div className="flex items-center gap-3">
+              {user.picture && (
+                <img
+                  src={user.picture}
+                  alt={user.name || user.email}
+                  className="w-8 h-8 rounded-full"
+                />
+              )}
+              <span className="text-sm text-[var(--text-secondary)] hidden sm:inline">
+                {user.name || user.email}
+              </span>
+            </div>
+          )}
         </div>
       </header>
 
