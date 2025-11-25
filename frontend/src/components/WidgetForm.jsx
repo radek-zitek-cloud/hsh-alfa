@@ -2,6 +2,32 @@ import React, { useState, useEffect } from 'react'
 import { widgetsApi } from '../services/api'
 import { useMutation, useQueryClient, useQuery } from '@tanstack/react-query'
 
+// Helper function to format error messages from API responses
+const formatErrorMessage = (error) => {
+  const detail = error.response?.data?.detail
+
+  // If detail is an array of validation errors (Pydantic format)
+  if (Array.isArray(detail)) {
+    return detail.map(err => {
+      const field = err.loc?.join('.') || 'field'
+      return `${field}: ${err.msg || 'Validation error'}`
+    }).join('; ')
+  }
+
+  // If detail is a string, return it directly
+  if (typeof detail === 'string') {
+    return detail
+  }
+
+  // If detail is an object, try to stringify it
+  if (detail && typeof detail === 'object') {
+    return JSON.stringify(detail)
+  }
+
+  // Default fallback message
+  return 'An error occurred'
+}
+
 const WidgetForm = ({ widget, onSuccess, onCancel }) => {
   const queryClient = useQueryClient()
   const isEditMode = !!widget
@@ -54,7 +80,7 @@ const WidgetForm = ({ widget, onSuccess, onCancel }) => {
       onSuccess?.()
     },
     onError: (error) => {
-      const errorMessage = error.response?.data?.detail || 'Failed to create widget'
+      const errorMessage = formatErrorMessage(error) || 'Failed to create widget'
       setErrors({ submit: errorMessage })
     },
   })
@@ -69,7 +95,7 @@ const WidgetForm = ({ widget, onSuccess, onCancel }) => {
       onSuccess?.()
     },
     onError: (error) => {
-      const errorMessage = error.response?.data?.detail || 'Failed to update widget'
+      const errorMessage = formatErrorMessage(error) || 'Failed to update widget'
       setErrors({ submit: errorMessage })
     },
   })

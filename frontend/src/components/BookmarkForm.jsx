@@ -3,6 +3,32 @@ import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { bookmarksApi } from '../services/api'
 import { Loader } from 'lucide-react'
 
+// Helper function to format error messages from API responses
+const formatErrorMessage = (error) => {
+  const detail = error.response?.data?.detail
+
+  // If detail is an array of validation errors (Pydantic format)
+  if (Array.isArray(detail)) {
+    return detail.map(err => {
+      const field = err.loc?.join('.') || 'field'
+      return `${field}: ${err.msg || 'Validation error'}`
+    }).join('; ')
+  }
+
+  // If detail is a string, return it directly
+  if (typeof detail === 'string') {
+    return detail
+  }
+
+  // If detail is an object, try to stringify it
+  if (detail && typeof detail === 'object') {
+    return JSON.stringify(detail)
+  }
+
+  // Default fallback message
+  return 'An error occurred'
+}
+
 const BookmarkForm = ({ bookmark, onSuccess, onCancel }) => {
   const queryClient = useQueryClient()
   const isEditing = !!bookmark
@@ -39,7 +65,7 @@ const BookmarkForm = ({ bookmark, onSuccess, onCancel }) => {
     },
     onError: (error) => {
       console.error('Error creating bookmark:', error)
-      setErrors({ submit: error.response?.data?.detail || 'Failed to create bookmark' })
+      setErrors({ submit: formatErrorMessage(error) || 'Failed to create bookmark' })
     },
   })
 
@@ -51,7 +77,7 @@ const BookmarkForm = ({ bookmark, onSuccess, onCancel }) => {
     },
     onError: (error) => {
       console.error('Error updating bookmark:', error)
-      setErrors({ submit: error.response?.data?.detail || 'Failed to update bookmark' })
+      setErrors({ submit: formatErrorMessage(error) || 'Failed to update bookmark' })
     },
   })
 
@@ -96,12 +122,17 @@ const BookmarkForm = ({ bookmark, onSuccess, onCancel }) => {
       return
     }
 
+    // Convert tags from comma-separated string to array
+    const tagsArray = formData.tags.trim()
+      ? formData.tags.split(',').map(tag => tag.trim()).filter(tag => tag.length > 0)
+      : null
+
     const data = {
       title: formData.title.trim(),
       url: formData.url.trim(),
       description: formData.description.trim() || null,
       category: formData.category.trim() || null,
-      tags: formData.tags.trim() || null,
+      tags: tagsArray,
       favicon: formData.favicon.trim() || null,
     }
 
