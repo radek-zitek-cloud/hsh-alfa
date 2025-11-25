@@ -5,7 +5,6 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.preference import Preference
-from app.exceptions import NotFoundException
 
 logger = logging.getLogger(__name__)
 
