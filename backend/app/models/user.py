@@ -1,5 +1,5 @@
 """User database model."""
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Optional
 from sqlalchemy import String, Integer, DateTime, Boolean
 from sqlalchemy.orm import Mapped, mapped_column
@@ -19,15 +19,27 @@ class User(Base):
     name: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
     picture: Mapped[Optional[str]] = mapped_column(String(2048), nullable=True)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
-    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=lambda: datetime.now(timezone.utc), nullable=False)
     last_login: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
 
     def to_dict(self) -> dict:
-        """Convert model to dictionary."""
+        """Convert model to dictionary for internal use."""
         return {
             "id": self.id,
             "email": self.email,
             "google_id": self.google_id,
+            "name": self.name,
+            "picture": self.picture,
+            "is_active": self.is_active,
+            "created_at": self.created_at.isoformat() if self.created_at else None,
+            "last_login": self.last_login.isoformat() if self.last_login else None,
+        }
+
+    def to_public_dict(self) -> dict:
+        """Convert model to dictionary for public API responses (excludes sensitive fields)."""
+        return {
+            "id": self.id,
+            "email": self.email,
             "name": self.name,
             "picture": self.picture,
             "is_active": self.is_active,

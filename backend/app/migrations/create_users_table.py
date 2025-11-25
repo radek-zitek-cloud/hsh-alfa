@@ -37,10 +37,10 @@ async def run_migration(engine):
 
             # Create indexes
             await conn.execute(text(
-                "CREATE INDEX idx_users_email ON users(email)"
+                "CREATE INDEX IF NOT EXISTS idx_users_email ON users(email)"
             ))
             await conn.execute(text(
-                "CREATE INDEX idx_users_google_id ON users(google_id)"
+                "CREATE INDEX IF NOT EXISTS idx_users_google_id ON users(google_id)"
             ))
 
             logger.info("Users table created successfully")

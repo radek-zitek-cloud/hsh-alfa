@@ -7,10 +7,12 @@ from sqlalchemy.ext.asyncio import AsyncSession
 import aiohttp
 
 from app.models.bookmark import BookmarkCreate, BookmarkUpdate, BookmarkResponse
+from app.models.user import User
 from app.services.database import get_db
 from app.services.bookmark_service import BookmarkService
 from app.services.favicon import is_safe_url
 from app.services.rate_limit import limiter
+from app.api.dependencies import require_auth
 
 logger = logging.getLogger(__name__)
 
@@ -22,7 +24,8 @@ async def list_bookmarks(
     request: Request,
     category: Optional[str] = None,
     sort_by: Optional[str] = Query(None, description="Sort by: alphabetical, clicks, or position (default)"),
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(require_auth)
 ):
     """
     List all bookmarks, optionally filtered by category and sorted.
@@ -43,7 +46,8 @@ async def list_bookmarks(
 @router.get("/{bookmark_id}", response_model=BookmarkResponse)
 async def get_bookmark(
     bookmark_id: int,
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(require_auth)
 ):
     """
     Get a specific bookmark by ID.
@@ -93,7 +97,8 @@ async def track_bookmark_click(
 @router.post("/", response_model=BookmarkResponse, status_code=201)
 async def create_bookmark(
     bookmark_data: BookmarkCreate,
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(require_auth)
 ):
     """
     Create a new bookmark.
@@ -116,7 +121,8 @@ async def create_bookmark(
 async def update_bookmark(
     bookmark_id: int,
     bookmark_data: BookmarkUpdate,
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(require_auth)
 ):
     """
     Update an existing bookmark.
@@ -143,7 +149,8 @@ async def update_bookmark(
 @router.delete("/{bookmark_id}", status_code=204)
 async def delete_bookmark(
     bookmark_id: int,
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(require_auth)
 ):
     """
     Delete a bookmark.
@@ -162,7 +169,8 @@ async def delete_bookmark(
 @router.get("/search/", response_model=List[BookmarkResponse])
 async def search_bookmarks(
     q: str = Query(..., min_length=1, max_length=100, description="Search query"),
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(require_auth)
 ):
     """
     Search bookmarks by title, description, or tags.
