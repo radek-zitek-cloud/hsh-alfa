@@ -1,4 +1,5 @@
 """Application configuration management."""
+import logging
 import os
 from pathlib import Path
 from typing import Optional
@@ -51,8 +52,13 @@ class Settings(BaseSettings):
         cors_env = os.getenv("CORS_ORIGINS", "")
         if cors_env:
             if cors_env == "*":
+                logging.warning("Wildcard CORS origins are dangerous and not allowed. Using localhost defaults instead.")
                 # Allow wildcard only if explicitly set
-                self.CORS_ORIGINS = ["*"]
+                self.CORS_ORIGINS = [
+                "http://localhost:3000",
+                "http://localhost:5173",  # Vite dev server
+                "http://localhost:8080",  # Frontend container
+            ]
             else:
                 # Parse comma-separated list
                 self.CORS_ORIGINS = [
