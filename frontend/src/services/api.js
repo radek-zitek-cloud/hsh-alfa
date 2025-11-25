@@ -95,4 +95,11 @@ export const sectionsApi = {
   delete: (id) => api.delete(`/sections/${id}`),
 };
 
+// Preferences API
+export const preferencesApi = {
+  get: (key) => api.get(`/preferences/${key}`),
+
+  set: (key, value) => api.put(`/preferences/${key}`, { value }),
+};
+
 export default api;
