@@ -49,11 +49,11 @@ class CallbackRequest(BaseModel):
             True if code is valid, False otherwise
         """
         # Authorization codes should be non-empty and reasonable length
-        # Google codes typically contain only alphanumeric characters, hyphens, and underscores
+        # Google codes are URL-safe base64 encoded and can contain: alphanumeric, hyphens, underscores, slashes, and percent-encoding
         if not self.code or len(self.code) < AUTH_CODE_MIN_LENGTH or len(self.code) > AUTH_CODE_MAX_LENGTH:
             return False
-        # Check for strict alphanumeric pattern (only allow hyphens and underscores)
-        return all(c.isalnum() or c in '-_' for c in self.code)
+        # Check for URL-safe pattern (allow alphanumeric, hyphens, underscores, slashes, and percent-encoding)
+        return all(c.isalnum() or c in '-_/%' for c in self.code)
 
 
 @router.get("/google/url", response_model=GoogleAuthURL)
