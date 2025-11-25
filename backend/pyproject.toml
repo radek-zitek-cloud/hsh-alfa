@@ -1,3 +1,9 @@
+[project]
+name = "home-sweet-home-backend"
+version = "1.0.0"
+description = "Home Sweet Home - Personal Dashboard Backend"
+requires-python = ">=3.11"
+
 [tool.black]
 line-length = 100
 target-version = ['py311']
