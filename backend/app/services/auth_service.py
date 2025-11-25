@@ -2,6 +2,7 @@
 import logging
 import hashlib
 import secrets
+import threading
 from datetime import datetime, timedelta, timezone
 from typing import Optional, Dict, Any
 import httpx
@@ -31,8 +32,8 @@ def mask_email(email: str) -> str:
     """
     if not email:
         return "unknown"
-    # Use first 8 characters of SHA-256 hash for identification without exposing PII
-    email_hash = hashlib.sha256(email.encode()).hexdigest()[:8]
+    # Use first 16 characters of SHA-256 hash for better entropy and reduced collision risk
+    email_hash = hashlib.sha256(email.encode()).hexdigest()[:16]
     return f"user_{email_hash}"
 
 
@@ -42,10 +43,12 @@ class AuthService:
     # In-memory store for OAuth state tokens (in production, use Redis)
     # Format: {state_token: expiration_timestamp}
     _state_store: Dict[str, float] = {}
+    _state_lock = threading.Lock()
 
     # In-memory store for blacklisted tokens (in production, use Redis)
     # Format: {token_jti: expiration_timestamp}
     _token_blacklist: Dict[str, float] = {}
+    _blacklist_lock = threading.Lock()
 
     def __init__(self):
         """Initialize auth service."""
@@ -67,9 +70,8 @@ class AuthService:
         state = secrets.token_urlsafe(32)
         # Store with 10-minute expiration
         expiration = datetime.now(timezone.utc).timestamp() + 600
-        self._state_store[state] = expiration
-        # Clean up expired tokens
-        self._cleanup_expired_states()
+        with self._state_lock:
+            self._state_store[state] = expiration
         return state
 
     def validate_state_token(self, state: str) -> bool:
@@ -81,30 +83,32 @@ class AuthService:
         Returns:
             True if valid, False otherwise
         """
-        if not state or state not in self._state_store:
-            return False
+        with self._state_lock:
+            if not state or state not in self._state_store:
+                return False
 
-        expiration = self._state_store[state]
-        now = datetime.now(timezone.utc).timestamp()
+            expiration = self._state_store[state]
+            now = datetime.now(timezone.utc).timestamp()
 
-        # Check if expired
-        if now > expiration:
+            # Check if expired
+            if now > expiration:
+                del self._state_store[state]
+                return False
+
+            # Valid token - remove it (one-time use)
             del self._state_store[state]
-            return False
-
-        # Valid token - remove it (one-time use)
-        del self._state_store[state]
-        return True
+            return True
 
     def _cleanup_expired_states(self):
         """Clean up expired state tokens from store."""
         now = datetime.now(timezone.utc).timestamp()
-        expired_states = [
-            state for state, exp in self._state_store.items()
-            if now > exp
-        ]
-        for state in expired_states:
-            del self._state_store[state]
+        with self._state_lock:
+            expired_states = [
+                state for state, exp in self._state_store.items()
+                if now > exp
+            ]
+            for state in expired_states:
+                del self._state_store[state]
 
     def create_access_token(self, data: Dict[str, Any]) -> str:
         """Create JWT access token with unique identifier.
@@ -183,8 +187,8 @@ class AuthService:
                 return False
 
             # Store until token expiration
-            self._token_blacklist[jti] = float(exp)
-            self._cleanup_expired_blacklist()
+            with self._blacklist_lock:
+                self._token_blacklist[jti] = float(exp)
             return True
         except JWTError as e:
             logger.error(f"Failed to blacklist token: {e}")
@@ -199,29 +203,31 @@ class AuthService:
         Returns:
             True if blacklisted, False otherwise
         """
-        if jti not in self._token_blacklist:
-            return False
+        with self._blacklist_lock:
+            if jti not in self._token_blacklist:
+                return False
 
-        # Check if still valid (not expired)
-        exp = self._token_blacklist[jti]
-        now = datetime.now(timezone.utc).timestamp()
+            # Check if still valid (not expired)
+            exp = self._token_blacklist[jti]
+            now = datetime.now(timezone.utc).timestamp()
 
-        if now > exp:
-            # Token expired, remove from blacklist
-            del self._token_blacklist[jti]
-            return False
+            if now > exp:
+                # Token expired, remove from blacklist
+                del self._token_blacklist[jti]
+                return False
 
-        return True
+            return True
 
     def _cleanup_expired_blacklist(self):
         """Clean up expired tokens from blacklist."""
         now = datetime.now(timezone.utc).timestamp()
-        expired_tokens = [
-            jti for jti, exp in self._token_blacklist.items()
-            if now > exp
-        ]
-        for jti in expired_tokens:
-            del self._token_blacklist[jti]
+        with self._blacklist_lock:
+            expired_tokens = [
+                jti for jti, exp in self._token_blacklist.items()
+                if now > exp
+            ]
+            for jti in expired_tokens:
+                del self._token_blacklist[jti]
 
     async def exchange_code_for_token(self, code: str) -> Optional[str]:
         """Exchange authorization code for access token.

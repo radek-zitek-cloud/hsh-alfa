@@ -3,6 +3,7 @@ import logging
 from typing import Optional
 from urllib.parse import urlencode
 from fastapi import APIRouter, Depends, HTTPException, status, Request
+from fastapi.security import HTTPAuthorizationCredentials
 from sqlalchemy.ext.asyncio import AsyncSession
 from pydantic import BaseModel
 
@@ -11,7 +12,7 @@ from app.models.user import TokenResponse, UserResponse
 from app.services.auth_service import auth_service, mask_email
 from app.services.database import get_db
 from app.services.rate_limit import limiter
-from app.api.dependencies import get_current_user, require_auth
+from app.api.dependencies import get_current_user, require_auth, security
 from app.models.user import User
 from app.constants import (
     GOOGLE_AUTH_URL,
@@ -21,8 +22,10 @@ from app.constants import (
     ERROR_AUTH_FAILED,
     ERROR_INVALID_CODE_FORMAT,
     ERROR_GOOGLE_OAUTH_NOT_CONFIGURED,
+    ERROR_INVALID_REQUEST,
     RATE_LIMIT_AUTH_CALLBACK,
     RATE_LIMIT_AUTH_LOGIN,
+    RATE_LIMIT_AUTH_ME,
 )
 
 logger = logging.getLogger(__name__)
@@ -46,11 +49,11 @@ class CallbackRequest(BaseModel):
             True if code is valid, False otherwise
         """
         # Authorization codes should be non-empty and reasonable length
-        # They should only contain alphanumeric characters, hyphens, underscores, and URL-safe chars
+        # Google codes typically contain only alphanumeric characters, hyphens, and underscores
         if not self.code or len(self.code) < AUTH_CODE_MIN_LENGTH or len(self.code) > AUTH_CODE_MAX_LENGTH:
             return False
-        # Check for basic alphanumeric pattern (allow URL-safe characters)
-        return all(c.isalnum() or c in '-_.' for c in self.code)
+        # Check for strict alphanumeric pattern (only allow hyphens and underscores)
+        return all(c.isalnum() or c in '-_' for c in self.code)
 
 
 @router.get("/google/url", response_model=GoogleAuthURL)
@@ -107,14 +110,25 @@ async def oauth_callback(
     """
     # Validate state token for CSRF protection
     if not callback_request.state or not auth_service.validate_state_token(callback_request.state):
-        logger.warning("Invalid or missing state token in OAuth callback")
+        # Log detailed information for security monitoring without revealing to user
+        logger.warning(
+            "Invalid or missing state token in OAuth callback - possible CSRF attack",
+            extra={"state_present": bool(callback_request.state)}
+        )
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Invalid state parameter - possible CSRF attack"
+            detail=ERROR_INVALID_REQUEST
         )
 
     # Validate authorization code format
     if not callback_request.validate_code():
+        logger.warning(
+            "Invalid authorization code format in OAuth callback",
+            extra={
+                "code_length": len(callback_request.code),
+                "ip": request.client.host if request.client else "unknown"
+            }
+        )
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=ERROR_INVALID_CODE_FORMAT
@@ -123,6 +137,10 @@ async def oauth_callback(
     # Authenticate user with authorization code
     user = await auth_service.authenticate_user(db, callback_request.code)
     if not user:
+        logger.warning(
+            "OAuth authentication failed - user creation or token exchange failed",
+            extra={"ip": request.client.host if request.client else "unknown"}
+        )
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail=ERROR_AUTH_FAILED
@@ -152,12 +170,15 @@ async def oauth_callback(
 
 
 @router.get("/me", response_model=UserResponse)
+@limiter.limit(RATE_LIMIT_AUTH_ME)
 async def get_current_user_info(
+    request: Request,
     current_user: User = Depends(require_auth)
 ):
     """Get current authenticated user information.
 
     Args:
+        request: HTTP request
         current_user: Current authenticated user
 
     Returns:
@@ -176,29 +197,32 @@ async def get_current_user_info(
 
 @router.post("/logout")
 async def logout(
-    request: Request,
-    current_user: User = Depends(require_auth)
+    current_user: User = Depends(require_auth),
+    credentials: Optional[HTTPAuthorizationCredentials] = Depends(security)
 ):
     """Logout current user and blacklist their JWT token.
 
     Args:
         current_user: Current authenticated user
+        credentials: HTTP authorization credentials
 
     Returns:
         Success message
-    """
-    # Get the token from the authorization header
-    from fastapi.security import HTTPBearer
-    from fastapi import Header
-    authorization: Optional[str] = request.headers.get("Authorization")
 
-    if authorization and authorization.startswith("Bearer "):
-        token = authorization.replace("Bearer ", "")
+    Raises:
+        HTTPException: If token blacklisting fails
+    """
+    if credentials:
+        token = credentials.credentials
         token_blacklisted = auth_service.blacklist_token(token)
         if token_blacklisted:
             logger.info(f"User logged out and token blacklisted: {mask_email(current_user.email)}")
         else:
             logger.warning(f"User logged out but token blacklisting failed: {mask_email(current_user.email)}")
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Failed to complete logout"
+            )
     else:
         logger.info(f"User logged out: {mask_email(current_user.email)}")
 
