@@ -5,14 +5,15 @@ This module provides a centralized HTTP client for making external API requests
 across all widgets and services, reducing code duplication and ensuring consistent
 security policies and error handling.
 """
-import logging
 import aiohttp
 from typing import Optional, Dict, Any
 from urllib.parse import urlparse
 import ipaddress
 import socket
 
-logger = logging.getLogger(__name__)
+from app.logging_config import get_logger
+
+logger = get_logger(__name__)
 
 # Default timeout for HTTP requests (in seconds)
 DEFAULT_TIMEOUT = 10
@@ -54,12 +55,20 @@ def is_safe_url(url: str) -> bool:
 
         # Only allow http/https schemes
         if parsed.scheme not in ['http', 'https']:
-            logger.warning(f"Blocked non-http(s) URL: {url}")
+            logger.warning("Blocked non-http(s) URL", extra={
+                "operation": "ssrf_validation",
+                "reason": "invalid_scheme",
+                "scheme": parsed.scheme
+            })
             return False
 
         # Block localhost
         if parsed.hostname in ['localhost', '0.0.0.0']:
-            logger.warning(f"Blocked localhost URL: {url}")
+            logger.warning("Blocked localhost URL", extra={
+                "operation": "ssrf_validation",
+                "reason": "localhost_blocked",
+                "hostname": parsed.hostname
+            })
             return False
 
         # Try to resolve hostname to IP and check against blocked ranges
@@ -71,16 +80,29 @@ def is_safe_url(url: str) -> bool:
                     ip = ipaddress.ip_address(addr[4][0])
                     for blocked_range in BLOCKED_IP_RANGES:
                         if ip in blocked_range:
-                            logger.warning(f"Blocked private/internal IP URL: {url} ({ip})")
+                            logger.warning("Blocked private/internal IP URL", extra={
+                                "operation": "ssrf_validation",
+                                "reason": "private_ip_blocked",
+                                "hostname": parsed.hostname,
+                                "ip": str(ip)
+                            })
                             return False
             except (socket.gaierror, ValueError) as e:
-                logger.debug(f"Could not resolve hostname {parsed.hostname}: {e}")
+                logger.debug("Could not resolve hostname", extra={
+                    "operation": "ssrf_validation",
+                    "hostname": parsed.hostname,
+                    "error_type": type(e).__name__
+                })
                 # If we can't resolve, block it to be safe
                 return False
 
         return True
     except Exception as e:
-        logger.warning(f"Error validating URL {url}: {e}")
+        logger.warning("Error validating URL", extra={
+            "operation": "ssrf_validation",
+            "reason": "validation_error",
+            "error_type": type(e).__name__
+        })
         return False
 
 
@@ -195,6 +217,10 @@ class HttpClient:
             ValueError: If response is not valid JSON
         """
         if validate_url and not is_safe_url(url):
+            logger.warning("Unsafe URL blocked for JSON request", extra={
+                "operation": "http_request_blocked",
+                "request_type": "json"
+            })
             raise ValueError(f"Unsafe URL blocked: {url}")
 
         # Merge headers
@@ -207,18 +233,41 @@ class HttpClient:
 
         timeout_obj = aiohttp.ClientTimeout(total=request_timeout)
 
-        async with aiohttp.ClientSession(
-            timeout=timeout_obj,
-            headers=request_headers
-        ) as session:
-            async with session.get(
-                url,
-                params=params,
-                allow_redirects=True,
-                ssl=self.verify_ssl
-            ) as response:
-                response.raise_for_status()
-                return await response.json()
+        try:
+            logger.debug("Making JSON HTTP request", extra={
+                "operation": "http_request",
+                "request_type": "json",
+                "timeout": request_timeout
+            })
+            async with aiohttp.ClientSession(
+                timeout=timeout_obj,
+                headers=request_headers
+            ) as session:
+                async with session.get(
+                    url,
+                    params=params,
+                    allow_redirects=True,
+                    ssl=self.verify_ssl
+                ) as response:
+                    response.raise_for_status()
+                    logger.debug("JSON response received successfully", extra={
+                        "operation": "http_request_success",
+                        "status_code": response.status
+                    })
+                    return await response.json()
+        except aiohttp.ClientError as e:
+            logger.error("HTTP request failed", extra={
+                "operation": "http_request_failed",
+                "request_type": "json",
+                "error_type": type(e).__name__
+            })
+            raise
+        except Exception as e:
+            logger.error("Unexpected error during JSON request", extra={
+                "operation": "http_request_error",
+                "error_type": type(e).__name__
+            }, exc_info=True)
+            raise
 
     async def get_text(
         self,
@@ -248,6 +297,10 @@ class HttpClient:
             aiohttp.ClientError: If request fails
         """
         if validate_url and not is_safe_url(url):
+            logger.warning("Unsafe URL blocked for text request", extra={
+                "operation": "http_request_blocked",
+                "request_type": "text"
+            })
             raise ValueError(f"Unsafe URL blocked: {url}")
 
         # Merge headers
@@ -260,30 +313,69 @@ class HttpClient:
 
         timeout_obj = aiohttp.ClientTimeout(total=request_timeout)
 
-        async with aiohttp.ClientSession(
-            timeout=timeout_obj,
-            headers=request_headers
-        ) as session:
-            async with session.get(
-                url,
-                params=params,
-                allow_redirects=True,
-                ssl=self.verify_ssl
-            ) as response:
-                response.raise_for_status()
+        try:
+            logger.debug("Making text HTTP request", extra={
+                "operation": "http_request",
+                "request_type": "text",
+                "timeout": request_timeout,
+                "max_size": max_size
+            })
+            async with aiohttp.ClientSession(
+                timeout=timeout_obj,
+                headers=request_headers
+            ) as session:
+                async with session.get(
+                    url,
+                    params=params,
+                    allow_redirects=True,
+                    ssl=self.verify_ssl
+                ) as response:
+                    response.raise_for_status()
 
-                # Check content length
-                content_length = response.headers.get('Content-Length')
-                if content_length and int(content_length) > max_size:
-                    raise ValueError(f"Content too large ({content_length} bytes), max {max_size}")
+                    # Check content length
+                    content_length = response.headers.get('Content-Length')
+                    if content_length and int(content_length) > max_size:
+                        logger.warning("Content size exceeds maximum", extra={
+                            "operation": "http_request_failed",
+                            "request_type": "text",
+                            "reason": "content_too_large",
+                            "content_length": int(content_length),
+                            "max_size": max_size
+                        })
+                        raise ValueError(f"Content too large ({content_length} bytes), max {max_size}")
 
-                text = await response.text()
+                    text = await response.text()
 
-                # Check actual size
-                if len(text) > max_size:
-                    raise ValueError(f"Content too large ({len(text)} bytes), max {max_size}")
+                    # Check actual size
+                    if len(text) > max_size:
+                        logger.warning("Actual content size exceeds maximum", extra={
+                            "operation": "http_request_failed",
+                            "request_type": "text",
+                            "reason": "content_too_large",
+                            "content_length": len(text),
+                            "max_size": max_size
+                        })
+                        raise ValueError(f"Content too large ({len(text)} bytes), max {max_size}")
 
-                return text
+                    logger.debug("Text response received successfully", extra={
+                        "operation": "http_request_success",
+                        "status_code": response.status,
+                        "content_length": len(text)
+                    })
+                    return text
+        except aiohttp.ClientError as e:
+            logger.error("HTTP request failed", extra={
+                "operation": "http_request_failed",
+                "request_type": "text",
+                "error_type": type(e).__name__
+            })
+            raise
+        except Exception as e:
+            logger.error("Unexpected error during text request", extra={
+                "operation": "http_request_error",
+                "error_type": type(e).__name__
+            }, exc_info=True)
+            raise
 
     async def head(
         self,

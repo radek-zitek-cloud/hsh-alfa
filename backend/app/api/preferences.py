@@ -1,15 +1,14 @@
 """Preferences API endpoints."""
-import logging
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status, Request
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.logging_config import get_logger
 from app.services.database import get_db
 from app.services.preference_service import preference_service
 from app.services.rate_limit import limiter
 from app.models.preference import PreferenceUpdate, PreferenceResponse
-from fastapi import Request
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 router = APIRouter()
 
@@ -34,14 +33,27 @@ async def get_preference(
     Raises:
         HTTPException: If preference not found
     """
-    logger.debug(f"Getting preference: {key}")
+    logger.debug(
+        "Getting preference",
+        extra={"preference_key": key, "operation": "read"}
+    )
+
     preference = await preference_service.get_preference(db, key)
 
     if not preference:
+        logger.warning(
+            "Preference not found",
+            extra={"preference_key": key}
+        )
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"Preference with key '{key}' not found"
         )
+
+    logger.debug(
+        "Preference retrieved",
+        extra={"preference_key": key, "operation": "read"}
+    )
 
     return PreferenceResponse.model_validate(preference)
 
@@ -65,6 +77,35 @@ async def set_preference(
     Returns:
         Created or updated preference
     """
-    logger.debug(f"Setting preference: {key} = {preference_data.value}")
-    preference = await preference_service.set_preference(db, key, preference_data.value)
-    return PreferenceResponse.model_validate(preference)
+    logger.info(
+        "Setting preference",
+        extra={
+            "preference_key": key,
+            "preference_value": preference_data.value,
+            "operation": "update"
+        }
+    )
+
+    try:
+        preference = await preference_service.set_preference(db, key, preference_data.value)
+
+        logger.info(
+            "Preference set successfully",
+            extra={
+                "preference_key": key,
+                "operation": "update"
+            }
+        )
+
+        return PreferenceResponse.model_validate(preference)
+    except Exception as e:
+        logger.error(
+            "Error setting preference",
+            extra={
+                "preference_key": key,
+                "error_type": type(e).__name__,
+                "error": str(e),
+            },
+            exc_info=True
+        )
+        raise

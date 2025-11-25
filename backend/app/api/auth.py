@@ -1,5 +1,4 @@
 """Authentication API endpoints."""
-import logging
 from typing import Optional
 from urllib.parse import urlencode
 from fastapi import APIRouter, Depends, HTTPException, status, Request
@@ -8,6 +7,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from pydantic import BaseModel
 
 from app.config import settings
+from app.logging_config import get_logger
 from app.models.user import TokenResponse, UserResponse
 from app.services.auth_service import auth_service, mask_email
 from app.services.database import get_db
@@ -28,7 +28,7 @@ from app.constants import (
     RATE_LIMIT_AUTH_ME,
 )
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 router = APIRouter(prefix="/auth", tags=["authentication"])
 
 
@@ -64,7 +64,19 @@ async def get_google_auth_url(request: Request):
     Returns:
         GoogleAuthURL: Object containing the authorization URL with state parameter
     """
+    logger.info(
+        "Google OAuth URL requested",
+        extra={
+            "client_host": request.client.host if request.client else "unknown",
+            "user_agent": request.headers.get("user-agent", "unknown"),
+        }
+    )
+
     if not settings.GOOGLE_CLIENT_ID:
+        logger.error(
+            "Google OAuth not configured",
+            extra={"client_id_present": bool(settings.GOOGLE_CLIENT_ID)}
+        )
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=ERROR_GOOGLE_OAUTH_NOT_CONFIGURED
@@ -72,6 +84,10 @@ async def get_google_auth_url(request: Request):
 
     # Generate state token for CSRF protection
     state = auth_service.generate_state_token()
+    logger.debug(
+        "Generated state token for OAuth flow",
+        extra={"state_length": len(state)}
+    )
 
     # Build Google OAuth2 authorization URL
     params = {
@@ -108,12 +124,25 @@ async def oauth_callback(
     Raises:
         HTTPException: If authentication fails or state validation fails
     """
+    logger.info(
+        "OAuth callback received",
+        extra={
+            "state_present": bool(callback_request.state),
+            "code_length": len(callback_request.code) if callback_request.code else 0,
+            "client_host": request.client.host if request.client else "unknown",
+        }
+    )
+
     # Validate state token for CSRF protection
     if not callback_request.state or not auth_service.validate_state_token(callback_request.state):
         # Log detailed information for security monitoring without revealing to user
         logger.warning(
             "Invalid or missing state token in OAuth callback - possible CSRF attack",
-            extra={"state_present": bool(callback_request.state)}
+            extra={
+                "state_present": bool(callback_request.state),
+                "client_host": request.client.host if request.client else "unknown",
+                "user_agent": request.headers.get("user-agent", "unknown"),
+            }
         )
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -126,7 +155,8 @@ async def oauth_callback(
             "Invalid authorization code format in OAuth callback",
             extra={
                 "code_length": len(callback_request.code),
-                "ip": request.client.host if request.client else "unknown"
+                "client_host": request.client.host if request.client else "unknown",
+                "user_agent": request.headers.get("user-agent", "unknown"),
             }
         )
         raise HTTPException(
@@ -135,11 +165,15 @@ async def oauth_callback(
         )
 
     # Authenticate user with authorization code
+    logger.debug("Authenticating user with OAuth code")
     user = await auth_service.authenticate_user(db, callback_request.code)
     if not user:
         logger.warning(
             "OAuth authentication failed - user creation or token exchange failed",
-            extra={"ip": request.client.host if request.client else "unknown"}
+            extra={
+                "client_host": request.client.host if request.client else "unknown",
+                "user_agent": request.headers.get("user-agent", "unknown"),
+            }
         )
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
@@ -149,6 +183,15 @@ async def oauth_callback(
     # Create JWT token
     access_token = auth_service.create_access_token(
         data={"sub": str(user.id), "email": user.email}
+    )
+
+    logger.info(
+        "User authenticated successfully via OAuth",
+        extra={
+            "user_id": user.id,
+            "user_email": mask_email(user.email),
+            "is_new_user": user.created_at == user.last_login if user.last_login else True,
+        }
     )
 
     # Create user response
@@ -184,6 +227,11 @@ async def get_current_user_info(
     Returns:
         UserResponse: Current user information
     """
+    logger.debug(
+        "User info requested",
+        extra={"user_id": current_user.id, "user_email": mask_email(current_user.email)}
+    )
+
     return UserResponse(
         id=current_user.id,
         email=current_user.email,
@@ -216,15 +264,33 @@ async def logout(
         token = credentials.credentials
         token_blacklisted = auth_service.blacklist_token(token)
         if token_blacklisted:
-            logger.info(f"User logged out and token blacklisted: {mask_email(current_user.email)}")
+            logger.info(
+                "User logged out and token blacklisted",
+                extra={
+                    "user_id": current_user.id,
+                    "user_email": mask_email(current_user.email),
+                }
+            )
         else:
-            logger.warning(f"User logged out but token blacklisting failed: {mask_email(current_user.email)}")
+            logger.warning(
+                "User logged out but token blacklisting failed",
+                extra={
+                    "user_id": current_user.id,
+                    "user_email": mask_email(current_user.email),
+                }
+            )
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 detail="Failed to complete logout"
             )
     else:
-        logger.info(f"User logged out: {mask_email(current_user.email)}")
+        logger.info(
+            "User logged out",
+            extra={
+                "user_id": current_user.id,
+                "user_email": mask_email(current_user.email),
+            }
+        )
 
     return {"message": "Successfully logged out"}
 
@@ -241,6 +307,11 @@ async def check_auth(
     Returns:
         Authentication status
     """
+    logger.debug(
+        "Authentication check",
+        extra={"authenticated": current_user is not None}
+    )
+
     return {
         "authenticated": current_user is not None,
         "user": UserResponse(

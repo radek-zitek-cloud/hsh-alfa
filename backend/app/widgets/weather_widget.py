@@ -1,11 +1,11 @@
 """Weather widget implementation."""
 import aiohttp
-import logging
 from typing import Dict, Any, Optional
 from app.widgets.base_widget import BaseWidget
 from app.config import settings
+from app.logging_config import get_logger
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 class WeatherWidget(BaseWidget):
@@ -20,15 +20,36 @@ class WeatherWidget(BaseWidget):
         # Check if API key is available (from config or settings)
         api_key = self.config.get("api_key") or settings.WEATHER_API_KEY
         if not api_key:
-            logger.error("Weather API key not configured")
+            logger.warning(
+                "Weather API key not configured",
+                extra={
+                    "widget_type": self.widget_type,
+                    "widget_id": self.widget_id
+                }
+            )
             return False
 
         # Check required fields
         for field in required_fields:
             if field not in self.config:
-                logger.error(f"Missing required field: {field}")
+                logger.warning(
+                    f"Missing required field: {field}",
+                    extra={
+                        "widget_type": self.widget_type,
+                        "widget_id": self.widget_id,
+                        "missing_field": field
+                    }
+                )
                 return False
 
+        logger.debug(
+            "Weather widget configuration validated",
+            extra={
+                "widget_type": self.widget_type,
+                "widget_id": self.widget_id,
+                "location": self.config.get("location")
+            }
+        )
         return True
 
     async def fetch_data(self) -> Dict[str, Any]:
@@ -51,11 +72,42 @@ class WeatherWidget(BaseWidget):
             "appid": api_key
         }
 
+        logger.info(
+            "Fetching weather data from OpenWeatherMap",
+            extra={
+                "widget_type": self.widget_type,
+                "widget_id": self.widget_id,
+                "location": location,
+                "units": units,
+                "api_url": current_url
+            }
+        )
+
         async with aiohttp.ClientSession() as session:
             # Fetch current weather
             async with session.get(current_url, params=current_params) as response:
+                logger.debug(
+                    "Weather API response received",
+                    extra={
+                        "widget_type": self.widget_type,
+                        "widget_id": self.widget_id,
+                        "response_status": response.status,
+                        "api_url": current_url
+                    }
+                )
+
                 if response.status != 200:
                     error_text = await response.text()
+                    logger.warning(
+                        f"Weather API returned error: {response.status}",
+                        extra={
+                            "widget_type": self.widget_type,
+                            "widget_id": self.widget_id,
+                            "response_status": response.status,
+                            "error_text": error_text,
+                            "api_url": current_url
+                        }
+                    )
                     raise Exception(f"Weather API error: {response.status} - {error_text}")
 
                 current_data = await response.json()
@@ -75,9 +127,37 @@ class WeatherWidget(BaseWidget):
                     "appid": api_key
                 }
 
+                logger.debug(
+                    "Fetching weather forecast data",
+                    extra={
+                        "widget_type": self.widget_type,
+                        "widget_id": self.widget_id,
+                        "coordinates": {"lat": lat, "lon": lon},
+                        "api_url": forecast_url
+                    }
+                )
+
                 async with session.get(forecast_url, params=forecast_params) as response:
                     if response.status == 200:
                         forecast_data = await response.json()
+                        logger.debug(
+                            "Weather forecast data retrieved successfully",
+                            extra={
+                                "widget_type": self.widget_type,
+                                "widget_id": self.widget_id,
+                                "response_status": response.status
+                            }
+                        )
+                    else:
+                        logger.warning(
+                            f"Failed to fetch weather forecast: {response.status}",
+                            extra={
+                                "widget_type": self.widget_type,
+                                "widget_id": self.widget_id,
+                                "response_status": response.status,
+                                "api_url": forecast_url
+                            }
+                        )
 
         # Transform data to widget format
         return self.transform_data(current_data, forecast_data)

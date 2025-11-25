@@ -1,5 +1,4 @@
 """Main FastAPI application entry point."""
-import logging
 import time
 from datetime import datetime
 from contextlib import asynccontextmanager
@@ -11,18 +10,16 @@ from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 
 from app.config import settings
+from app.logging_config import setup_logging, get_logger
 from app.api import bookmarks, widgets, sections, preferences, auth
 from app.services.database import init_db, get_db
 from app.services.scheduler import scheduler_service
 from app.services.rate_limit import limiter
 from app.exceptions import AppException
 
-# Configure logging
-logging.basicConfig(
-    level=logging.DEBUG if settings.DEBUG else logging.INFO,
-    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
-)
-logger = logging.getLogger(__name__)
+# Configure structured logging
+setup_logging(settings.LOG_LEVEL)
+logger = get_logger(__name__)
 
 # Validate critical configuration on startup
 if not settings.SECRET_KEY or settings.SECRET_KEY == "change-this-in-production":
@@ -51,11 +48,13 @@ class RequestLoggingMiddleware(BaseHTTPMiddleware):
 
         # Log request
         logger.info(
-            f"Request started: {request.method} {request.url.path}",
+            "Request started",
             extra={
                 "method": request.method,
                 "path": request.url.path,
-                "client": request.client.host if request.client else "unknown",
+                "query_params": str(request.query_params),
+                "client_host": request.client.host if request.client else "unknown",
+                "user_agent": request.headers.get("user-agent", "unknown"),
             }
         )
 
@@ -64,13 +63,17 @@ class RequestLoggingMiddleware(BaseHTTPMiddleware):
             response = await call_next(request)
         except Exception as e:
             # Log errors
+            duration = time.time() - start_time
             logger.error(
-                f"Request failed: {request.method} {request.url.path} - {str(e)}",
+                "Request failed with exception",
                 extra={
                     "method": request.method,
                     "path": request.url.path,
-                    "error": str(e),
-                }
+                    "error_type": type(e).__name__,
+                    "error_message": str(e),
+                    "duration": duration,
+                },
+                exc_info=True
             )
             raise
 
@@ -78,13 +81,15 @@ class RequestLoggingMiddleware(BaseHTTPMiddleware):
         duration = time.time() - start_time
 
         # Log response
-        logger.info(
-            f"Request completed: {request.method} {request.url.path} - Status: {response.status_code} - Duration: {duration:.3f}s",
+        log_level = "info" if response.status_code < 400 else "warning" if response.status_code < 500 else "error"
+        getattr(logger, log_level)(
+            "Request completed",
             extra={
                 "method": request.method,
                 "path": request.url.path,
                 "status_code": response.status_code,
-                "duration": duration,
+                "duration_seconds": round(duration, 3),
+                "response_time_ms": round(duration * 1000, 2),
             }
         )
 
@@ -118,6 +123,17 @@ class RequestSizeLimitMiddleware(BaseHTTPMiddleware):
         """
         content_length = request.headers.get('content-length')
         if content_length and int(content_length) > self.max_size:
+            logger = get_logger(__name__)
+            logger.warning(
+                "Request body size limit exceeded",
+                extra={
+                    "path": request.url.path,
+                    "method": request.method,
+                    "content_length": int(content_length),
+                    "max_size": self.max_size,
+                    "client_host": request.client.host if request.client else "unknown",
+                }
+            )
             return JSONResponse(
                 status_code=413,
                 content={
@@ -133,11 +149,30 @@ class RequestSizeLimitMiddleware(BaseHTTPMiddleware):
 async def lifespan(app: FastAPI):
     """Application lifespan manager."""
     # Startup
-    logger.info("Starting Home Sweet Home application...")
+    logger.info(
+        "Starting application",
+        extra={
+            "app_name": settings.APP_NAME,
+            "version": settings.APP_VERSION,
+            "debug_mode": settings.DEBUG,
+            "log_level": settings.LOG_LEVEL,
+        }
+    )
 
     # Initialize database
-    await init_db()
-    logger.info("Database initialized")
+    try:
+        await init_db()
+        logger.info(
+            "Database initialized",
+            extra={"database_url": settings.DATABASE_URL.split("://")[0] + "://***"}
+        )
+    except Exception as e:
+        logger.critical(
+            "Failed to initialize database",
+            extra={"error": str(e)},
+            exc_info=True
+        )
+        raise
 
     # Run migrations
     try:
@@ -145,11 +180,18 @@ async def lifespan(app: FastAPI):
         from app.migrations.add_clicks_to_bookmarks import run_migration as run_clicks_migration
         from app.migrations.create_preferences_table import run_migration as run_preferences_migration
         from app.migrations.create_users_table import run_migration as run_users_migration
+
+        logger.debug("Running database migrations")
         await run_clicks_migration(engine)
         await run_preferences_migration(engine)
         await run_users_migration(engine)
+        logger.info("Database migrations completed successfully")
     except Exception as e:
-        logger.error(f"Migration failed: {e}")
+        logger.error(
+            "Migration failed",
+            extra={"error_type": type(e).__name__, "error": str(e)},
+            exc_info=True
+        )
         # Continue startup even if migration fails
         # This prevents breaking the application if migration has issues
 
@@ -159,22 +201,50 @@ async def lifespan(app: FastAPI):
             from app.api.sections import initialize_default_sections
             await initialize_default_sections(db)
             logger.info("Default sections initialized")
+        except Exception as e:
+            logger.error(
+                "Failed to initialize default sections",
+                extra={"error": str(e)},
+                exc_info=True
+            )
         finally:
             await db.close()
         break
 
     # Start scheduler if enabled
     if settings.SCHEDULER_ENABLED:
-        await scheduler_service.start()
-        logger.info("Scheduler started")
+        try:
+            await scheduler_service.start()
+            logger.info(
+                "Scheduler started",
+                extra={"scheduler_enabled": settings.SCHEDULER_ENABLED}
+            )
+        except Exception as e:
+            logger.error(
+                "Failed to start scheduler",
+                extra={"error": str(e)},
+                exc_info=True
+            )
+
+    logger.info("Application startup completed successfully")
 
     yield
 
     # Shutdown
-    logger.info("Shutting down application...")
+    logger.info("Initiating application shutdown")
+
     if settings.SCHEDULER_ENABLED:
-        await scheduler_service.shutdown()
-        logger.info("Scheduler stopped")
+        try:
+            await scheduler_service.shutdown()
+            logger.info("Scheduler stopped successfully")
+        except Exception as e:
+            logger.error(
+                "Error stopping scheduler",
+                extra={"error": str(e)},
+                exc_info=True
+            )
+
+    logger.info("Application shutdown completed")
 
 
 # Create FastAPI application
@@ -202,13 +272,15 @@ async def app_exception_handler(request: Request, exc: AppException):
     Returns:
         JSON response with error details
     """
-    logger.error(
-        f"Application error: {exc.message}",
+    log_level = "warning" if exc.status_code < 500 else "error"
+    getattr(logger, log_level)(
+        "Application exception occurred",
         extra={
             "path": request.url.path,
             "method": request.method,
             "status_code": exc.status_code,
-            "error": exc.message,
+            "error_message": exc.message,
+            "exception_type": type(exc).__name__,
         }
     )
     return JSONResponse(

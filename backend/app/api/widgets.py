@@ -1,5 +1,4 @@
 """Widget API endpoints."""
-import logging
 import json
 import uuid
 from typing import Dict, Any, List
@@ -7,6 +6,7 @@ from fastapi import APIRouter, HTTPException, Depends, Request
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 
+from app.logging_config import get_logger
 from app.services.widget_registry import get_widget_registry, WidgetRegistry
 from app.services.cache import get_cache_service, CacheService
 from app.services.rate_limit import limiter
@@ -15,7 +15,7 @@ from app.models.widget import Widget, WidgetCreate, WidgetUpdate, WidgetResponse
 from app.models.user import User
 from app.api.dependencies import require_auth
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 router = APIRouter()
 
@@ -34,8 +34,19 @@ async def list_widgets(
     Returns:
         List of widget configurations
     """
+    logger.debug(
+        "Listing all widget configurations",
+        extra={"user_id": current_user.id}
+    )
+
     result = await db.execute(select(Widget))
     widgets = result.scalars().all()
+
+    logger.info(
+        "Widget configurations retrieved",
+        extra={"count": len(widgets), "user_id": current_user.id}
+    )
+
     return [WidgetResponse(**widget.to_dict()) for widget in widgets]
 
 
@@ -52,8 +63,13 @@ async def list_widget_types(
     Returns:
         List of widget types
     """
+    widget_types = registry.list_widget_types()
+    logger.debug(
+        "Listing widget types",
+        extra={"types_count": len(widget_types), "types": widget_types}
+    )
     return {
-        "widget_types": registry.list_widget_types()
+        "widget_types": widget_types
     }
 
 
@@ -73,10 +89,28 @@ async def get_widget_config(
     Returns:
         Widget configuration
     """
+    logger.debug(
+        "Getting widget configuration",
+        extra={"widget_id": widget_id, "user_id": current_user.id}
+    )
+
     widget = registry.get_widget(widget_id)
 
     if not widget:
+        logger.warning(
+            "Widget configuration not found",
+            extra={"widget_id": widget_id, "user_id": current_user.id}
+        )
         raise HTTPException(status_code=404, detail=f"Widget {widget_id} not found")
+
+    logger.debug(
+        "Widget configuration retrieved",
+        extra={
+            "widget_id": widget_id,
+            "widget_type": widget.widget_type,
+            "user_id": current_user.id,
+        }
+    )
 
     return {
         "widget_id": widget_id,
@@ -110,20 +144,39 @@ async def get_widget_data(
     Returns:
         Widget data
     """
+    logger.debug(
+        "Getting widget data",
+        extra={
+            "widget_id": widget_id,
+            "force_refresh": force_refresh,
+            "user_id": current_user.id,
+        }
+    )
+
     widget = registry.get_widget(widget_id)
 
     if not widget:
+        logger.warning(
+            "Widget not found for data retrieval",
+            extra={"widget_id": widget_id, "user_id": current_user.id}
+        )
         raise HTTPException(status_code=404, detail=f"Widget {widget_id} not found")
 
     # Check cache first (unless force_refresh)
     if not force_refresh:
         cached_data = await cache.get(widget.get_cache_key())
         if cached_data:
-            logger.debug(f"Cache hit for widget {widget_id}")
+            logger.debug(
+                "Widget data cache hit",
+                extra={"widget_id": widget_id, "cache_key": widget.get_cache_key()}
+            )
             return cached_data
 
     # Fetch fresh data
-    logger.debug(f"Fetching fresh data for widget {widget_id}")
+    logger.info(
+        "Fetching fresh widget data",
+        extra={"widget_id": widget_id, "widget_type": widget.widget_type}
+    )
     data = await widget.get_data()
 
     # Cache the result if no error
@@ -132,6 +185,19 @@ async def get_widget_data(
             widget.get_cache_key(),
             data,
             ttl=widget.refresh_interval
+        )
+        logger.debug(
+            "Widget data cached",
+            extra={
+                "widget_id": widget_id,
+                "cache_key": widget.get_cache_key(),
+                "ttl": widget.refresh_interval,
+            }
+        )
+    else:
+        logger.warning(
+            "Widget data fetch returned error",
+            extra={"widget_id": widget_id, "error": data.get("error")}
         )
 
     return data
@@ -159,13 +225,26 @@ async def refresh_widget(
     Returns:
         Fresh widget data
     """
+    logger.info(
+        "Refreshing widget data",
+        extra={"widget_id": widget_id, "user_id": current_user.id}
+    )
+
     widget = registry.get_widget(widget_id)
 
     if not widget:
+        logger.warning(
+            "Widget not found for refresh",
+            extra={"widget_id": widget_id, "user_id": current_user.id}
+        )
         raise HTTPException(status_code=404, detail=f"Widget {widget_id} not found")
 
     # Clear cache
     await cache.delete(widget.get_cache_key())
+    logger.debug(
+        "Widget cache cleared",
+        extra={"widget_id": widget_id, "cache_key": widget.get_cache_key()}
+    )
 
     # Fetch fresh data
     data = await widget.get_data()
@@ -178,7 +257,14 @@ async def refresh_widget(
             ttl=widget.refresh_interval
         )
 
-    logger.info(f"Refreshed widget {widget_id}")
+    logger.info(
+        "Widget refreshed successfully",
+        extra={
+            "widget_id": widget_id,
+            "widget_type": widget.widget_type,
+            "has_error": bool(data.get("error")),
+        }
+    )
 
     return data
 
@@ -201,11 +287,28 @@ async def create_widget(
     Returns:
         Created widget configuration
     """
+    logger.info(
+        "Creating new widget",
+        extra={
+            "widget_type": widget_data.type,
+            "enabled": widget_data.enabled,
+            "user_id": current_user.id,
+        }
+    )
+
     # Generate a unique widget ID
     widget_id = str(uuid.uuid4())
 
     # Validate widget type
     if widget_data.type not in registry.list_widget_types():
+        logger.warning(
+            "Invalid widget type",
+            extra={
+                "widget_type": widget_data.type,
+                "valid_types": registry.list_widget_types(),
+                "user_id": current_user.id,
+            }
+        )
         raise HTTPException(status_code=400, detail=f"Invalid widget type '{widget_data.type}'")
 
     # Create widget in database
@@ -237,7 +340,15 @@ async def create_widget(
     }
     registry.create_widget(widget_id, widget_data.type, config)
 
-    logger.info(f"Created widget '{widget_id}'")
+    logger.info(
+        "Widget created successfully",
+        extra={
+            "widget_id": widget_id,
+            "widget_type": widget_data.type,
+            "enabled": widget_data.enabled,
+            "user_id": current_user.id,
+        }
+    )
 
     return WidgetResponse(**widget.to_dict())
 
@@ -264,6 +375,11 @@ async def update_widget(
     Returns:
         Updated widget configuration
     """
+    logger.info(
+        "Updating widget",
+        extra={"widget_id": widget_id, "user_id": current_user.id}
+    )
+
     # Find widget
     result = await db.execute(
         select(Widget).where(Widget.widget_id == widget_id)
@@ -271,6 +387,10 @@ async def update_widget(
     widget = result.scalar_one_or_none()
 
     if not widget:
+        logger.warning(
+            "Widget not found for update",
+            extra={"widget_id": widget_id, "user_id": current_user.id}
+        )
         raise HTTPException(status_code=404, detail=f"Widget '{widget_id}' not found")
 
     # Update fields
@@ -309,8 +429,19 @@ async def update_widget(
     old_widget = registry.get_widget(widget_id)
     if old_widget:
         await cache.delete(old_widget.get_cache_key())
+        logger.debug(
+            "Widget cache cleared after update",
+            extra={"widget_id": widget_id, "cache_key": old_widget.get_cache_key()}
+        )
 
-    logger.info(f"Updated widget '{widget_id}'")
+    logger.info(
+        "Widget updated successfully",
+        extra={
+            "widget_id": widget_id,
+            "widget_type": widget_dict["type"],
+            "user_id": current_user.id,
+        }
+    )
 
     return WidgetResponse(**widget.to_dict())
 
@@ -335,6 +466,11 @@ async def delete_widget(
     Returns:
         No content (204)
     """
+    logger.info(
+        "Deleting widget",
+        extra={"widget_id": widget_id, "user_id": current_user.id}
+    )
+
     # Find widget
     result = await db.execute(
         select(Widget).where(Widget.widget_id == widget_id)
@@ -342,6 +478,10 @@ async def delete_widget(
     widget = result.scalar_one_or_none()
 
     if not widget:
+        logger.warning(
+            "Widget not found for deletion",
+            extra={"widget_id": widget_id, "user_id": current_user.id}
+        )
         raise HTTPException(status_code=404, detail=f"Widget '{widget_id}' not found")
 
     # Clear cache
@@ -357,7 +497,14 @@ async def delete_widget(
     await db.delete(widget)
     await db.commit()
 
-    logger.info(f"Deleted widget '{widget_id}'")
+    logger.info(
+        "Widget deleted successfully",
+        extra={
+            "widget_id": widget_id,
+            "widget_type": widget.widget_type,
+            "user_id": current_user.id,
+        }
+    )
 
 
 @router.post("/reload-config")
@@ -376,6 +523,11 @@ async def reload_widget_config(
     Returns:
         Status message
     """
+    logger.info(
+        "Reloading widget configuration from database",
+        extra={"user_id": current_user.id}
+    )
+
     # Clear existing instances
     registry._widget_instances.clear()
 
@@ -391,7 +543,10 @@ async def reload_widget_config(
         config["position"] = widget_dict["position"]
         registry.create_widget(widget_dict["id"], widget_dict["type"], config)
 
-    logger.info("Widget configuration reloaded from database")
+    logger.info(
+        "Widget configuration reloaded from database",
+        extra={"widget_count": len(widgets), "user_id": current_user.id}
+    )
 
     return {
         "status": "success",

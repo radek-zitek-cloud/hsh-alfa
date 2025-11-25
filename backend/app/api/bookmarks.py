@@ -1,5 +1,4 @@
 """Bookmark API endpoints."""
-import logging
 from typing import List, Optional
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from fastapi.responses import Response
@@ -7,6 +6,7 @@ from pydantic import AnyHttpUrl
 from sqlalchemy.ext.asyncio import AsyncSession
 import aiohttp
 
+from app.logging_config import get_logger
 from app.models.bookmark import BookmarkCreate, BookmarkUpdate, BookmarkResponse
 from app.models.user import User
 from app.services.database import get_db
@@ -15,7 +15,7 @@ from app.services.favicon import is_safe_url
 from app.services.rate_limit import limiter
 from app.api.dependencies import require_auth
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 router = APIRouter()
 
@@ -53,8 +53,28 @@ async def list_bookmarks(
     Returns:
         List of bookmarks
     """
+    logger.debug(
+        "Listing bookmarks",
+        extra={
+            "category": category,
+            "sort_by": sort_by,
+            "user_id": current_user.id,
+        }
+    )
+
     service = BookmarkService(db)
     bookmarks = await service.list_bookmarks(category=category, sort_by=sort_by)
+
+    logger.info(
+        "Bookmarks retrieved",
+        extra={
+            "count": len(bookmarks),
+            "category": category,
+            "sort_by": sort_by,
+            "user_id": current_user.id,
+        }
+    )
+
     return [BookmarkResponse(**bookmark.to_dict()) for bookmark in bookmarks]
 
 
@@ -72,11 +92,25 @@ async def get_bookmark(
     Returns:
         Bookmark details
     """
+    logger.debug(
+        "Getting bookmark",
+        extra={"bookmark_id": bookmark_id, "user_id": current_user.id}
+    )
+
     service = BookmarkService(db)
     bookmark = await service.get_bookmark(bookmark_id)
 
     if not bookmark:
+        logger.warning(
+            "Bookmark not found",
+            extra={"bookmark_id": bookmark_id, "user_id": current_user.id}
+        )
         raise HTTPException(status_code=404, detail="Bookmark not found")
+
+    logger.debug(
+        "Bookmark retrieved",
+        extra={"bookmark_id": bookmark_id, "user_id": current_user.id}
+    )
 
     return BookmarkResponse(**bookmark.to_dict())
 
@@ -95,11 +129,28 @@ async def track_bookmark_click(bookmark_id: int, db: AsyncSession = Depends(get_
     Returns:
         Updated bookmark with incremented click count
     """
+    logger.info(
+        "Tracking bookmark click",
+        extra={"bookmark_id": bookmark_id}
+    )
+
     service = BookmarkService(db)
     bookmark = await service.track_click(bookmark_id)
 
     if not bookmark:
+        logger.warning(
+            "Bookmark not found for click tracking",
+            extra={"bookmark_id": bookmark_id}
+        )
         raise HTTPException(status_code=404, detail="Bookmark not found")
+
+    logger.info(
+        "Bookmark click tracked",
+        extra={
+            "bookmark_id": bookmark_id,
+            "total_clicks": bookmark.clicks,
+        }
+    )
 
     return BookmarkResponse(**bookmark.to_dict())
 
@@ -122,8 +173,28 @@ async def create_bookmark(
     Returns:
         Created bookmark
     """
+    logger.info(
+        "Creating bookmark",
+        extra={
+            "title": bookmark_data.title,
+            "url": bookmark_data.url,
+            "category": bookmark_data.category,
+            "user_id": current_user.id,
+        }
+    )
+
     service = BookmarkService(db)
     bookmark = await service.create_bookmark(bookmark_data)
+
+    logger.info(
+        "Bookmark created",
+        extra={
+            "bookmark_id": bookmark.id,
+            "title": bookmark.title,
+            "user_id": current_user.id,
+        }
+    )
+
     return BookmarkResponse(**bookmark.to_dict())
 
 
@@ -147,11 +218,32 @@ async def update_bookmark(
     Returns:
         Updated bookmark
     """
+    logger.info(
+        "Updating bookmark",
+        extra={
+            "bookmark_id": bookmark_id,
+            "user_id": current_user.id,
+        }
+    )
+
     service = BookmarkService(db)
     bookmark = await service.update_bookmark(bookmark_id, bookmark_data)
 
     if not bookmark:
+        logger.warning(
+            "Bookmark not found for update",
+            extra={"bookmark_id": bookmark_id, "user_id": current_user.id}
+        )
         raise HTTPException(status_code=404, detail="Bookmark not found")
+
+    logger.info(
+        "Bookmark updated",
+        extra={
+            "bookmark_id": bookmark_id,
+            "title": bookmark.title,
+            "user_id": current_user.id,
+        }
+    )
 
     return BookmarkResponse(**bookmark.to_dict())
 
@@ -167,11 +259,25 @@ async def delete_bookmark(
         bookmark_id: Bookmark ID
         db: Database session
     """
+    logger.info(
+        "Deleting bookmark",
+        extra={"bookmark_id": bookmark_id, "user_id": current_user.id}
+    )
+
     service = BookmarkService(db)
     deleted = await service.delete_bookmark(bookmark_id)
 
     if not deleted:
+        logger.warning(
+            "Bookmark not found for deletion",
+            extra={"bookmark_id": bookmark_id, "user_id": current_user.id}
+        )
         raise HTTPException(status_code=404, detail="Bookmark not found")
+
+    logger.info(
+        "Bookmark deleted",
+        extra={"bookmark_id": bookmark_id, "user_id": current_user.id}
+    )
 
 
 @router.get("/search/", response_model=List[BookmarkResponse])
@@ -190,8 +296,23 @@ async def search_bookmarks(
     Returns:
         List of matching bookmarks
     """
+    logger.info(
+        "Searching bookmarks",
+        extra={"query": q, "user_id": current_user.id}
+    )
+
     service = BookmarkService(db)
     bookmarks = await service.search_bookmarks(q)
+
+    logger.info(
+        "Bookmark search completed",
+        extra={
+            "query": q,
+            "results_count": len(bookmarks),
+            "user_id": current_user.id,
+        }
+    )
+
     return [BookmarkResponse(**bookmark.to_dict()) for bookmark in bookmarks]
 
 
@@ -215,8 +336,23 @@ async def proxy_favicon(
     Returns:
         The favicon image with appropriate content type
     """
+    logger.debug(
+        "Proxying favicon request",
+        extra={
+            "url": str(url),
+            "client_host": request.client.host if request.client else "unknown",
+        }
+    )
+
     # Validate URL for security
     if not is_safe_url(str(url)):
+        logger.warning(
+            "Unsafe favicon URL rejected",
+            extra={
+                "url": str(url),
+                "client_host": request.client.host if request.client else "unknown",
+            }
+        )
         raise HTTPException(status_code=400, detail="Invalid or unsafe URL")
 
     try:
@@ -257,14 +393,31 @@ async def proxy_favicon(
                             )
                     except ValueError:
                         logger.warning(
-                            f"Invalid content-length header from {url}: {content_length_header}"
+                            "Invalid content-length header in favicon response",
+                            extra={
+                                "url": str(url),
+                                "content_length_header": content_length_header,
+                            }
                         )
 
                 image_data = bytearray()
                 async for chunk in response.content.iter_chunked(8192):
                     image_data.extend(chunk)
                     if len(image_data) > MAX_FAVICON_SIZE:
+                        logger.warning(
+                            "Favicon size limit exceeded during download",
+                            extra={"url": str(url), "size_bytes": len(image_data)}
+                        )
                         raise HTTPException(status_code=413, detail="Favicon exceeds size limit")
+
+                logger.info(
+                    "Favicon proxied successfully",
+                    extra={
+                        "url": str(url),
+                        "size_bytes": len(image_data),
+                        "content_type": content_type_header,
+                    }
+                )
 
                 # Return the image with appropriate headers
                 return Response(
@@ -280,8 +433,24 @@ async def proxy_favicon(
         # Re-raise HTTP exceptions produced by validation checks
         raise
     except aiohttp.ClientError as e:
-        logger.error(f"Error proxying favicon {url}: {e}")
+        logger.error(
+            "Client error proxying favicon",
+            extra={
+                "url": str(url),
+                "error_type": type(e).__name__,
+                "error": str(e),
+            },
+            exc_info=True
+        )
         raise HTTPException(status_code=502, detail="Failed to fetch favicon from external source")
     except Exception as e:
-        logger.error(f"Unexpected error proxying favicon {url}: {e}")
+        logger.error(
+            "Unexpected error proxying favicon",
+            extra={
+                "url": str(url),
+                "error_type": type(e).__name__,
+                "error": str(e),
+            },
+            exc_info=True
+        )
         raise HTTPException(status_code=500, detail="Internal server error")

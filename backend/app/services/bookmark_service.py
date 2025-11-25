@@ -4,15 +4,15 @@ Bookmark business logic service.
 This service contains the business logic for bookmark management,
 separated from the API layer for better maintainability and testability.
 """
-import logging
 from typing import List, Optional
 from sqlalchemy import select, or_
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.logging_config import get_logger
 from app.models.bookmark import Bookmark, BookmarkCreate, BookmarkUpdate
 from app.services.favicon import fetch_favicon
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 class BookmarkService:
@@ -57,7 +57,14 @@ class BookmarkService:
             query = query.order_by(Bookmark.position, Bookmark.created)
 
         result = await self.db.execute(query)
-        return result.scalars().all()
+        bookmarks = result.scalars().all()
+        logger.debug("Listed bookmarks from database", extra={
+            "operation": "list_bookmarks",
+            "count": len(bookmarks),
+            "category": category,
+            "sort_by": sort_by or "position"
+        })
+        return bookmarks
 
     async def get_bookmark(self, bookmark_id: int) -> Optional[Bookmark]:
         """
@@ -95,13 +102,29 @@ class BookmarkService:
         favicon_url = bookmark_data.favicon
         if not favicon_url:
             try:
+                logger.debug("Attempting to fetch favicon", extra={
+                    "operation": "bookmark_favicon_fetch",
+                    "url": bookmark_data.url
+                })
                 favicon_url = await fetch_favicon(bookmark_data.url)
                 if favicon_url:
-                    logger.info(f"Automatically fetched favicon for {bookmark_data.url}: {favicon_url}")
+                    logger.info("Favicon fetched automatically", extra={
+                        "operation": "bookmark_favicon_fetched",
+                        "url": bookmark_data.url,
+                        "favicon_url": favicon_url
+                    })
                 else:
-                    logger.warning(f"Could not fetch favicon for {bookmark_data.url}")
+                    logger.warning("Could not fetch favicon", extra={
+                        "operation": "bookmark_favicon_fetch_failed",
+                        "url": bookmark_data.url,
+                        "reason": "no_favicon_found"
+                    })
             except Exception as e:
-                logger.error(f"Error fetching favicon for {bookmark_data.url}: {e}")
+                logger.error("Error fetching favicon", extra={
+                    "operation": "bookmark_favicon_fetch_error",
+                    "url": bookmark_data.url,
+                    "error_type": type(e).__name__
+                }, exc_info=True)
                 # Continue without favicon if fetching fails
 
         bookmark = Bookmark(
@@ -118,7 +141,13 @@ class BookmarkService:
         await self.db.commit()
         await self.db.refresh(bookmark)
 
-        logger.info(f"Created bookmark: {bookmark.title} ({bookmark.id})")
+        logger.info("Bookmark created", extra={
+            "operation": "bookmark_created",
+            "bookmark_id": bookmark.id,
+            "title": bookmark.title,
+            "url": bookmark.url,
+            "category": bookmark.category
+        })
 
         return bookmark
 
@@ -145,6 +174,11 @@ class BookmarkService:
         bookmark = result.scalar_one_or_none()
 
         if not bookmark:
+            logger.debug("Bookmark not found for update", extra={
+                "operation": "bookmark_update_failed",
+                "bookmark_id": bookmark_id,
+                "reason": "not_found"
+            })
             return None
 
         # Update fields if provided
@@ -154,14 +188,30 @@ class BookmarkService:
         if "url" in update_data and "favicon" not in update_data:
             try:
                 new_url = update_data["url"]
+                logger.debug("Attempting to fetch favicon for updated URL", extra={
+                    "operation": "bookmark_favicon_fetch",
+                    "url": new_url
+                })
                 favicon_url = await fetch_favicon(new_url)
                 if favicon_url:
                     update_data["favicon"] = favicon_url
-                    logger.info(f"Automatically fetched favicon for updated URL {new_url}: {favicon_url}")
+                    logger.info("Favicon fetched for updated URL", extra={
+                        "operation": "bookmark_favicon_fetched",
+                        "url": new_url,
+                        "favicon_url": favicon_url
+                    })
                 else:
-                    logger.warning(f"Could not fetch favicon for updated URL {new_url}")
+                    logger.warning("Could not fetch favicon for updated URL", extra={
+                        "operation": "bookmark_favicon_fetch_failed",
+                        "url": new_url,
+                        "reason": "no_favicon_found"
+                    })
             except Exception as e:
-                logger.error(f"Error fetching favicon for updated URL: {e}")
+                logger.error("Error fetching favicon for updated URL", extra={
+                    "operation": "bookmark_favicon_fetch_error",
+                    "url": update_data.get("url"),
+                    "error_type": type(e).__name__
+                }, exc_info=True)
                 # Continue without updating favicon if fetching fails
 
         for field, value in update_data.items():
@@ -174,7 +224,12 @@ class BookmarkService:
         await self.db.commit()
         await self.db.refresh(bookmark)
 
-        logger.info(f"Updated bookmark: {bookmark.title} ({bookmark.id})")
+        logger.info("Bookmark updated", extra={
+            "operation": "bookmark_updated",
+            "bookmark_id": bookmark.id,
+            "title": bookmark.title,
+            "updated_fields": list(update_data.keys())
+        })
 
         return bookmark
 
@@ -194,12 +249,21 @@ class BookmarkService:
         bookmark = result.scalar_one_or_none()
 
         if not bookmark:
+            logger.debug("Bookmark not found for deletion", extra={
+                "operation": "bookmark_delete_failed",
+                "bookmark_id": bookmark_id,
+                "reason": "not_found"
+            })
             return False
 
         await self.db.delete(bookmark)
         await self.db.commit()
 
-        logger.info(f"Deleted bookmark: {bookmark.title} ({bookmark.id})")
+        logger.info("Bookmark deleted", extra={
+            "operation": "bookmark_deleted",
+            "bookmark_id": bookmark.id,
+            "title": bookmark.title
+        })
 
         return True
 
@@ -221,6 +285,11 @@ class BookmarkService:
         bookmark = result.scalar_one_or_none()
 
         if not bookmark:
+            logger.debug("Bookmark not found for click tracking", extra={
+                "operation": "bookmark_click_failed",
+                "bookmark_id": bookmark_id,
+                "reason": "not_found"
+            })
             return None
 
         # Increment click count
@@ -229,7 +298,12 @@ class BookmarkService:
         await self.db.commit()
         await self.db.refresh(bookmark)
 
-        logger.info(f"Tracked click for bookmark: {bookmark.title} ({bookmark.id}), total clicks: {bookmark.clicks}")
+        logger.debug("Click tracked for bookmark", extra={
+            "operation": "bookmark_click_tracked",
+            "bookmark_id": bookmark.id,
+            "title": bookmark.title,
+            "total_clicks": bookmark.clicks
+        })
 
         return bookmark
 
@@ -257,4 +331,10 @@ class BookmarkService:
         ).order_by(Bookmark.position, Bookmark.created)
 
         result = await self.db.execute(search_query)
-        return result.scalars().all()
+        bookmarks = result.scalars().all()
+        logger.debug("Bookmarks searched", extra={
+            "operation": "bookmark_search",
+            "query": query,
+            "results_count": len(bookmarks)
+        })
+        return bookmarks

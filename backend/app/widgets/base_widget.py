@@ -2,11 +2,11 @@
 from abc import ABC, abstractmethod
 from datetime import datetime
 from typing import Any, Dict, Optional
-import logging
+from app.logging_config import get_logger
 import hashlib
 import json
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 class BaseWidget(ABC):
@@ -79,6 +79,13 @@ class BaseWidget(ABC):
             Widget data dictionary with standardized format
         """
         if not self.enabled:
+            logger.debug(
+                "Widget is disabled",
+                extra={
+                    "widget_type": self.widget_type,
+                    "widget_id": self.widget_id
+                }
+            )
             return {
                 "widget_id": self.widget_id,
                 "widget_type": self.widget_type,
@@ -90,6 +97,13 @@ class BaseWidget(ABC):
         try:
             # Validate configuration before fetching
             if not self.validate_config():
+                logger.warning(
+                    "Invalid widget configuration",
+                    extra={
+                        "widget_type": self.widget_type,
+                        "widget_id": self.widget_id
+                    }
+                )
                 return {
                     "widget_id": self.widget_id,
                     "widget_type": self.widget_type,
@@ -98,7 +112,22 @@ class BaseWidget(ABC):
                 }
 
             # Fetch data
+            logger.info(
+                "Fetching widget data",
+                extra={
+                    "widget_type": self.widget_type,
+                    "widget_id": self.widget_id
+                }
+            )
             data = await self.fetch_data()
+
+            logger.debug(
+                "Widget data fetch completed successfully",
+                extra={
+                    "widget_type": self.widget_type,
+                    "widget_id": self.widget_id
+                }
+            )
 
             return {
                 "widget_id": self.widget_id,
@@ -109,7 +138,15 @@ class BaseWidget(ABC):
             }
 
         except Exception as e:
-            logger.error(f"Error fetching data for widget {self.widget_id}: {str(e)}")
+            logger.error(
+                f"Error fetching data for widget: {str(e)}",
+                extra={
+                    "widget_type": self.widget_type,
+                    "widget_id": self.widget_id,
+                    "error_type": type(e).__name__
+                },
+                exc_info=True
+            )
             return {
                 "widget_id": self.widget_id,
                 "widget_type": self.widget_type,
