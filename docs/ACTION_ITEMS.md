@@ -69,7 +69,7 @@ async def create_bookmark(
 
 ---
 
-### 🔴 P0-2: Fix SECRET_KEY Validation
+### 🔴 P0-2: Fix SECRET_KEY Validation *(Resolved)*
 
 **Issue:** Weak SECRET_KEY validation allows insecure deployments
 **Impact:** Vulnerable to session fixation, CSRF, token forgery
@@ -77,39 +77,14 @@ async def create_bookmark(
 **Reference:** CODE_REVIEW.md Section 1.2
 
 **Tasks:**
-- [ ] Add minimum length validation (32 characters)
-- [ ] Check against known placeholder values
-- [ ] Add validation during configuration load (not just startup)
-- [ ] Update `.env.example` with stronger warnings
-- [ ] Document secret generation in README
+- [x] Add minimum length validation (32 characters)
+- [x] Check against known placeholder values
+- [x] Add validation during configuration load (not just startup)
+- [x] Update `.env.example` with stronger warnings
+- [x] Document secret generation in README
 
-**Implementation:**
-```python
-# backend/app/config.py
-SECRET_KEY: str = os.getenv('SECRET_KEY', '')
-
-def __post_init__(self):
-    if not self.SECRET_KEY:
-        raise ValueError("SECRET_KEY environment variable is required")
-
-    if len(self.SECRET_KEY) < 32:
-        raise ValueError("SECRET_KEY must be at least 32 characters")
-
-    insecure_values = [
-        'change-this-in-production',
-        'change-this-to-a-random-secret-key-in-production',
-        'your-secret-key-here',
-        'secret'
-    ]
-
-    if self.SECRET_KEY.lower() in insecure_values:
-        raise ValueError(f"SECRET_KEY contains insecure placeholder value")
-```
-
-**Files to modify:**
-- `/backend/app/config.py`
-- `.env.example`
-- `README.md`
+**Resolution:** Implemented strict SECRET_KEY validation at configuration load (length checks and placeholder blocking), refreshed
+`.env.example` guidance, and documented secure key generation in the README.
 
 ---
 
@@ -151,7 +126,7 @@ def __init__(self, **kwargs):
 
 ---
 
-### 🔴 P0-4: Fix Favicon Proxy SSRF Vulnerability
+### 🔴 P0-4: Fix Favicon Proxy SSRF Vulnerability *(Resolved)*
 
 **Issue:** Favicon proxy vulnerable to SSRF via redirects and content-type trust
 **Impact:** Can be used to attack internal services or serve malicious content
@@ -159,78 +134,14 @@ def __init__(self, **kwargs):
 **Reference:** CODE_REVIEW.md Section 1.3
 
 **Tasks:**
-- [ ] Disable redirects in favicon proxy
-- [ ] Validate content-type against whitelist
-- [ ] Add size limit enforcement (100KB max)
-- [ ] Add timeout configuration
-- [ ] Add content validation
-- [ ] Write security tests for SSRF protection
+- [x] Validate content-type against whitelist
+- [x] Add size limit enforcement (100KB max)
+- [x] Add timeout configuration and redirect safety checks
+- [x] Add content validation and SSRF protections on redirects
+- [x] Write security tests for SSRF protection
 
-**Implementation:**
-```python
-# backend/app/api/bookmarks.py
-@router.get("/favicon/proxy")
-@limiter.limit("20/minute")
-async def proxy_favicon(request: Request, url: str = Query(...)):
-    if not is_safe_url(url):
-        raise HTTPException(status_code=400, detail="Invalid or unsafe URL")
-
-    ALLOWED_CONTENT_TYPES = {
-        'image/x-icon',
-        'image/png',
-        'image/jpeg',
-        'image/gif',
-        'image/svg+xml'
-    }
-    MAX_SIZE = 100 * 1024  # 100KB
-
-    try:
-        async with aiohttp.ClientSession(
-            timeout=aiohttp.ClientTimeout(total=5)
-        ) as session:
-            async with session.get(url, allow_redirects=False) as response:
-                # Validate content type
-                content_type = response.headers.get('content-type', '').lower()
-                if not any(ct in content_type for ct in ALLOWED_CONTENT_TYPES):
-                    raise HTTPException(
-                        status_code=400,
-                        detail="Invalid content type for favicon"
-                    )
-
-                # Check size before reading
-                content_length = int(response.headers.get('Content-Length', 0))
-                if content_length > MAX_SIZE:
-                    raise HTTPException(status_code=413, detail="Favicon too large")
-
-                # Read and validate actual size
-                image_data = await response.read()
-                if len(image_data) > MAX_SIZE:
-                    raise HTTPException(status_code=413, detail="Favicon too large")
-
-                return Response(
-                    content=image_data,
-                    media_type='image/x-icon',
-                    headers={
-                        "Cache-Control": "public, max-age=86400",
-                        "X-Content-Type-Options": "nosniff"
-                    }
-                )
-    except aiohttp.ClientError as e:
-        logger.error(f"Error proxying favicon {url}: {e}")
-        raise HTTPException(
-            status_code=502,
-            detail="Failed to fetch favicon from external source"
-        )
-```
-
-**Files to modify:**
-- `/backend/app/api/bookmarks.py`
-
-**Tests to add:**
-- Test redirect rejection
-- Test content-type validation
-- Test size limit enforcement
-- Test SSRF protection
+**Resolution:** Strengthened the favicon proxy by validating every redirect hop, restricting responses to trusted image content
+types, and enforcing a 100KB payload cap with dedicated SSRF regression tests.
 
 ---
 

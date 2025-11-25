@@ -2,6 +2,8 @@
 import os
 from pathlib import Path
 from typing import Optional
+
+from pydantic import Field, field_validator
 from pydantic_settings import BaseSettings
 
 
@@ -21,20 +23,22 @@ class Settings(BaseSettings):
     REDIS_ENABLED: bool = True
 
     # Security
-    SECRET_KEY: str = os.getenv('SECRET_KEY', '')
+    SECRET_KEY: str = Field(..., env="SECRET_KEY")
 
     # OAuth2 Configuration
-    GOOGLE_CLIENT_ID: str = os.getenv('GOOGLE_CLIENT_ID', '')
-    GOOGLE_CLIENT_SECRET: str = os.getenv('GOOGLE_CLIENT_SECRET', '')
-    GOOGLE_REDIRECT_URI: str = os.getenv('GOOGLE_REDIRECT_URI', 'http://localhost:3000/auth/callback')
+    GOOGLE_CLIENT_ID: str = os.getenv("GOOGLE_CLIENT_ID", "")
+    GOOGLE_CLIENT_SECRET: str = os.getenv("GOOGLE_CLIENT_SECRET", "")
+    GOOGLE_REDIRECT_URI: str = os.getenv(
+        "GOOGLE_REDIRECT_URI", "http://localhost:3000/auth/callback"
+    )
 
     # JWT Configuration
-    JWT_SECRET_KEY: str = os.getenv('JWT_SECRET_KEY', '')
+    JWT_SECRET_KEY: str = os.getenv("JWT_SECRET_KEY", "")
     JWT_ALGORITHM: str = "HS256"
     JWT_EXPIRATION_HOURS: int = 24 * 7  # 7 days
 
     # Frontend URL for redirects
-    FRONTEND_URL: str = os.getenv('FRONTEND_URL', 'http://localhost:3000')
+    FRONTEND_URL: str = os.getenv("FRONTEND_URL", "http://localhost:3000")
 
     # CORS Configuration
     # Default to localhost for development. In production, set CORS_ORIGINS environment variable
@@ -44,21 +48,63 @@ class Settings(BaseSettings):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
         # Parse CORS_ORIGINS from environment variable if provided
-        cors_env = os.getenv('CORS_ORIGINS', '')
+        cors_env = os.getenv("CORS_ORIGINS", "")
         if cors_env:
-            if cors_env == '*':
+            if cors_env == "*":
                 # Allow wildcard only if explicitly set
-                self.CORS_ORIGINS = ['*']
+                self.CORS_ORIGINS = ["*"]
             else:
                 # Parse comma-separated list
-                self.CORS_ORIGINS = [origin.strip() for origin in cors_env.split(',') if origin.strip()]
+                self.CORS_ORIGINS = [
+                    origin.strip() for origin in cors_env.split(",") if origin.strip()
+                ]
         else:
             # Default safe origins for development
             self.CORS_ORIGINS = [
-                'http://localhost:3000',
-                'http://localhost:5173',  # Vite dev server
-                'http://localhost:8080',  # Frontend container
+                "http://localhost:3000",
+                "http://localhost:5173",  # Vite dev server
+                "http://localhost:8080",  # Frontend container
             ]
+
+    @field_validator("SECRET_KEY")
+    @classmethod
+    def validate_secret_key(cls, value: str) -> str:
+        """Ensure SECRET_KEY is strong and not a placeholder.
+
+        The application relies on this value for signing and encryption. A weak
+        or placeholder key would allow attackers to forge tokens or sessions.
+
+        Args:
+            value: SECRET_KEY value loaded from the environment.
+
+        Returns:
+            The sanitized secret key string.
+
+        Raises:
+            ValueError: If the key is missing, too short, or uses a known
+            placeholder value.
+        """
+        normalized_value = value.strip()
+        if not normalized_value:
+            raise ValueError("SECRET_KEY environment variable is required and cannot be empty")
+
+        if len(normalized_value) < 32:
+            raise ValueError("SECRET_KEY must be at least 32 characters long")
+
+        insecure_values = {
+            "change-this-in-production",
+            "change-this-to-a-random-secret-key-in-production",
+            "your-secret-key-here",
+            "secret",
+            "changeme",
+        }
+
+        if normalized_value.lower() in insecure_values:
+            raise ValueError(
+                "SECRET_KEY contains an insecure placeholder value; generate a new random key"
+            )
+
+        return normalized_value
 
     # Widget Configuration
     WIDGET_CONFIG_PATH: str = "/app/config/widgets.yaml"

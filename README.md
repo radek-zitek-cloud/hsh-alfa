@@ -69,6 +69,7 @@ A self-hosted, customizable browser homepage application that serves as your per
    python -c 'import secrets; print(secrets.token_urlsafe(32))'
    ```
    Copy the generated key for the next step.
+   > The backend enforces a minimum length of 32 characters and will reject default placeholders.
 
 5. **Edit `.env` and add your configuration**
    ```bash
