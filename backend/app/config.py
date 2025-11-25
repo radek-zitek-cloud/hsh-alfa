@@ -23,6 +23,19 @@ class Settings(BaseSettings):
     # Security
     SECRET_KEY: str = os.getenv('SECRET_KEY', '')
 
+    # OAuth2 Configuration
+    GOOGLE_CLIENT_ID: str = os.getenv('GOOGLE_CLIENT_ID', '')
+    GOOGLE_CLIENT_SECRET: str = os.getenv('GOOGLE_CLIENT_SECRET', '')
+    GOOGLE_REDIRECT_URI: str = os.getenv('GOOGLE_REDIRECT_URI', 'http://localhost:3000/auth/callback')
+
+    # JWT Configuration
+    JWT_SECRET_KEY: str = os.getenv('JWT_SECRET_KEY', '')
+    JWT_ALGORITHM: str = "HS256"
+    JWT_EXPIRATION_HOURS: int = 24 * 7  # 7 days
+
+    # Frontend URL for redirects
+    FRONTEND_URL: str = os.getenv('FRONTEND_URL', 'http://localhost:3000')
+
     # CORS Configuration
     # Default to localhost for development. In production, set CORS_ORIGINS environment variable
     # to a comma-separated list of allowed origins (e.g., "https://home.example.com,http://localhost:3000")
