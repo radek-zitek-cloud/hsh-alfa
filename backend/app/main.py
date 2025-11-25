@@ -11,7 +11,7 @@ from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 
 from app.config import settings
-from app.api import bookmarks, widgets, sections, preferences
+from app.api import bookmarks, widgets, sections, preferences, auth
 from app.services.database import init_db, get_db
 from app.services.scheduler import scheduler_service
 from app.services.rate_limit import limiter
@@ -144,8 +144,10 @@ async def lifespan(app: FastAPI):
         from app.services.database import engine
         from app.migrations.add_clicks_to_bookmarks import run_migration as run_clicks_migration
         from app.migrations.create_preferences_table import run_migration as run_preferences_migration
+        from app.migrations.create_users_table import run_migration as run_users_migration
         await run_clicks_migration(engine)
         await run_preferences_migration(engine)
+        await run_users_migration(engine)
     except Exception as e:
         logger.error(f"Migration failed: {e}")
         # Continue startup even if migration fails
@@ -233,6 +235,7 @@ app.add_middleware(
 )
 
 # Include routers
+app.include_router(auth.router, prefix="/api")
 app.include_router(bookmarks.router, prefix="/api/bookmarks", tags=["bookmarks"])
 app.include_router(widgets.router, prefix="/api/widgets", tags=["widgets"])
 app.include_router(sections.router)
