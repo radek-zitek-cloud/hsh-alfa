@@ -27,7 +27,7 @@
 
 ## 1. Critical Security Vulnerabilities
 
-### 1.1 Missing Authentication/Authorization Mechanisms
+### 1.1 Missing Authentication/Authorization Mechanisms *(Resolved)*
 **Severity:** CRITICAL
 **Impact:** Entire application is unprotected. Anyone with network access can create, modify, or delete all data.
 
@@ -41,6 +41,8 @@
 - No authentication (JWT, API keys, or session-based)
 - No authorization checks on any endpoints
 - All CRUD operations fully accessible without credentials
+
+**Resolution:** Implemented Google OAuth 2.0 authentication with session-based authorization. All API endpoints now require authentication via the `require_auth` dependency, ensuring only authenticated users can access protected resources.
 
 **Current Code:**
 ```python
@@ -325,7 +327,7 @@ async def search_bookmarks(self, query: str) -> List[Bookmark]:
 
 ---
 
-### 2.4 Insecure API Response Logging
+### 2.4 Insecure API Response Logging *(Resolved)*
 **Severity:** HIGH
 **Impact:** Sensitive data could be logged to stdout/files.
 
@@ -342,6 +344,8 @@ logger.debug(f"Setting preference: {key} = {preference_data.value}")  # ❌ Logs
 2. No filtering of sensitive query parameters
 3. Debug logs might contain sensitive data
 
+**Resolution:** Implemented comprehensive logging sanitization utilities in `/backend/app/utils/logging.py` that automatically detect and redact sensitive data (API keys, passwords, tokens, secrets, etc.) based on pattern matching. Applied sanitization to all preference and widget configuration logging throughout the codebase.
+
 **Recommendation:**
 ```python
 def sanitize_log_data(key: str, value: str) -> str:
@@ -356,7 +360,7 @@ logger.debug(f"Setting preference: {key} = {sanitize_log_data(key, preference_da
 
 ---
 
-### 2.5 Widget Configuration Injection Through JSON Config
+### 2.5 Widget Configuration Injection Through JSON Config *(Resolved)*
 **Severity:** HIGH
 **Impact:** Arbitrary widget configuration could be injected.
 
@@ -384,6 +388,8 @@ async def create_widget(widget_data: WidgetCreate, ...):
 2. No schema validation for widget-specific config
 3. Widget implementations trust the config without validation
 
+**Resolution:** Created comprehensive Pydantic validation schemas for all widget types (weather, news, exchange_rate, market) in `/backend/app/models/widget_configs.py`. Each schema enforces strict validation rules for widget-specific configuration fields. Widget configurations are now validated before being stored in the database, with both create and update endpoints rejecting invalid configurations.
+
 **Recommendation:**
 ```python
 from pydantic import BaseModel, Field
@@ -409,7 +415,7 @@ elif widget_data.type == "news":
 
 ## 3. Medium Severity Issues
 
-### 3.1 No Rate Limiting on Most Endpoints
+### 3.1 No Rate Limiting on Most Endpoints *(Resolved)*
 **Severity:** MEDIUM
 **Impact:** Denial of Service attacks possible on unprotected endpoints.
 
@@ -421,6 +427,8 @@ elif widget_data.type == "news":
 
 **Issue:**
 Only the favicon proxy endpoint has rate limiting. All other endpoints are unprotected.
+
+**Resolution:** Implemented comprehensive rate limiting across all API endpoints using SlowAPI with Redis backend. GET endpoints are limited to 100 requests/minute, while POST/PUT/DELETE endpoints are limited to 20 requests/minute. Rate limit information is included in response headers.
 
 **Recommendation:**
 ```python

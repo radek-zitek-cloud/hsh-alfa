@@ -5,6 +5,7 @@ from typing import Dict, Any, List
 from fastapi import APIRouter, HTTPException, Depends, Request
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
+from pydantic import ValidationError
 
 from app.logging_config import get_logger
 from app.services.widget_registry import get_widget_registry, WidgetRegistry
@@ -12,8 +13,10 @@ from app.services.cache import get_cache_service, CacheService
 from app.services.rate_limit import limiter
 from app.services.database import get_db
 from app.models.widget import Widget, WidgetCreate, WidgetUpdate, WidgetResponse
+from app.models.widget_configs import validate_widget_config
 from app.models.user import User
 from app.api.dependencies import require_auth
+from app.utils.logging import sanitize_log_dict
 
 logger = get_logger(__name__)
 
@@ -319,6 +322,43 @@ async def create_widget(
         )
         raise HTTPException(status_code=400, detail=f"Invalid widget type '{widget_data.type}'")
 
+    # Validate widget configuration
+    try:
+        validated_config = validate_widget_config(widget_data.type, widget_data.config)
+        logger.debug(
+            "Widget configuration validated successfully",
+            extra={
+                "widget_type": widget_data.type,
+                "user_id": current_user.id,
+                "config_keys": list(validated_config.keys()),
+            }
+        )
+    except ValidationError as e:
+        logger.warning(
+            "Widget configuration validation failed",
+            extra={
+                "widget_type": widget_data.type,
+                "validation_errors": str(e),
+                "user_id": current_user.id,
+                "config_preview": sanitize_log_dict(widget_data.config, max_length=30),
+            }
+        )
+        raise HTTPException(
+            status_code=400,
+            detail=f"Invalid widget configuration: {str(e)}"
+        )
+    except ValueError as e:
+        logger.warning(
+            "Widget configuration validation failed",
+            extra={
+                "widget_type": widget_data.type,
+                "error": str(e),
+                "user_id": current_user.id,
+                "config_preview": sanitize_log_dict(widget_data.config, max_length=30),
+            }
+        )
+        raise HTTPException(status_code=400, detail=str(e))
+
     # Create widget in database
     widget = Widget(
         user_id=current_user.id,
@@ -330,7 +370,7 @@ async def create_widget(
         position_width=widget_data.position.width,
         position_height=widget_data.position.height,
         refresh_interval=widget_data.refresh_interval,
-        config=json.dumps(widget_data.config)
+        config=json.dumps(validated_config)
     )
 
     db.add(widget)
@@ -338,7 +378,7 @@ async def create_widget(
     await db.refresh(widget)
 
     # Create widget instance in registry
-    config = widget_data.config.copy()
+    config = validated_config.copy()
     config["enabled"] = widget_data.enabled
     config["refresh_interval"] = widget_data.refresh_interval
     config["position"] = {
@@ -426,7 +466,46 @@ async def update_widget(
         widget.refresh_interval = widget_data.refresh_interval
 
     if widget_data.config is not None:
-        widget.config = json.dumps(widget_data.config)
+        # Validate widget configuration
+        try:
+            validated_config = validate_widget_config(widget.widget_type, widget_data.config)
+            widget.config = json.dumps(validated_config)
+            logger.debug(
+                "Widget configuration validated successfully during update",
+                extra={
+                    "widget_id": widget_id,
+                    "widget_type": widget.widget_type,
+                    "user_id": current_user.id,
+                    "config_keys": list(validated_config.keys()),
+                }
+            )
+        except ValidationError as e:
+            logger.warning(
+                "Widget configuration validation failed during update",
+                extra={
+                    "widget_id": widget_id,
+                    "widget_type": widget.widget_type,
+                    "validation_errors": str(e),
+                    "user_id": current_user.id,
+                    "config_preview": sanitize_log_dict(widget_data.config, max_length=30),
+                }
+            )
+            raise HTTPException(
+                status_code=400,
+                detail=f"Invalid widget configuration: {str(e)}"
+            )
+        except ValueError as e:
+            logger.warning(
+                "Widget configuration validation failed during update",
+                extra={
+                    "widget_id": widget_id,
+                    "widget_type": widget.widget_type,
+                    "error": str(e),
+                    "user_id": current_user.id,
+                    "config_preview": sanitize_log_dict(widget_data.config, max_length=30),
+                }
+            )
+            raise HTTPException(status_code=400, detail=str(e))
 
     await db.commit()
     await db.refresh(widget)

@@ -9,6 +9,7 @@ from app.services.rate_limit import limiter
 from app.models.preference import PreferenceUpdate, PreferenceResponse
 from app.models.user import User
 from app.api.dependencies import require_auth
+from app.utils.logging import sanitize_log_value
 
 logger = get_logger(__name__)
 
@@ -87,7 +88,7 @@ async def set_preference(
         "Setting preference",
         extra={
             "preference_key": key,
-            "preference_value": preference_data.value,
+            "preference_value": sanitize_log_value(key, preference_data.value),
             "user_id": current_user.id,
             "operation": "update"
         }

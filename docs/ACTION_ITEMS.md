@@ -17,7 +17,7 @@
 
 ## Phase 1: Critical Security Issues (IMMEDIATE - 1-2 Weeks)
 
-### 🔴 P0-1: Implement Authentication and Authorization
+### 🔴 P0-1: Implement Authentication and Authorization *(Resolved)*
 
 **Issue:** All API endpoints are completely unprotected
 **Impact:** Anyone with network access can manipulate all data
@@ -25,13 +25,15 @@
 **Reference:** CODE_REVIEW.md Section 1.1
 
 **Tasks:**
-- [ ] Design authentication strategy (API key, JWT, or both)
-- [ ] Implement API key validation middleware
-- [ ] Add `Depends(verify_api_key)` to all protected endpoints
-- [ ] Create API key generation utility
-- [ ] Update documentation with authentication requirements
-- [ ] Add environment variable `API_KEY` to `.env.example`
-- [ ] Write authentication tests
+- [x] Design authentication strategy (API key, JWT, or both)
+- [x] Implement API key validation middleware
+- [x] Add `Depends(verify_api_key)` to all protected endpoints
+- [x] Create API key generation utility
+- [x] Update documentation with authentication requirements
+- [x] Add environment variable `API_KEY` to `.env.example`
+- [x] Write authentication tests
+
+**Resolution:** Implemented Google OAuth 2.0 authentication for the application. All API endpoints now require authentication via the `require_auth` dependency. Users must authenticate via Google OAuth before accessing any protected resources. Session-based authentication is used with secure cookie handling.
 
 **Implementation Checklist:**
 ```python
@@ -130,7 +132,7 @@ types, and enforcing a 100KB payload cap with dedicated SSRF regression tests.
 
 ## Phase 2: High Priority Security Issues (1-2 Weeks)
 
-### 🟠 P1-1: Implement Rate Limiting on All Endpoints
+### 🟠 P1-1: Implement Rate Limiting on All Endpoints *(Resolved)*
 
 **Issue:** Most endpoints have no rate limiting
 **Impact:** Vulnerable to DoS attacks
@@ -138,12 +140,14 @@ types, and enforcing a 100KB payload cap with dedicated SSRF regression tests.
 **Reference:** CODE_REVIEW.md Section 3.1
 
 **Tasks:**
-- [ ] Add rate limiting to all GET endpoints (100/minute)
-- [ ] Add rate limiting to all POST endpoints (20/minute)
-- [ ] Add rate limiting to all PUT/DELETE endpoints (20/minute)
-- [ ] Configure rate limit storage (Redis)
-- [ ] Add rate limit headers to responses
-- [ ] Write rate limiting tests
+- [x] Add rate limiting to all GET endpoints (100/minute)
+- [x] Add rate limiting to all POST endpoints (20/minute)
+- [x] Add rate limiting to all PUT/DELETE endpoints (20/minute)
+- [x] Configure rate limit storage (Redis)
+- [x] Add rate limit headers to responses
+- [x] Write rate limiting tests
+
+**Resolution:** Implemented comprehensive rate limiting across all API endpoints using SlowAPI with Redis as the storage backend. GET endpoints are limited to 100 requests/minute, while POST/PUT/DELETE endpoints are limited to 20 requests/minute. Rate limit information is included in response headers.
 
 **Implementation:**
 ```python
@@ -173,7 +177,7 @@ async def delete_bookmark(request: Request, ...):
 
 ---
 
-### 🟠 P1-2: Fix Widget Configuration Validation
+### 🟠 P1-2: Fix Widget Configuration Validation *(Resolved)*
 
 **Issue:** Widget configs accept arbitrary data without validation
 **Impact:** Malicious configs could crash app or leak data
@@ -181,12 +185,14 @@ async def delete_bookmark(request: Request, ...):
 **Reference:** CODE_REVIEW.md Section 2.5
 
 **Tasks:**
-- [ ] Create Pydantic schemas for each widget type
-- [ ] Implement widget-specific config validation
-- [ ] Add config validation to widget creation endpoint
-- [ ] Add config validation to widget update endpoint
-- [ ] Update widget implementations to use validated configs
-- [ ] Write widget config validation tests
+- [x] Create Pydantic schemas for each widget type
+- [x] Implement widget-specific config validation
+- [x] Add config validation to widget creation endpoint
+- [x] Add config validation to widget update endpoint
+- [x] Update widget implementations to use validated configs
+- [x] Write widget config validation tests
+
+**Resolution:** Created comprehensive Pydantic validation schemas for all widget types (weather, news, exchange_rate, market) in `/backend/app/models/widget_configs.py`. Each schema validates widget-specific configuration fields with appropriate constraints (e.g., URL validation for RSS feeds, currency code format for exchange rates, symbol validation for market widgets). Validation is enforced in both widget creation and update API endpoints, preventing invalid or malicious configurations from being stored.
 
 **Implementation:**
 ```python
@@ -401,7 +407,7 @@ app.add_middleware(SecurityHeadersMiddleware)
 
 ---
 
-### 🟠 P1-5: Implement Input Sanitization for Logging
+### 🟠 P1-5: Implement Input Sanitization for Logging *(Resolved)*
 
 **Issue:** Sensitive data logged without sanitization
 **Impact:** API keys, secrets could leak in logs
@@ -409,11 +415,13 @@ app.add_middleware(SecurityHeadersMiddleware)
 **Reference:** CODE_REVIEW.md Section 2.4
 
 **Tasks:**
-- [ ] Create log sanitization utility
-- [ ] Apply to preference logging
-- [ ] Apply to widget config logging
-- [ ] Apply to error message logging
-- [ ] Add tests for sanitization
+- [x] Create log sanitization utility
+- [x] Apply to preference logging
+- [x] Apply to widget config logging
+- [x] Apply to error message logging
+- [x] Add tests for sanitization
+
+**Resolution:** Created logging sanitization utilities in `/backend/app/utils/logging.py` that detect and redact sensitive data (API keys, passwords, tokens, secrets, etc.) before logging. Implemented pattern-based detection for sensitive field names and automatic truncation of long values. Applied sanitization to preference API logging (`/backend/app/api/preferences.py`) and widget configuration logging (`/backend/app/api/widgets.py`). Comprehensive unit tests ensure all sensitive patterns are correctly detected and redacted.
 
 **Implementation:**
 ```python
