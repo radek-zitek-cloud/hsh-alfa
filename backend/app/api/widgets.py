@@ -21,7 +21,9 @@ router = APIRouter()
 
 
 @router.get("/", response_model=List[WidgetResponse])
+@limiter.limit("100/minute")
 async def list_widgets(
+    request: Request,
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(require_auth)
 ):
@@ -51,7 +53,9 @@ async def list_widgets(
 
 
 @router.get("/types")
+@limiter.limit("100/minute")
 async def list_widget_types(
+    request: Request,
     registry: WidgetRegistry = Depends(get_widget_registry)
 ):
     """
@@ -74,7 +78,9 @@ async def list_widget_types(
 
 
 @router.get("/{widget_id}")
+@limiter.limit("100/minute")
 async def get_widget_config(
+    request: Request,
     widget_id: str,
     registry: WidgetRegistry = Depends(get_widget_registry),
     current_user: User = Depends(require_auth)
@@ -270,7 +276,9 @@ async def refresh_widget(
 
 
 @router.post("/", response_model=WidgetResponse, status_code=201)
+@limiter.limit("20/minute")
 async def create_widget(
+    request: Request,
     widget_data: WidgetCreate,
     db: AsyncSession = Depends(get_db),
     registry: WidgetRegistry = Depends(get_widget_registry),
@@ -354,7 +362,9 @@ async def create_widget(
 
 
 @router.put("/{widget_id}", response_model=WidgetResponse)
+@limiter.limit("20/minute")
 async def update_widget(
+    request: Request,
     widget_id: str,
     widget_data: WidgetUpdate,
     db: AsyncSession = Depends(get_db),
@@ -447,7 +457,9 @@ async def update_widget(
 
 
 @router.delete("/{widget_id}", status_code=204)
+@limiter.limit("20/minute")
 async def delete_widget(
+    request: Request,
     widget_id: str,
     db: AsyncSession = Depends(get_db),
     registry: WidgetRegistry = Depends(get_widget_registry),
@@ -508,7 +520,9 @@ async def delete_widget(
 
 
 @router.post("/reload-config")
+@limiter.limit("20/minute")
 async def reload_widget_config(
+    request: Request,
     registry: WidgetRegistry = Depends(get_widget_registry),
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(require_auth)

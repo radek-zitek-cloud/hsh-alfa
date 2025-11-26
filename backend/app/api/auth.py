@@ -244,7 +244,9 @@ async def get_current_user_info(
 
 
 @router.post("/logout")
+@limiter.limit("20/minute")
 async def logout(
+    request: Request,
     current_user: User = Depends(require_auth),
     credentials: Optional[HTTPAuthorizationCredentials] = Depends(security)
 ):
@@ -296,7 +298,9 @@ async def logout(
 
 
 @router.get("/check")
+@limiter.limit("100/minute")
 async def check_auth(
+    request: Request,
     current_user: Optional[User] = Depends(get_current_user)
 ):
     """Check if user is authenticated.

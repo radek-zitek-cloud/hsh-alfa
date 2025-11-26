@@ -33,6 +33,7 @@ ALLOWED_FAVICON_CONTENT_TYPES = {
 
 
 @router.get("/", response_model=List[BookmarkResponse])
+@limiter.limit("100/minute")
 async def list_bookmarks(
     request: Request,
     category: Optional[str] = None,
@@ -79,8 +80,9 @@ async def list_bookmarks(
 
 
 @router.get("/{bookmark_id}", response_model=BookmarkResponse)
+@limiter.limit("100/minute")
 async def get_bookmark(
-    bookmark_id: int, db: AsyncSession = Depends(get_db), current_user: User = Depends(require_auth)
+    request: Request, bookmark_id: int, db: AsyncSession = Depends(get_db), current_user: User = Depends(require_auth)
 ):
     """
     Get a specific bookmark by ID.
@@ -116,7 +118,8 @@ async def get_bookmark(
 
 
 @router.post("/{bookmark_id}/click", response_model=BookmarkResponse)
-async def track_bookmark_click(bookmark_id: int, db: AsyncSession = Depends(get_db)):
+@limiter.limit("20/minute")
+async def track_bookmark_click(request: Request, bookmark_id: int, db: AsyncSession = Depends(get_db)):
     """
     Track a click on a bookmark.
 
@@ -156,7 +159,9 @@ async def track_bookmark_click(bookmark_id: int, db: AsyncSession = Depends(get_
 
 
 @router.post("/", response_model=BookmarkResponse, status_code=201)
+@limiter.limit("20/minute")
 async def create_bookmark(
+    request: Request,
     bookmark_data: BookmarkCreate,
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(require_auth),
@@ -199,7 +204,9 @@ async def create_bookmark(
 
 
 @router.put("/{bookmark_id}", response_model=BookmarkResponse)
+@limiter.limit("20/minute")
 async def update_bookmark(
+    request: Request,
     bookmark_id: int,
     bookmark_data: BookmarkUpdate,
     db: AsyncSession = Depends(get_db),
@@ -249,8 +256,9 @@ async def update_bookmark(
 
 
 @router.delete("/{bookmark_id}", status_code=204)
+@limiter.limit("20/minute")
 async def delete_bookmark(
-    bookmark_id: int, db: AsyncSession = Depends(get_db), current_user: User = Depends(require_auth)
+    request: Request, bookmark_id: int, db: AsyncSession = Depends(get_db), current_user: User = Depends(require_auth)
 ):
     """
     Delete a bookmark.
@@ -281,7 +289,9 @@ async def delete_bookmark(
 
 
 @router.get("/search/", response_model=List[BookmarkResponse])
+@limiter.limit("100/minute")
 async def search_bookmarks(
+    request: Request,
     q: str = Query(..., min_length=1, max_length=100, description="Search query"),
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(require_auth),

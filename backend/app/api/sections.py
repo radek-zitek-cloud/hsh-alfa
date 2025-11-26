@@ -1,6 +1,6 @@
 """API endpoints for widget sections."""
 from typing import List
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.logging_config import get_logger
@@ -12,13 +12,15 @@ from app.models.section import (
 )
 from app.services.database import get_db
 from app.services.section_service import SectionService, initialize_default_sections
+from app.services.rate_limit import limiter
 
 logger = get_logger(__name__)
 router = APIRouter(prefix="/api/sections", tags=["sections"])
 
 
 @router.get("/", response_model=List[SectionResponse])
-async def get_sections(db: AsyncSession = Depends(get_db)):
+@limiter.limit("100/minute")
+async def get_sections(request: Request, db: AsyncSession = Depends(get_db)):
     """Get all sections ordered by position."""
     logger.debug("Listing all sections")
 
@@ -34,7 +36,9 @@ async def get_sections(db: AsyncSession = Depends(get_db)):
 
 
 @router.post("/", response_model=SectionResponse)
+@limiter.limit("20/minute")
 async def create_section(
+    request: Request,
     section_data: SectionCreate,
     db: AsyncSession = Depends(get_db)
 ):
@@ -73,7 +77,9 @@ async def create_section(
 
 
 @router.put("/reorder", response_model=List[SectionResponse])
+@limiter.limit("20/minute")
 async def reorder_sections(
+    request: Request,
     order_data: SectionOrderUpdate,
     db: AsyncSession = Depends(get_db)
 ):
@@ -145,7 +151,8 @@ async def reorder_sections(
 
 
 @router.get("/{section_id}", response_model=SectionResponse)
-async def get_section(section_id: int, db: AsyncSession = Depends(get_db)):
+@limiter.limit("100/minute")
+async def get_section(request: Request, section_id: int, db: AsyncSession = Depends(get_db)):
     """Get a specific section by ID."""
     logger.debug(
         "Getting section",
@@ -171,7 +178,9 @@ async def get_section(section_id: int, db: AsyncSession = Depends(get_db)):
 
 
 @router.put("/{section_id}", response_model=SectionResponse)
+@limiter.limit("20/minute")
 async def update_section(
+    request: Request,
     section_id: int,
     section_data: SectionUpdate,
     db: AsyncSession = Depends(get_db)
@@ -208,7 +217,8 @@ async def update_section(
 
 
 @router.delete("/{section_id}")
-async def delete_section(section_id: int, db: AsyncSession = Depends(get_db)):
+@limiter.limit("20/minute")
+async def delete_section(request: Request, section_id: int, db: AsyncSession = Depends(get_db)):
     """Delete a section."""
     logger.info(
         "Deleting section",
