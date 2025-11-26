@@ -2,7 +2,7 @@
 
 import pytest
 
-from app.widgets.exchange_widget import ExchangeRateWidget
+from app.widgets.exchange_rate_widget import ExchangeRateWidget
 from app.widgets.weather_widget import WeatherWidget
 
 
