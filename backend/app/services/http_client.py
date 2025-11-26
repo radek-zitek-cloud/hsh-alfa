@@ -6,7 +6,7 @@ across all widgets and services, reducing code duplication and ensuring consiste
 security policies and error handling.
 """
 import aiohttp
-from typing import Optional, Dict, Any, List, Tuple
+from typing import Optional, Dict, Any, List
 from urllib.parse import urlparse
 import ipaddress
 import socket
@@ -35,6 +35,16 @@ BLOCKED_IP_RANGES = [
 
 # Default user agent
 DEFAULT_USER_AGENT = 'Mozilla/5.0 (compatible; HSH-Alfa/1.0)'
+
+
+class BlockedIPError(ValueError):
+    """
+    Exception raised when a connection to a blocked IP address is attempted.
+
+    This exception is used to distinguish IP blocking from other ValueError exceptions
+    during connection establishment.
+    """
+    pass
 
 
 def is_blocked_ip(ip: ipaddress.IPv4Address | ipaddress.IPv6Address) -> bool:
@@ -80,7 +90,7 @@ class SafeTCPConnector(aiohttp.TCPConnector):
             List of resolved address info dicts
 
         Raises:
-            ValueError: If any resolved IP is in blocked ranges
+            BlockedIPError: If any resolved IP is in blocked ranges
         """
         # Resolve using parent class
         resolved = await super()._resolve_host(host, port, traces)
@@ -97,17 +107,18 @@ class SafeTCPConnector(aiohttp.TCPConnector):
                         "hostname": host,
                         "ip": str(ip)
                     })
-                    raise ValueError(f"Connection to private/internal IP blocked: {ip}")
-            except ValueError as e:
-                if "private/internal IP blocked" in str(e):
-                    raise
+                    raise BlockedIPError(f"Connection to private/internal IP blocked: {ip}")
+            except BlockedIPError:
+                # Re-raise blocked IP errors
+                raise
+            except ValueError:
                 # If IP parsing fails, block it
                 logger.warning("Could not parse resolved IP", extra={
                     "operation": "ssrf_validation",
                     "hostname": host,
                     "ip_str": ip_str
                 })
-                raise ValueError(f"Invalid IP address resolved: {ip_str}")
+                raise BlockedIPError(f"Invalid IP address resolved: {ip_str}")
 
         return resolved
 
@@ -205,6 +216,21 @@ class HttpClient:
         self.timeout = timeout
         self.user_agent = user_agent
         self.verify_ssl = verify_ssl
+        # Create connector once for connection pooling
+        self.connector = SafeTCPConnector(ssl=self.verify_ssl)
+
+    async def close(self):
+        """Close the connector and cleanup resources."""
+        if self.connector:
+            await self.connector.close()
+
+    async def __aenter__(self):
+        """Async context manager entry."""
+        return self
+
+    async def __aexit__(self, exc_type, exc_val, exc_tb):
+        """Async context manager exit."""
+        await self.close()
 
     def _get_default_headers(self) -> Dict[str, str]:
         """Get default headers for requests."""
@@ -219,9 +245,9 @@ class HttpClient:
         headers: Optional[Dict[str, str]] = None,
         timeout: Optional[int] = None,
         validate_url: bool = True
-    ) -> aiohttp.ClientResponse:
+    ) -> bytes:
         """
-        Make a GET request.
+        Make a GET request and return response body.
 
         Args:
             url: The URL to fetch
@@ -231,7 +257,7 @@ class HttpClient:
             validate_url: Whether to validate URL for SSRF protection (default: True)
 
         Returns:
-            aiohttp.ClientResponse object
+            Response body as bytes
 
         Raises:
             ValueError: If URL fails SSRF validation
@@ -251,11 +277,10 @@ class HttpClient:
         timeout_obj = aiohttp.ClientTimeout(total=request_timeout)
 
         # Use SafeTCPConnector to prevent DNS rebinding attacks
-        connector = SafeTCPConnector(ssl=self.verify_ssl)
         async with aiohttp.ClientSession(
             timeout=timeout_obj,
             headers=request_headers,
-            connector=connector
+            connector=self.connector
         ) as session:
             async with session.get(
                 url,
@@ -264,7 +289,8 @@ class HttpClient:
             ) as response:
                 # Check response status
                 response.raise_for_status()
-                return response
+                # Read response body before context exits
+                return await response.read()
 
     async def get_json(
         self,
@@ -316,11 +342,10 @@ class HttpClient:
                 "timeout": request_timeout
             })
             # Use SafeTCPConnector to prevent DNS rebinding attacks
-            connector = SafeTCPConnector(ssl=self.verify_ssl)
             async with aiohttp.ClientSession(
                 timeout=timeout_obj,
                 headers=request_headers,
-                connector=connector
+                connector=self.connector
             ) as session:
                 async with session.get(
                     url,
@@ -399,11 +424,10 @@ class HttpClient:
                 "max_size": max_size
             })
             # Use SafeTCPConnector to prevent DNS rebinding attacks
-            connector = SafeTCPConnector(ssl=self.verify_ssl)
             async with aiohttp.ClientSession(
                 timeout=timeout_obj,
                 headers=request_headers,
-                connector=connector
+                connector=self.connector
             ) as session:
                 async with session.get(
                     url,
@@ -463,9 +487,9 @@ class HttpClient:
         headers: Optional[Dict[str, str]] = None,
         timeout: Optional[int] = None,
         validate_url: bool = True
-    ) -> aiohttp.ClientResponse:
+    ) -> Dict[str, Any]:
         """
-        Make a HEAD request.
+        Make a HEAD request and return status and headers.
 
         Args:
             url: The URL to check
@@ -474,7 +498,7 @@ class HttpClient:
             validate_url: Whether to validate URL for SSRF protection (default: True)
 
         Returns:
-            aiohttp.ClientResponse object
+            Dictionary with 'status' and 'headers' keys
 
         Raises:
             ValueError: If URL fails SSRF validation
@@ -494,18 +518,21 @@ class HttpClient:
         timeout_obj = aiohttp.ClientTimeout(total=request_timeout)
 
         # Use SafeTCPConnector to prevent DNS rebinding attacks
-        connector = SafeTCPConnector(ssl=self.verify_ssl)
         async with aiohttp.ClientSession(
             timeout=timeout_obj,
             headers=request_headers,
-            connector=connector
+            connector=self.connector
         ) as session:
             async with session.head(
                 url,
                 allow_redirects=True
             ) as response:
                 response.raise_for_status()
-                return response
+                # Extract status and headers before context exits
+                return {
+                    'status': response.status,
+                    'headers': dict(response.headers)
+                }
 
 
 # Global HTTP client instance for convenience
