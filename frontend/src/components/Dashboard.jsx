@@ -1,16 +1,18 @@
 import React, { useState } from 'react'
-import { Sun, Moon, Plus, LogOut } from 'lucide-react'
+import { Sun, Moon, Plus, LogOut, Database } from 'lucide-react'
 import { useAuth } from '../contexts/AuthContext'
 import BookmarkGrid from './BookmarkGrid'
 import WidgetGrid from './WidgetGrid'
 import BookmarkModal from './BookmarkModal'
 import BookmarkForm from './BookmarkForm'
 import WidgetForm from './WidgetForm'
+import ExportImportModal from './ExportImportModal'
 
 const Dashboard = ({ theme, toggleTheme }) => {
   const { user, logout } = useAuth()
   const [isAddModalOpen, setIsAddModalOpen] = useState(false)
   const [isAddWidgetModalOpen, setIsAddWidgetModalOpen] = useState(false)
+  const [isExportImportModalOpen, setIsExportImportModalOpen] = useState(false)
 
   const handleLogout = async () => {
     await logout()
@@ -24,6 +26,14 @@ const Dashboard = ({ theme, toggleTheme }) => {
           Home Sweet Home
         </h1>
         <div className="flex items-center gap-4">
+          <button
+            onClick={() => setIsExportImportModalOpen(true)}
+            className="p-2 rounded-lg bg-[var(--bg-secondary)] hover:bg-[var(--border-color)] transition-colors"
+            aria-label="Export/Import Data"
+            title="Export/Import Database"
+          >
+            <Database size={24} />
+          </button>
           <button
             onClick={toggleTheme}
             className="p-2 rounded-lg bg-[var(--bg-secondary)] hover:bg-[var(--border-color)] transition-colors"
@@ -113,6 +123,12 @@ const Dashboard = ({ theme, toggleTheme }) => {
           onCancel={() => setIsAddWidgetModalOpen(false)}
         />
       </BookmarkModal>
+
+      {/* Export/Import Modal */}
+      <ExportImportModal
+        isOpen={isExportImportModalOpen}
+        onClose={() => setIsExportImportModalOpen(false)}
+      />
     </div>
   )
 }
