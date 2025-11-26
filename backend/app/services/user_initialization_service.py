@@ -99,8 +99,7 @@ class UserInitializationService:
 
         # Weather widget configuration for Provodov, CZ
         widget_config = {
-            "city": "Provodov",
-            "country": "CZ",
+            "location": "Provodov, CZ",
             "units": "metric",
             "show_forecast": True,
         }
