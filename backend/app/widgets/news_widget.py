@@ -165,8 +165,12 @@ class NewsWidget(BaseWidget):
                         try:
                             dt = datetime(*entry.published_parsed[:6])
                             published_at = dt.isoformat() + "Z"
-                        except Exception:
-                            pass
+                        except Exception as e:
+                            logger.debug("Failed to parse RSS entry published date", extra={
+                                "operation": "rss_date_parsing",
+                                "error_type": type(e).__name__,
+                                "entry_title": entry.get('title', 'unknown')
+                            })
                     elif hasattr(entry, 'published'):
                         published_at = entry.published
 
