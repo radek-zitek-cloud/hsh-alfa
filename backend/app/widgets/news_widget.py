@@ -1,11 +1,11 @@
 """News/RSS widget implementation."""
-import aiohttp
 import feedparser
 from typing import Dict, Any, List, Optional
 from datetime import datetime
 from app.widgets.base_widget import BaseWidget
 from app.config import settings
 from app.logging_config import get_logger
+from app.services.http_client import http_client
 
 logger = get_logger(__name__)
 
@@ -106,101 +106,92 @@ class NewsWidget(BaseWidget):
             }
         )
 
-        async with aiohttp.ClientSession() as session:
-            for feed_url in feeds:
-                try:
-                    logger.debug(
-                        "Fetching RSS feed",
-                        extra={
-                            "widget_type": self.widget_type,
-                            "widget_id": self.widget_id,
-                            "api_url": feed_url
-                        }
-                    )
+        for feed_url in feeds:
+            try:
+                logger.debug(
+                    "Fetching RSS feed",
+                    extra={
+                        "widget_type": self.widget_type,
+                        "widget_id": self.widget_id,
+                        "api_url": feed_url
+                    }
+                )
 
-                    async with session.get(feed_url, timeout=aiohttp.ClientTimeout(total=10)) as response:
-                        if response.status != 200:
-                            logger.warning(
-                                f"Failed to fetch RSS feed: {response.status}",
-                                extra={
-                                    "widget_type": self.widget_type,
-                                    "widget_id": self.widget_id,
-                                    "response_status": response.status,
-                                    "api_url": feed_url
-                                }
-                            )
-                            continue
+                # Use SSRF-protected HTTP client to fetch RSS feed
+                content = await http_client.get_text(
+                    feed_url,
+                    timeout=10,
+                    validate_url=True
+                )
 
-                        content = await response.text()
+                # Parse RSS feed (feedparser is sync, but fast)
+                feed = feedparser.parse(content)
 
-                        # Parse RSS feed (feedparser is sync, but fast)
-                        feed = feedparser.parse(content)
+                logger.debug(
+                    "RSS feed parsed successfully",
+                    extra={
+                        "widget_type": self.widget_type,
+                        "widget_id": self.widget_id,
+                        "feed_title": feed.feed.get('title', 'Unknown'),
+                        "num_entries": len(feed.entries),
+                        "api_url": feed_url
+                    }
+                )
 
-                        logger.debug(
-                            "RSS feed parsed successfully",
-                            extra={
-                                "widget_type": self.widget_type,
-                                "widget_id": self.widget_id,
-                                "feed_title": feed.feed.get('title', 'Unknown'),
-                                "num_entries": len(feed.entries),
-                                "api_url": feed_url
-                            }
-                        )
+                # Extract articles from feed
+                for entry in feed.entries:
+                    # Get image from various possible fields
+                    image_url = None
+                    if hasattr(entry, 'media_content') and entry.media_content:
+                        image_url = entry.media_content[0].get('url')
+                    elif hasattr(entry, 'media_thumbnail') and entry.media_thumbnail:
+                        image_url = entry.media_thumbnail[0].get('url')
+                    elif hasattr(entry, 'enclosures') and entry.enclosures:
+                        for enclosure in entry.enclosures:
+                            if enclosure.get('type', '').startswith('image/'):
+                                image_url = enclosure.get('href')
+                                break
 
-                        # Extract articles from feed
-                        for entry in feed.entries:
-                            # Get image from various possible fields
-                            image_url = None
-                            if hasattr(entry, 'media_content') and entry.media_content:
-                                image_url = entry.media_content[0].get('url')
-                            elif hasattr(entry, 'media_thumbnail') and entry.media_thumbnail:
-                                image_url = entry.media_thumbnail[0].get('url')
-                            elif hasattr(entry, 'enclosures') and entry.enclosures:
-                                for enclosure in entry.enclosures:
-                                    if enclosure.get('type', '').startswith('image/'):
-                                        image_url = enclosure.get('href')
-                                        break
+                    # Get description/summary
+                    description = ""
+                    if hasattr(entry, 'summary'):
+                        description = entry.summary
+                    elif hasattr(entry, 'description'):
+                        description = entry.description
 
-                            # Get description/summary
-                            description = ""
-                            if hasattr(entry, 'summary'):
-                                description = entry.summary
-                            elif hasattr(entry, 'description'):
-                                description = entry.description
+                    # Parse published date
+                    published_at = ""
+                    if hasattr(entry, 'published_parsed') and entry.published_parsed:
+                        try:
+                            dt = datetime(*entry.published_parsed[:6])
+                            published_at = dt.isoformat() + "Z"
+                        except Exception:
+                            pass
+                    elif hasattr(entry, 'published'):
+                        published_at = entry.published
 
-                            # Parse published date
-                            published_at = ""
-                            if hasattr(entry, 'published_parsed') and entry.published_parsed:
-                                try:
-                                    dt = datetime(*entry.published_parsed[:6])
-                                    published_at = dt.isoformat() + "Z"
-                                except Exception:
-                                    pass
-                            elif hasattr(entry, 'published'):
-                                published_at = entry.published
+                    article = {
+                        "title": entry.get('title', 'No title'),
+                        "description": description,
+                        "url": entry.get('link', ''),
+                        "image_url": image_url,
+                        "published_at": published_at,
+                        "source": feed.feed.get('title', 'RSS Feed')
+                    }
+                    articles.append(article)
 
-                            article = {
-                                "title": entry.get('title', 'No title'),
-                                "description": description,
-                                "url": entry.get('link', ''),
-                                "image_url": image_url,
-                                "published_at": published_at,
-                                "source": feed.feed.get('title', 'RSS Feed')
-                            }
-                            articles.append(article)
-
-                except Exception as e:
-                    logger.error(
-                        f"Error fetching RSS feed: {str(e)}",
-                        extra={
-                            "widget_type": self.widget_type,
-                            "widget_id": self.widget_id,
-                            "api_url": feed_url,
-                            "error_type": type(e).__name__
-                        },
-                        exc_info=True
-                    )
-                    continue
+            except Exception as e:
+                logger.error(
+                    f"Error fetching RSS feed: {str(e)}",
+                    extra={
+                        "widget_type": self.widget_type,
+                        "widget_id": self.widget_id,
+                        "api_url": feed_url,
+                        "error_type": type(e).__name__
+                    },
+                    exc_info=True
+                )
+                continue
 
         logger.info(
             "RSS feed fetch completed",
@@ -268,55 +259,43 @@ class NewsWidget(BaseWidget):
             )
 
         try:
-            async with aiohttp.ClientSession() as session:
-                async with session.get(url, params=params, timeout=aiohttp.ClientTimeout(total=10)) as response:
-                    logger.debug(
-                        "News API response received",
-                        extra={
-                            "widget_type": self.widget_type,
-                            "widget_id": self.widget_id,
-                            "response_status": response.status,
-                            "api_url": url
-                        }
-                    )
+            # Use SSRF-protected HTTP client to fetch from News API
+            data = await http_client.get_json(
+                url,
+                params=params,
+                timeout=10,
+                validate_url=True
+            )
 
-                    if response.status != 200:
-                        error_text = await response.text()
-                        logger.warning(
-                            f"News API returned error: {response.status}",
-                            extra={
-                                "widget_type": self.widget_type,
-                                "widget_id": self.widget_id,
-                                "response_status": response.status,
-                                "error_text": error_text,
-                                "api_url": url
-                            }
-                        )
-                        return articles
+            logger.debug(
+                "News API response received",
+                extra={
+                    "widget_type": self.widget_type,
+                    "widget_id": self.widget_id,
+                    "api_url": url
+                }
+            )
 
-                    data = await response.json()
+            # Transform News API articles to common format
+            for item in data.get("articles", []):
+                article = {
+                    "title": item.get("title", "No title"),
+                    "description": item.get("description", ""),
+                    "url": item.get("url", ""),
+                    "image_url": item.get("urlToImage"),
+                    "published_at": item.get("publishedAt", ""),
+                    "source": item.get("source", {}).get("name", "News API")
+                }
+                articles.append(article)
 
-                    # Transform News API articles to common format
-                    for item in data.get("articles", []):
-                        article = {
-                            "title": item.get("title", "No title"),
-                            "description": item.get("description", ""),
-                            "url": item.get("url", ""),
-                            "image_url": item.get("urlToImage"),
-                            "published_at": item.get("publishedAt", ""),
-                            "source": item.get("source", {}).get("name", "News API")
-                        }
-                        articles.append(article)
-
-                    logger.info(
-                        "News API articles retrieved successfully",
-                        extra={
-                            "widget_type": self.widget_type,
-                            "widget_id": self.widget_id,
-                            "num_articles": len(articles),
-                            "response_status": response.status
-                        }
-                    )
+            logger.info(
+                "News API articles retrieved successfully",
+                extra={
+                    "widget_type": self.widget_type,
+                    "widget_id": self.widget_id,
+                    "num_articles": len(articles)
+                }
+            )
 
         except Exception as e:
             logger.error(
