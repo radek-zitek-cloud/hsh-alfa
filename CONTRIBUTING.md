@@ -15,6 +15,33 @@ Thank you for your interest in contributing to Home Sweet Home! This document pr
 - [Documentation](#documentation)
 - [Community](#community)
 
+## For AI Agents (Claude Code)
+
+If you are an AI agent (like Claude Code) contributing to this project, please pay special attention to these requirements:
+
+### Python Code Formatting - MANDATORY
+
+**ALL Python code MUST be formatted with Black before committing.** This is not optional.
+
+```bash
+# Always run these commands before committing Python changes:
+cd backend
+black app/ tests/
+isort app/ tests/
+```
+
+### Pre-commit Checklist for AI Agents
+
+Before creating any commit with Python code changes:
+
+1. ✅ **Format with Black**: Run `black app/ tests/` in the backend directory
+2. ✅ **Sort imports**: Run `isort app/ tests/` in the backend directory
+3. ✅ **Verify formatting**: Run `black --check app/ tests/` to confirm
+4. ✅ **Run tests**: Ensure `pytest` passes
+5. ✅ **Commit only then**: Create your commit after all checks pass
+
+**CI will fail if code is not Black-formatted.** Always format before committing, not after.
+
 ## Code of Conduct
 
 ### Our Pledge
@@ -232,22 +259,36 @@ git push origin feature/your-feature-name --force-with-lease
 
 Follow **PEP 8** with these specifics:
 
-- **Line length**: 88 characters (Black default)
+- **Line length**: 100 characters (Black configuration)
 - **Indentation**: 4 spaces
 - **Quotes**: Double quotes for strings
 - **Imports**: Organized with `isort`
 
-#### Code Formatting
+#### Code Formatting (REQUIRED)
+
+**IMPORTANT**: All Python code MUST be formatted with Black before committing.
 
 ```bash
-# Format code with Black
-black backend/app
+# Format code with Black (REQUIRED BEFORE COMMIT)
+cd backend
+black app/
 
-# Sort imports with isort
-isort backend/app
+# Sort imports with isort (REQUIRED BEFORE COMMIT)
+isort app/
 
 # Check linting with Flake8
-flake8 backend/app
+flake8 app/
+```
+
+**For Claude AI agents**: When making any changes to Python code, you MUST run Black formatting on all modified files before committing. This is enforced by CI and your commits will fail if not properly formatted.
+
+```bash
+# Format all Python code in the project
+cd backend
+black app/ tests/
+
+# Or format specific files
+black app/main.py app/api/bookmarks.py
 ```
 
 #### Type Hints

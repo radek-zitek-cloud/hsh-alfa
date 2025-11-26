@@ -1,12 +1,13 @@
 """Unit tests for widget configuration validation."""
+
 import pytest
 from pydantic import ValidationError
 
 from app.models.widget_configs import (
-    WeatherWidgetConfig,
-    NewsWidgetConfig,
     ExchangeRateWidgetConfig,
     MarketWidgetConfig,
+    NewsWidgetConfig,
+    WeatherWidgetConfig,
     validate_widget_config,
 )
 
@@ -16,11 +17,7 @@ class TestWeatherWidgetConfig:
 
     def test_valid_weather_config(self):
         """Test valid weather widget configuration."""
-        config = WeatherWidgetConfig(
-            location="Prague",
-            units="metric",
-            show_forecast=True
-        )
+        config = WeatherWidgetConfig(location="Prague", units="metric", show_forecast=True)
         assert config.location == "Prague"
         assert config.units == "metric"
         assert config.show_forecast is True
@@ -64,7 +61,7 @@ class TestNewsWidgetConfig:
         """Test valid news widget config with RSS feeds."""
         config = NewsWidgetConfig(
             rss_feeds=["https://example.com/feed1.xml", "https://example.com/feed2.xml"],
-            max_articles=10
+            max_articles=10,
         )
         assert len(config.rss_feeds) == 2
         assert config.max_articles == 10
@@ -73,9 +70,7 @@ class TestNewsWidgetConfig:
     def test_valid_news_config_with_news_api(self):
         """Test valid news widget config with News API."""
         config = NewsWidgetConfig(
-            use_news_api=True,
-            api_key="test-api-key-12345",
-            query="technology"
+            use_news_api=True, api_key="test-api-key-12345", query="technology"
         )
         assert config.use_news_api is True
         assert config.api_key == "test-api-key-12345"
@@ -96,8 +91,7 @@ class TestNewsWidgetConfig:
     def test_news_config_filters_empty_rss_feeds(self):
         """Test news config filters out empty RSS feed URLs."""
         config = NewsWidgetConfig(
-            rss_feeds=["https://example.com/feed.xml", "", "  "],
-            use_news_api=False
+            rss_feeds=["https://example.com/feed.xml", "", "  "], use_news_api=False
         )
         assert len(config.rss_feeds) == 1
         assert config.rss_feeds[0] == "https://example.com/feed.xml"
@@ -133,8 +127,7 @@ class TestExchangeRateWidgetConfig:
     def test_valid_exchange_rate_config(self):
         """Test valid exchange rate widget configuration."""
         config = ExchangeRateWidgetConfig(
-            base_currency="USD",
-            target_currencies=["EUR", "GBP", "JPY"]
+            base_currency="USD", target_currencies=["EUR", "GBP", "JPY"]
         )
         assert config.base_currency == "USD"
         assert len(config.target_currencies) == 3
@@ -142,10 +135,7 @@ class TestExchangeRateWidgetConfig:
 
     def test_exchange_rate_normalizes_currency_codes(self):
         """Test exchange rate config normalizes currency codes to uppercase."""
-        config = ExchangeRateWidgetConfig(
-            base_currency="usd",
-            target_currencies=["eur", "gbp"]
-        )
+        config = ExchangeRateWidgetConfig(base_currency="usd", target_currencies=["eur", "gbp"])
         assert config.base_currency == "USD"
         assert config.target_currencies == ["EUR", "GBP"]
 
@@ -175,8 +165,7 @@ class TestExchangeRateWidgetConfig:
     def test_exchange_rate_filters_empty_target_currencies(self):
         """Test exchange rate config filters out empty target currencies."""
         config = ExchangeRateWidgetConfig(
-            base_currency="USD",
-            target_currencies=["EUR", "", "  ", "GBP"]
+            base_currency="USD", target_currencies=["EUR", "", "  ", "GBP"]
         )
         assert len(config.target_currencies) == 2
         assert config.target_currencies == ["EUR", "GBP"]
@@ -185,8 +174,7 @@ class TestExchangeRateWidgetConfig:
         """Test exchange rate config limits number of target currencies."""
         with pytest.raises(ValidationError):
             ExchangeRateWidgetConfig(
-                base_currency="USD",
-                target_currencies=[f"C{i:02d}" for i in range(21)]
+                base_currency="USD", target_currencies=[f"C{i:02d}" for i in range(21)]
             )
 
 
@@ -195,28 +183,19 @@ class TestMarketWidgetConfig:
 
     def test_valid_market_config_with_stocks(self):
         """Test valid market widget config with stocks."""
-        config = MarketWidgetConfig(
-            stocks=["AAPL", "GOOGL", "MSFT"],
-            crypto=[]
-        )
+        config = MarketWidgetConfig(stocks=["AAPL", "GOOGL", "MSFT"], crypto=[])
         assert len(config.stocks) == 3
         assert config.crypto == []
 
     def test_valid_market_config_with_crypto(self):
         """Test valid market widget config with crypto."""
-        config = MarketWidgetConfig(
-            stocks=[],
-            crypto=["BTC", "ETH", "SOL"]
-        )
+        config = MarketWidgetConfig(stocks=[], crypto=["BTC", "ETH", "SOL"])
         assert config.stocks == []
         assert len(config.crypto) == 3
 
     def test_valid_market_config_with_both(self):
         """Test valid market widget config with both stocks and crypto."""
-        config = MarketWidgetConfig(
-            stocks=["AAPL", "^GSPC"],
-            crypto=["BTC", "ETH"]
-        )
+        config = MarketWidgetConfig(stocks=["AAPL", "^GSPC"], crypto=["BTC", "ETH"])
         assert len(config.stocks) == 2
         assert len(config.crypto) == 2
 
@@ -234,10 +213,7 @@ class TestMarketWidgetConfig:
 
     def test_market_config_filters_empty_symbols(self):
         """Test market config filters out empty symbols."""
-        config = MarketWidgetConfig(
-            stocks=["AAPL", "", "  ", "GOOGL"],
-            crypto=["BTC", "", "ETH"]
-        )
+        config = MarketWidgetConfig(stocks=["AAPL", "", "  ", "GOOGL"], crypto=["BTC", "", "ETH"])
         assert len(config.stocks) == 2
         assert config.stocks == ["AAPL", "GOOGL"]
         assert len(config.crypto) == 2
@@ -282,30 +258,21 @@ class TestValidateWidgetConfig:
 
     def test_validate_news_config(self):
         """Test validating news widget config."""
-        config_dict = {
-            "rss_feeds": ["https://example.com/feed.xml"],
-            "max_articles": 15
-        }
+        config_dict = {"rss_feeds": ["https://example.com/feed.xml"], "max_articles": 15}
         validated = validate_widget_config("news", config_dict)
         assert len(validated["rss_feeds"]) == 1
         assert validated["max_articles"] == 15
 
     def test_validate_exchange_rate_config(self):
         """Test validating exchange rate widget config."""
-        config_dict = {
-            "base_currency": "usd",
-            "target_currencies": ["eur", "gbp"]
-        }
+        config_dict = {"base_currency": "usd", "target_currencies": ["eur", "gbp"]}
         validated = validate_widget_config("exchange_rate", config_dict)
         assert validated["base_currency"] == "USD"
         assert validated["target_currencies"] == ["EUR", "GBP"]
 
     def test_validate_market_config(self):
         """Test validating market widget config."""
-        config_dict = {
-            "stocks": ["aapl", "googl"],
-            "crypto": ["btc"]
-        }
+        config_dict = {"stocks": ["aapl", "googl"], "crypto": ["btc"]}
         validated = validate_widget_config("market", config_dict)
         assert validated["stocks"] == ["AAPL", "GOOGL"]
         assert validated["crypto"] == ["BTC"]

@@ -4,20 +4,17 @@ import hashlib
 import secrets
 import threading
 from datetime import datetime, timedelta, timezone
-from typing import Optional, Dict, Any
+from typing import Any, Dict, Optional
+
 import httpx
-from jose import jwt, JWTError
+from jose import JWTError, jwt
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import settings
+from app.constants import GOOGLE_API_TIMEOUT, GOOGLE_TOKEN_URL, GOOGLE_USERINFO_URL
 from app.logging_config import get_logger
 from app.models.user import User, UserCreate
-from app.constants import (
-    GOOGLE_TOKEN_URL,
-    GOOGLE_USERINFO_URL,
-    GOOGLE_API_TIMEOUT,
-)
 
 logger = get_logger(__name__)
 

@@ -1,5 +1,7 @@
 """Migration: Add user_id columns to all user-specific tables."""
+
 import logging
+
 from sqlalchemy import text
 
 logger = logging.getLogger(__name__)
@@ -39,26 +41,38 @@ async def run_migration(engine):
 
         # 1. Add user_id to bookmarks table
         logger.info("Adding user_id to bookmarks table...")
-        await conn.execute(text(
-            f"ALTER TABLE bookmarks ADD COLUMN user_id INTEGER NOT NULL DEFAULT {default_user_id}"
-        ))
-        await conn.execute(text("CREATE INDEX IF NOT EXISTS ix_bookmarks_user_id ON bookmarks(user_id)"))
+        await conn.execute(
+            text(
+                f"ALTER TABLE bookmarks ADD COLUMN user_id INTEGER NOT NULL DEFAULT {default_user_id}"
+            )
+        )
+        await conn.execute(
+            text("CREATE INDEX IF NOT EXISTS ix_bookmarks_user_id ON bookmarks(user_id)")
+        )
         logger.info("✓ bookmarks table updated")
 
         # 2. Add user_id to widgets table
         logger.info("Adding user_id to widgets table...")
-        await conn.execute(text(
-            f"ALTER TABLE widgets ADD COLUMN user_id INTEGER NOT NULL DEFAULT {default_user_id}"
-        ))
-        await conn.execute(text("CREATE INDEX IF NOT EXISTS ix_widgets_user_id ON widgets(user_id)"))
+        await conn.execute(
+            text(
+                f"ALTER TABLE widgets ADD COLUMN user_id INTEGER NOT NULL DEFAULT {default_user_id}"
+            )
+        )
+        await conn.execute(
+            text("CREATE INDEX IF NOT EXISTS ix_widgets_user_id ON widgets(user_id)")
+        )
         logger.info("✓ widgets table updated")
 
         # 3. Add user_id to sections table
         logger.info("Adding user_id to sections table...")
-        await conn.execute(text(
-            f"ALTER TABLE sections ADD COLUMN user_id INTEGER NOT NULL DEFAULT {default_user_id}"
-        ))
-        await conn.execute(text("CREATE INDEX IF NOT EXISTS ix_sections_user_id ON sections(user_id)"))
+        await conn.execute(
+            text(
+                f"ALTER TABLE sections ADD COLUMN user_id INTEGER NOT NULL DEFAULT {default_user_id}"
+            )
+        )
+        await conn.execute(
+            text("CREATE INDEX IF NOT EXISTS ix_sections_user_id ON sections(user_id)")
+        )
         # Drop old unique constraint on name and create new composite unique constraint
         logger.info("Updating sections table unique constraints...")
         # Note: SQLite doesn't support dropping constraints directly, but we can work with it
@@ -66,14 +80,20 @@ async def run_migration(engine):
 
         # 4. Add user_id to preferences table
         logger.info("Adding user_id to preferences table...")
-        await conn.execute(text(
-            f"ALTER TABLE preferences ADD COLUMN user_id INTEGER NOT NULL DEFAULT {default_user_id}"
-        ))
-        await conn.execute(text("CREATE INDEX IF NOT EXISTS ix_preferences_user_id ON preferences(user_id)"))
+        await conn.execute(
+            text(
+                f"ALTER TABLE preferences ADD COLUMN user_id INTEGER NOT NULL DEFAULT {default_user_id}"
+            )
+        )
+        await conn.execute(
+            text("CREATE INDEX IF NOT EXISTS ix_preferences_user_id ON preferences(user_id)")
+        )
         # Drop old unique constraint on key and create new composite unique constraint
         logger.info("Updating preferences table unique constraints...")
         logger.info("✓ preferences table updated")
 
         logger.info("Migration completed successfully: add_user_id_to_tables")
-        logger.warning("⚠️  Note: All existing data has been assigned to user_id=%d", default_user_id)
+        logger.warning(
+            "⚠️  Note: All existing data has been assigned to user_id=%d", default_user_id
+        )
         logger.warning("⚠️  Foreign key constraints are enforced by SQLAlchemy, not the database")

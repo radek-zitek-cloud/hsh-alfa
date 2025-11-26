@@ -1,9 +1,12 @@
 """Exchange rate widget implementation."""
+
+from typing import Any, Dict, List
+
 import aiohttp
-from typing import Dict, Any, List
-from app.widgets.base_widget import BaseWidget
+
 from app.config import settings
 from app.logging_config import get_logger
+from app.widgets.base_widget import BaseWidget
 
 logger = get_logger(__name__)
 
@@ -25,8 +28,8 @@ class ExchangeRateWidget(BaseWidget):
                     extra={
                         "widget_type": self.widget_type,
                         "widget_id": self.widget_id,
-                        "missing_field": field
-                    }
+                        "missing_field": field,
+                    },
                 )
                 return False
 
@@ -37,8 +40,8 @@ class ExchangeRateWidget(BaseWidget):
                 extra={
                     "widget_type": self.widget_type,
                     "widget_id": self.widget_id,
-                    "field_type": type(self.config.get("target_currencies")).__name__
-                }
+                    "field_type": type(self.config.get("target_currencies")).__name__,
+                },
             )
             return False
 
@@ -48,8 +51,8 @@ class ExchangeRateWidget(BaseWidget):
                 "widget_type": self.widget_type,
                 "widget_id": self.widget_id,
                 "base_currency": self.config.get("base_currency"),
-                "target_currencies": len(self.config.get("target_currencies", []))
-            }
+                "target_currencies": len(self.config.get("target_currencies", [])),
+            },
         )
         return True
 
@@ -72,8 +75,8 @@ class ExchangeRateWidget(BaseWidget):
                 extra={
                     "widget_type": self.widget_type,
                     "widget_id": self.widget_id,
-                    "base_currency": base_currency
-                }
+                    "base_currency": base_currency,
+                },
             )
             return await self._fetch_from_ecb(base_currency, target_currencies)
 
@@ -86,8 +89,8 @@ class ExchangeRateWidget(BaseWidget):
                 "widget_type": self.widget_type,
                 "widget_id": self.widget_id,
                 "base_currency": base_currency,
-                "api_url": url
-            }
+                "api_url": url,
+            },
         )
 
         async with aiohttp.ClientSession() as session:
@@ -98,8 +101,8 @@ class ExchangeRateWidget(BaseWidget):
                         "widget_type": self.widget_type,
                         "widget_id": self.widget_id,
                         "response_status": response.status,
-                        "api_url": url
-                    }
+                        "api_url": url,
+                    },
                 )
 
                 if response.status != 200:
@@ -111,8 +114,8 @@ class ExchangeRateWidget(BaseWidget):
                             "widget_id": self.widget_id,
                             "response_status": response.status,
                             "error_text": error_text,
-                            "api_url": url
-                        }
+                            "api_url": url,
+                        },
                     )
                     raise Exception(f"Exchange rate API error: {response.status} - {error_text}")
 
@@ -121,7 +124,9 @@ class ExchangeRateWidget(BaseWidget):
         # Transform data to widget format
         return self.transform_data(data, target_currencies)
 
-    async def _fetch_from_ecb(self, base_currency: str, target_currencies: List[str]) -> Dict[str, Any]:
+    async def _fetch_from_ecb(
+        self, base_currency: str, target_currencies: List[str]
+    ) -> Dict[str, Any]:
         """
         Fetch exchange rates from European Central Bank (free, no API key).
 
@@ -141,8 +146,8 @@ class ExchangeRateWidget(BaseWidget):
                 "widget_type": self.widget_type,
                 "widget_id": self.widget_id,
                 "base_currency": base_currency,
-                "api_url": url
-            }
+                "api_url": url,
+            },
         )
 
         async with aiohttp.ClientSession() as session:
@@ -153,8 +158,8 @@ class ExchangeRateWidget(BaseWidget):
                         "widget_type": self.widget_type,
                         "widget_id": self.widget_id,
                         "response_status": response.status,
-                        "api_url": url
-                    }
+                        "api_url": url,
+                    },
                 )
 
                 if response.status != 200:
@@ -164,8 +169,8 @@ class ExchangeRateWidget(BaseWidget):
                             "widget_type": self.widget_type,
                             "widget_id": self.widget_id,
                             "response_status": response.status,
-                            "api_url": url
-                        }
+                            "api_url": url,
+                        },
                     )
                     raise Exception(f"ECB API error: {response.status}")
 
@@ -173,11 +178,14 @@ class ExchangeRateWidget(BaseWidget):
 
         # Parse XML (simple parsing for the ECB format)
         import xml.etree.ElementTree as ET
+
         root = ET.fromstring(xml_data)
 
         # Extract rates from XML
         rates = {"EUR": 1.0}
-        for cube in root.findall(".//{http://www.ecb.int/vocabulary/2002-08-01/eurofxref}Cube[@currency]"):
+        for cube in root.findall(
+            ".//{http://www.ecb.int/vocabulary/2002-08-01/eurofxref}Cube[@currency]"
+        ):
             currency = cube.get("currency")
             rate = float(cube.get("rate"))
             rates[currency] = rate
@@ -187,8 +195,8 @@ class ExchangeRateWidget(BaseWidget):
             extra={
                 "widget_type": self.widget_type,
                 "widget_id": self.widget_id,
-                "num_rates": len(rates)
-            }
+                "num_rates": len(rates),
+            },
         )
 
         # Convert to requested base currency
@@ -200,8 +208,8 @@ class ExchangeRateWidget(BaseWidget):
                         "widget_type": self.widget_type,
                         "widget_id": self.widget_id,
                         "base_currency": base_currency,
-                        "available_currencies": list(rates.keys())
-                    }
+                        "available_currencies": list(rates.keys()),
+                    },
                 )
                 raise Exception(f"Base currency {base_currency} not available in ECB data")
 
@@ -217,8 +225,8 @@ class ExchangeRateWidget(BaseWidget):
                 extra={
                     "widget_type": self.widget_type,
                     "widget_id": self.widget_id,
-                    "base_currency": base_currency
-                }
+                    "base_currency": base_currency,
+                },
             )
 
         # Build response in similar format to exchangerate-api
@@ -226,10 +234,12 @@ class ExchangeRateWidget(BaseWidget):
             "result": "success",
             "base_code": base_currency,
             "conversion_rates": rates,
-            "time_last_update_utc": self.get_timestamp()
+            "time_last_update_utc": self.get_timestamp(),
         }
 
-    def transform_data(self, raw_data: Dict[str, Any], target_currencies: List[str]) -> Dict[str, Any]:
+    def transform_data(
+        self, raw_data: Dict[str, Any], target_currencies: List[str]
+    ) -> Dict[str, Any]:
         """
         Transform exchange rate data to widget format.
 
@@ -249,12 +259,14 @@ class ExchangeRateWidget(BaseWidget):
             if currency in all_rates:
                 rate_value = all_rates[currency]
                 reverse_rate = 1 / rate_value if rate_value != 0 else 0
-                rates.append({
-                    "currency": currency,
-                    "rate": round(rate_value, 4),
-                    "reverse_rate": round(reverse_rate, 4),
-                    "formatted": f"1 {base_currency} = {rate_value:.4f} {currency}"
-                })
+                rates.append(
+                    {
+                        "currency": currency,
+                        "rate": round(rate_value, 4),
+                        "reverse_rate": round(reverse_rate, 4),
+                        "formatted": f"1 {base_currency} = {rate_value:.4f} {currency}",
+                    }
+                )
             else:
                 logger.warning(
                     f"Currency {currency} not found in exchange rate data",
@@ -262,14 +274,14 @@ class ExchangeRateWidget(BaseWidget):
                         "widget_type": self.widget_type,
                         "widget_id": self.widget_id,
                         "missing_currency": currency,
-                        "base_currency": base_currency
-                    }
+                        "base_currency": base_currency,
+                    },
                 )
 
         result = {
             "base_currency": base_currency,
             "rates": rates,
-            "last_update": raw_data.get("time_last_update_utc", self.get_timestamp())
+            "last_update": raw_data.get("time_last_update_utc", self.get_timestamp()),
         }
 
         return result

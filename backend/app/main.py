@@ -1,22 +1,23 @@
 """Main FastAPI application entry point."""
 
 import time
-from datetime import datetime
 from contextlib import asynccontextmanager
+from datetime import datetime
+
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
-from starlette.middleware.base import BaseHTTPMiddleware
 from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
+from starlette.middleware.base import BaseHTTPMiddleware
 
+from app.api import auth, bookmarks, export_import, preferences, sections, widgets
 from app.config import settings
-from app.logging_config import setup_logging, get_logger
-from app.api import bookmarks, widgets, sections, preferences, auth, export_import
-from app.services.database import init_db, get_db
-from app.services.scheduler import scheduler_service
-from app.services.rate_limit import limiter
 from app.exceptions import AppException
+from app.logging_config import get_logger, setup_logging
+from app.services.database import get_db, init_db
+from app.services.rate_limit import limiter
+from app.services.scheduler import scheduler_service
 
 # Configure structured logging
 setup_logging(settings.LOG_LEVEL)
@@ -183,7 +184,7 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
             "connect-src 'self'",
             "frame-ancestors 'self'",
             "form-action 'self'",
-            "base-uri 'self'"
+            "base-uri 'self'",
         ]
         response.headers["Content-Security-Policy"] = "; ".join(csp_directives)
 
@@ -226,13 +227,13 @@ async def lifespan(app: FastAPI):
 
     # Run migrations
     try:
-        from app.services.database import engine
         from app.migrations.add_clicks_to_bookmarks import run_migration as run_clicks_migration
+        from app.migrations.add_user_id_to_tables import run_migration as run_user_id_migration
         from app.migrations.create_preferences_table import (
             run_migration as run_preferences_migration,
         )
         from app.migrations.create_users_table import run_migration as run_users_migration
-        from app.migrations.add_user_id_to_tables import run_migration as run_user_id_migration
+        from app.services.database import engine
 
         logger.debug("Running database migrations")
         await run_clicks_migration(engine)

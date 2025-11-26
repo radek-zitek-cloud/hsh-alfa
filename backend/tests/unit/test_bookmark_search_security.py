@@ -1,9 +1,10 @@
 """Tests for bookmark search SQL injection protection."""
+
 import pytest
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.services.bookmark_service import BookmarkService
 from app.models.bookmark import Bookmark
+from app.services.bookmark_service import BookmarkService
 
 
 @pytest.mark.asyncio
@@ -12,18 +13,8 @@ async def test_search_escapes_percent_wildcard(db_session: AsyncSession):
     service = BookmarkService(db_session)
 
     # Create test bookmarks
-    bookmark1 = Bookmark(
-        user_id=1,
-        url="http://example.com/page",
-        title="Example Page",
-        position=0
-    )
-    bookmark2 = Bookmark(
-        user_id=1,
-        url="http://example.com/other",
-        title="Other Page",
-        position=1
-    )
+    bookmark1 = Bookmark(user_id=1, url="http://example.com/page", title="Example Page", position=0)
+    bookmark2 = Bookmark(user_id=1, url="http://example.com/other", title="Other Page", position=1)
     db_session.add(bookmark1)
     db_session.add(bookmark2)
     await db_session.commit()
@@ -42,18 +33,8 @@ async def test_search_escapes_underscore_wildcard(db_session: AsyncSession):
     service = BookmarkService(db_session)
 
     # Create test bookmarks
-    bookmark1 = Bookmark(
-        user_id=1,
-        url="http://example.com/page",
-        title="Example Page",
-        position=0
-    )
-    bookmark2 = Bookmark(
-        user_id=1,
-        url="http://example.com/pxge",
-        title="Example Pxge",
-        position=1
-    )
+    bookmark1 = Bookmark(user_id=1, url="http://example.com/page", title="Example Page", position=0)
+    bookmark2 = Bookmark(user_id=1, url="http://example.com/pxge", title="Example Pxge", position=1)
     db_session.add(bookmark1)
     db_session.add(bookmark2)
     await db_session.commit()
@@ -71,12 +52,7 @@ async def test_search_escapes_backslash(db_session: AsyncSession):
     service = BookmarkService(db_session)
 
     # Create test bookmark
-    bookmark = Bookmark(
-        user_id=1,
-        url="http://example.com/page",
-        title="Example Page",
-        position=0
-    )
+    bookmark = Bookmark(user_id=1, url="http://example.com/page", title="Example Page", position=0)
     db_session.add(bookmark)
     await db_session.commit()
 
@@ -93,12 +69,7 @@ async def test_search_with_combined_wildcards(db_session: AsyncSession):
     service = BookmarkService(db_session)
 
     # Create test bookmarks
-    bookmark = Bookmark(
-        user_id=1,
-        url="http://example.com/page",
-        title="Example Page",
-        position=0
-    )
+    bookmark = Bookmark(user_id=1, url="http://example.com/page", title="Example Page", position=0)
     db_session.add(bookmark)
     await db_session.commit()
 
@@ -115,18 +86,8 @@ async def test_search_normal_text_works(db_session: AsyncSession):
     service = BookmarkService(db_session)
 
     # Create test bookmarks
-    bookmark1 = Bookmark(
-        user_id=1,
-        url="http://example.com/page",
-        title="Example Page",
-        position=0
-    )
-    bookmark2 = Bookmark(
-        user_id=1,
-        url="http://test.com/other",
-        title="Test Other",
-        position=1
-    )
+    bookmark1 = Bookmark(user_id=1, url="http://example.com/page", title="Example Page", position=0)
+    bookmark2 = Bookmark(user_id=1, url="http://test.com/other", title="Test Other", position=1)
     db_session.add(bookmark1)
     db_session.add(bookmark2)
     await db_session.commit()
@@ -148,12 +109,7 @@ async def test_search_case_insensitive(db_session: AsyncSession):
     service = BookmarkService(db_session)
 
     # Create test bookmark
-    bookmark = Bookmark(
-        user_id=1,
-        url="http://example.com/page",
-        title="Example Page",
-        position=0
-    )
+    bookmark = Bookmark(user_id=1, url="http://example.com/page", title="Example Page", position=0)
     db_session.add(bookmark)
     await db_session.commit()
 
@@ -174,10 +130,7 @@ async def test_search_by_url(db_session: AsyncSession):
 
     # Create test bookmark
     bookmark = Bookmark(
-        user_id=1,
-        url="http://example.com/special-page",
-        title="My Bookmark",
-        position=0
+        user_id=1, url="http://example.com/special-page", title="My Bookmark", position=0
     )
     db_session.add(bookmark)
     await db_session.commit()
@@ -199,7 +152,7 @@ async def test_search_by_tags(db_session: AsyncSession):
         url="http://example.com/page",
         title="Tagged Page",
         tags="python,django,web",
-        position=0
+        position=0,
     )
     db_session.add(bookmark)
     await db_session.commit()
@@ -220,16 +173,10 @@ async def test_search_isolates_users(db_session: AsyncSession):
 
     # Create bookmarks for different users
     bookmark1 = Bookmark(
-        user_id=1,
-        url="http://example.com/user1",
-        title="User 1 Bookmark",
-        position=0
+        user_id=1, url="http://example.com/user1", title="User 1 Bookmark", position=0
     )
     bookmark2 = Bookmark(
-        user_id=2,
-        url="http://example.com/user2",
-        title="User 2 Bookmark",
-        position=0
+        user_id=2, url="http://example.com/user2", title="User 2 Bookmark", position=0
     )
     db_session.add(bookmark1)
     db_session.add(bookmark2)

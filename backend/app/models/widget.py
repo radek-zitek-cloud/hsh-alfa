@@ -1,11 +1,13 @@
 """Widget database model."""
-from datetime import datetime
-from typing import Optional, Dict, Any
-from sqlalchemy import String, Integer, DateTime, Text, Boolean, JSON, ForeignKey
-from sqlalchemy.orm import Mapped, mapped_column
-from pydantic import BaseModel, field_validator, Field
+
 import json
 import uuid
+from datetime import datetime
+from typing import Any, Dict, Optional
+
+from pydantic import BaseModel, Field, field_validator
+from sqlalchemy import JSON, Boolean, DateTime, ForeignKey, Integer, String, Text
+from sqlalchemy.orm import Mapped, mapped_column
 
 from app.services.database import Base
 
@@ -16,7 +18,9 @@ class Widget(Base):
     __tablename__ = "widgets"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
-    user_id: Mapped[int] = mapped_column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    user_id: Mapped[int] = mapped_column(
+        Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True
+    )
     widget_id: Mapped[str] = mapped_column(String(255), unique=True, nullable=False, index=True)
     widget_type: Mapped[str] = mapped_column(String(100), nullable=False)
     enabled: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
@@ -27,7 +31,9 @@ class Widget(Base):
     refresh_interval: Mapped[int] = mapped_column(Integer, default=3600, nullable=False)  # seconds
     config: Mapped[str] = mapped_column(Text, nullable=False)  # JSON string
     created: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False)
-    updated: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
+    updated: Mapped[datetime] = mapped_column(
+        DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False
+    )
 
     def to_dict(self) -> dict:
         """Convert model to dictionary."""
@@ -56,6 +62,7 @@ class Widget(Base):
 # Pydantic schemas for API
 class WidgetPosition(BaseModel):
     """Widget position schema."""
+
     row: int = Field(ge=0, description="Grid row position (0-indexed)")
     col: int = Field(ge=0, description="Grid column position (0-indexed)")
     width: int = Field(ge=1, le=12, description="Number of columns to span (1-12)")
@@ -64,17 +71,26 @@ class WidgetPosition(BaseModel):
 
 class WidgetCreate(BaseModel):
     """Schema for creating a widget."""
-    type: str = Field(min_length=1, max_length=100, description="Widget type (weather, exchange_rate, news, market)")
+
+    type: str = Field(
+        min_length=1,
+        max_length=100,
+        description="Widget type (weather, exchange_rate, news, market)",
+    )
     enabled: bool = Field(default=True, description="Enable/disable widget")
     position: WidgetPosition
-    refresh_interval: int = Field(ge=60, le=86400, description="Refresh interval in seconds (60-86400)")
-    config: Dict[str, Any] = Field(default_factory=dict, description="Widget-specific configuration")
+    refresh_interval: int = Field(
+        ge=60, le=86400, description="Refresh interval in seconds (60-86400)"
+    )
+    config: Dict[str, Any] = Field(
+        default_factory=dict, description="Widget-specific configuration"
+    )
 
-    @field_validator('type')
+    @field_validator("type")
     @classmethod
     def validate_type(cls, v: str) -> str:
         """Validate widget type."""
-        allowed_types = ['weather', 'exchange_rate', 'news', 'market']
+        allowed_types = ["weather", "exchange_rate", "news", "market"]
         if v not in allowed_types:
             raise ValueError(f'Widget type must be one of: {", ".join(allowed_types)}')
         return v
@@ -82,18 +98,21 @@ class WidgetCreate(BaseModel):
 
 class WidgetUpdate(BaseModel):
     """Schema for updating a widget."""
+
     type: Optional[str] = Field(None, min_length=1, max_length=100, description="Widget type")
     enabled: Optional[bool] = Field(None, description="Enable/disable widget")
     position: Optional[WidgetPosition] = None
-    refresh_interval: Optional[int] = Field(None, ge=60, le=86400, description="Refresh interval in seconds")
+    refresh_interval: Optional[int] = Field(
+        None, ge=60, le=86400, description="Refresh interval in seconds"
+    )
     config: Optional[Dict[str, Any]] = Field(None, description="Widget-specific configuration")
 
-    @field_validator('type')
+    @field_validator("type")
     @classmethod
     def validate_type(cls, v: Optional[str]) -> Optional[str]:
         """Validate widget type."""
         if v is not None:
-            allowed_types = ['weather', 'exchange_rate', 'news', 'market']
+            allowed_types = ["weather", "exchange_rate", "news", "market"]
             if v not in allowed_types:
                 raise ValueError(f'Widget type must be one of: {", ".join(allowed_types)}')
         return v
@@ -101,6 +120,7 @@ class WidgetUpdate(BaseModel):
 
 class WidgetResponse(BaseModel):
     """Schema for widget response."""
+
     id: str
     type: str
     enabled: bool

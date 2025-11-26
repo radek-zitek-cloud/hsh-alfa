@@ -1,17 +1,20 @@
 """Migration script to import widgets from YAML to database."""
+
 import asyncio
-import sys
-import logging
-from pathlib import Path
-import yaml
 import json
+import logging
+import sys
+from pathlib import Path
+
+import yaml
 
 # Add parent directory to path
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
-from app.services.database import AsyncSessionLocal, init_db
-from app.models.widget import Widget
 from sqlalchemy import select
+
+from app.models.widget import Widget
+from app.services.database import AsyncSessionLocal, init_db
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -32,14 +35,14 @@ async def migrate_widgets():
 
     logger.info(f"Loading widgets from {config_path}")
 
-    with open(config_path, 'r') as f:
+    with open(config_path, "r") as f:
         config = yaml.safe_load(f)
 
-    if not config or 'widgets' not in config:
+    if not config or "widgets" not in config:
         logger.warning("No widgets found in configuration")
         return
 
-    widgets = config['widgets']
+    widgets = config["widgets"]
     logger.info(f"Found {len(widgets)} widgets in configuration")
 
     # Insert widgets into database
@@ -48,7 +51,7 @@ async def migrate_widgets():
         skipped = 0
 
         for widget_config in widgets:
-            widget_id = widget_config.get('id')
+            widget_id = widget_config.get("id")
 
             if not widget_id:
                 logger.warning(f"Skipping widget without ID: {widget_config}")
@@ -56,9 +59,7 @@ async def migrate_widgets():
                 continue
 
             # Check if widget already exists
-            result = await session.execute(
-                select(Widget).where(Widget.widget_id == widget_id)
-            )
+            result = await session.execute(select(Widget).where(Widget.widget_id == widget_id))
             existing = result.scalar_one_or_none()
 
             if existing:
@@ -67,19 +68,19 @@ async def migrate_widgets():
                 continue
 
             # Extract position
-            position = widget_config.get('position', {})
+            position = widget_config.get("position", {})
 
             # Create widget
             widget = Widget(
                 widget_id=widget_id,
-                widget_type=widget_config.get('type', 'unknown'),
-                enabled=widget_config.get('enabled', True),
-                position_row=position.get('row', 0),
-                position_col=position.get('col', 0),
-                position_width=position.get('width', 1),
-                position_height=position.get('height', 1),
-                refresh_interval=widget_config.get('refresh_interval', 3600),
-                config=json.dumps(widget_config.get('config', {}))
+                widget_type=widget_config.get("type", "unknown"),
+                enabled=widget_config.get("enabled", True),
+                position_row=position.get("row", 0),
+                position_col=position.get("col", 0),
+                position_width=position.get("width", 1),
+                position_height=position.get("height", 1),
+                refresh_interval=widget_config.get("refresh_interval", 3600),
+                config=json.dumps(widget_config.get("config", {})),
             )
 
             session.add(widget)

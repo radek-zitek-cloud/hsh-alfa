@@ -1,9 +1,12 @@
 """Market information widget implementation."""
-import aiohttp
-from typing import Dict, Any, List
+
 from datetime import datetime
-from app.widgets.base_widget import BaseWidget
+from typing import Any, Dict, List
+
+import aiohttp
+
 from app.logging_config import get_logger
+from app.widgets.base_widget import BaseWidget
 
 logger = get_logger(__name__)
 
@@ -22,10 +25,7 @@ class MarketWidget(BaseWidget):
         if not has_stocks and not has_crypto:
             logger.warning(
                 "Market widget must have either 'stocks' or 'crypto' configured",
-                extra={
-                    "widget_type": self.widget_type,
-                    "widget_id": self.widget_id
-                }
+                extra={"widget_type": self.widget_type, "widget_id": self.widget_id},
             )
             return False
 
@@ -42,10 +42,7 @@ class MarketWidget(BaseWidget):
         if not has_valid_stocks and not has_valid_crypto:
             logger.warning(
                 "Market widget must have at least one valid stock or crypto symbol",
-                extra={
-                    "widget_type": self.widget_type,
-                    "widget_id": self.widget_id
-                }
+                extra={"widget_type": self.widget_type, "widget_id": self.widget_id},
             )
             return False
 
@@ -57,8 +54,8 @@ class MarketWidget(BaseWidget):
                 "has_stocks": has_valid_stocks,
                 "num_stocks": len(self.config.get("stocks", [])),
                 "has_crypto": has_valid_crypto,
-                "num_crypto": len(self.config.get("crypto", []))
-            }
+                "num_crypto": len(self.config.get("crypto", [])),
+            },
         )
         return True
 
@@ -78,14 +75,11 @@ class MarketWidget(BaseWidget):
                 "widget_type": self.widget_type,
                 "widget_id": self.widget_id,
                 "num_stocks": len(stocks),
-                "num_crypto": len(crypto)
-            }
+                "num_crypto": len(crypto),
+            },
         )
 
-        result = {
-            "stocks": [],
-            "crypto": []
-        }
+        result = {"stocks": [], "crypto": []}
 
         # Fetch stock data
         if stocks:
@@ -94,8 +88,8 @@ class MarketWidget(BaseWidget):
                 extra={
                     "widget_type": self.widget_type,
                     "widget_id": self.widget_id,
-                    "num_stocks": len(stocks)
-                }
+                    "num_stocks": len(stocks),
+                },
             )
             stock_data = await self._fetch_yahoo_finance(stocks)
             result["stocks"] = stock_data
@@ -104,8 +98,8 @@ class MarketWidget(BaseWidget):
                 extra={
                     "widget_type": self.widget_type,
                     "widget_id": self.widget_id,
-                    "stocks_retrieved": len(stock_data)
-                }
+                    "stocks_retrieved": len(stock_data),
+                },
             )
 
         # Fetch crypto data (using Coinbase API - free, no key)
@@ -115,8 +109,8 @@ class MarketWidget(BaseWidget):
                 extra={
                     "widget_type": self.widget_type,
                     "widget_id": self.widget_id,
-                    "num_crypto": len(crypto)
-                }
+                    "num_crypto": len(crypto),
+                },
             )
             crypto_data = await self._fetch_crypto_data(crypto)
             result["crypto"] = crypto_data
@@ -125,8 +119,8 @@ class MarketWidget(BaseWidget):
                 extra={
                     "widget_type": self.widget_type,
                     "widget_id": self.widget_id,
-                    "crypto_retrieved": len(crypto_data)
-                }
+                    "crypto_retrieved": len(crypto_data),
+                },
             )
 
         return result
@@ -158,7 +152,7 @@ class MarketWidget(BaseWidget):
                     url = f"{base_url}/{symbol}"
                     params = {
                         "interval": "1d",
-                        "range": "1y"  # Get 1 year for YTD, 30d, and 5d calculations
+                        "range": "1y",  # Get 1 year for YTD, 30d, and 5d calculations
                     }
 
                     logger.debug(
@@ -167,8 +161,8 @@ class MarketWidget(BaseWidget):
                             "widget_type": self.widget_type,
                             "widget_id": self.widget_id,
                             "symbol": symbol,
-                            "api_url": url
-                        }
+                            "api_url": url,
+                        },
                     )
 
                     async with session.get(url, params=params) as response:
@@ -179,8 +173,8 @@ class MarketWidget(BaseWidget):
                                 "widget_id": self.widget_id,
                                 "symbol": symbol,
                                 "response_status": response.status,
-                                "api_url": url
-                            }
+                                "api_url": url,
+                            },
                         )
 
                         if response.status != 200:
@@ -191,8 +185,8 @@ class MarketWidget(BaseWidget):
                                     "widget_id": self.widget_id,
                                     "symbol": symbol,
                                     "response_status": response.status,
-                                    "api_url": url
-                                }
+                                    "api_url": url,
+                                },
                             )
                             continue
 
@@ -208,8 +202,8 @@ class MarketWidget(BaseWidget):
                                 extra={
                                     "widget_type": self.widget_type,
                                     "widget_id": self.widget_id,
-                                    "symbol": symbol
-                                }
+                                    "symbol": symbol,
+                                },
                             )
                             continue
 
@@ -229,8 +223,8 @@ class MarketWidget(BaseWidget):
                                 extra={
                                     "widget_type": self.widget_type,
                                     "widget_id": self.widget_id,
-                                    "symbol": symbol
-                                }
+                                    "symbol": symbol,
+                                },
                             )
                             continue
 
@@ -255,18 +249,34 @@ class MarketWidget(BaseWidget):
                             current_price, close_prices, timestamps
                         )
 
-                        results.append({
-                            "symbol": symbol,
-                            "name": meta.get("longName") or meta.get("shortName") or symbol,
-                            "price": round(current_price, 2),
-                            "change": round(change, 2) if change else None,
-                            "change_percent": round(change_percent, 2) if change_percent else None,
-                            "change_5d_percent": round(change_5d_percent, 2) if change_5d_percent is not None else None,
-                            "change_30d_percent": round(change_30d_percent, 2) if change_30d_percent is not None else None,
-                            "change_ytd_percent": round(change_ytd_percent, 2) if change_ytd_percent is not None else None,
-                            "currency": meta.get("currency", "USD"),
-                            "market_state": meta.get("marketState", "REGULAR")
-                        })
+                        results.append(
+                            {
+                                "symbol": symbol,
+                                "name": meta.get("longName") or meta.get("shortName") or symbol,
+                                "price": round(current_price, 2),
+                                "change": round(change, 2) if change else None,
+                                "change_percent": (
+                                    round(change_percent, 2) if change_percent else None
+                                ),
+                                "change_5d_percent": (
+                                    round(change_5d_percent, 2)
+                                    if change_5d_percent is not None
+                                    else None
+                                ),
+                                "change_30d_percent": (
+                                    round(change_30d_percent, 2)
+                                    if change_30d_percent is not None
+                                    else None
+                                ),
+                                "change_ytd_percent": (
+                                    round(change_ytd_percent, 2)
+                                    if change_ytd_percent is not None
+                                    else None
+                                ),
+                                "currency": meta.get("currency", "USD"),
+                                "market_state": meta.get("marketState", "REGULAR"),
+                            }
+                        )
 
                 except Exception as e:
                     logger.error(
@@ -275,9 +285,9 @@ class MarketWidget(BaseWidget):
                             "widget_type": self.widget_type,
                             "widget_id": self.widget_id,
                             "symbol": symbol,
-                            "error_type": type(e).__name__
+                            "error_type": type(e).__name__,
                         },
-                        exc_info=True
+                        exc_info=True,
                     )
                     continue
 
@@ -287,18 +297,14 @@ class MarketWidget(BaseWidget):
                 "widget_type": self.widget_type,
                 "widget_id": self.widget_id,
                 "symbols_requested": len(symbols),
-                "symbols_retrieved": len(results)
-            }
+                "symbols_retrieved": len(results),
+            },
         )
 
         return results
 
     def _calculate_period_change(
-        self,
-        current_price: float,
-        close_prices: List[float],
-        timestamps: List[int],
-        days: int
+        self, current_price: float, close_prices: List[float], timestamps: List[int], days: int
     ) -> float:
         """
         Calculate percentage change for a given period.
@@ -321,7 +327,7 @@ class MarketWidget(BaseWidget):
 
         # Find the closest price to the target time
         closest_idx = None
-        closest_diff = float('inf')
+        closest_diff = float("inf")
 
         for idx, ts in enumerate(timestamps):
             if close_prices[idx] is None:  # Skip None values
@@ -342,10 +348,7 @@ class MarketWidget(BaseWidget):
         return None
 
     def _calculate_ytd_change(
-        self,
-        current_price: float,
-        close_prices: List[float],
-        timestamps: List[int]
+        self, current_price: float, close_prices: List[float], timestamps: List[int]
     ) -> float:
         """
         Calculate year-to-date percentage change.
@@ -407,7 +410,7 @@ class MarketWidget(BaseWidget):
             "AVAX": "avalanche-2",
             "LINK": "chainlink",
             "UNI": "uniswap",
-            "XRP": "ripple"
+            "XRP": "ripple",
         }
 
         # Convert symbols to IDs
@@ -431,8 +434,8 @@ class MarketWidget(BaseWidget):
                 extra={
                     "widget_type": self.widget_type,
                     "widget_id": self.widget_id,
-                    "requested_symbols": len(symbols)
-                }
+                    "requested_symbols": len(symbols),
+                },
             )
             return results
 
@@ -442,7 +445,7 @@ class MarketWidget(BaseWidget):
             price_params = {
                 "ids": ",".join(crypto_ids),
                 "vs_currencies": "usd",
-                "include_24hr_change": "true"
+                "include_24hr_change": "true",
             }
 
             logger.info(
@@ -451,8 +454,8 @@ class MarketWidget(BaseWidget):
                     "widget_type": self.widget_type,
                     "widget_id": self.widget_id,
                     "num_crypto": len(crypto_ids),
-                    "api_url": price_url
-                }
+                    "api_url": price_url,
+                },
             )
 
             try:
@@ -463,8 +466,8 @@ class MarketWidget(BaseWidget):
                             "widget_type": self.widget_type,
                             "widget_id": self.widget_id,
                             "response_status": response.status,
-                            "api_url": price_url
-                        }
+                            "api_url": price_url,
+                        },
                     )
 
                     if response.status != 200:
@@ -474,8 +477,8 @@ class MarketWidget(BaseWidget):
                                 "widget_type": self.widget_type,
                                 "widget_id": self.widget_id,
                                 "response_status": response.status,
-                                "api_url": price_url
-                            }
+                                "api_url": price_url,
+                            },
                         )
                         return results
 
@@ -490,8 +493,8 @@ class MarketWidget(BaseWidget):
                                     "widget_type": self.widget_type,
                                     "widget_id": self.widget_id,
                                     "crypto_id": crypto_id,
-                                    "symbol": id_to_symbol[crypto_id]
-                                }
+                                    "symbol": id_to_symbol[crypto_id],
+                                },
                             )
                             continue
 
@@ -503,11 +506,13 @@ class MarketWidget(BaseWidget):
                             continue
 
                         # Fetch historical data for period calculations
-                        market_chart_url = f"https://api.coingecko.com/api/v3/coins/{crypto_id}/market_chart"
+                        market_chart_url = (
+                            f"https://api.coingecko.com/api/v3/coins/{crypto_id}/market_chart"
+                        )
                         market_params = {
                             "vs_currency": "usd",
                             "days": "365",  # Get 1 year for YTD calculation
-                            "interval": "daily"
+                            "interval": "daily",
                         }
 
                         change_5d = None
@@ -522,20 +527,28 @@ class MarketWidget(BaseWidget):
                                     "widget_id": self.widget_id,
                                     "crypto_id": crypto_id,
                                     "symbol": id_to_symbol[crypto_id],
-                                    "api_url": market_chart_url
-                                }
+                                    "api_url": market_chart_url,
+                                },
                             )
 
-                            async with session.get(market_chart_url, params=market_params) as hist_response:
+                            async with session.get(
+                                market_chart_url, params=market_params
+                            ) as hist_response:
                                 if hist_response.status == 200:
                                     hist_data = await hist_response.json()
                                     prices = hist_data.get("prices", [])
 
                                     if prices:
                                         # Calculate period changes
-                                        change_5d = self._calculate_crypto_period_change(price, prices, days=5)
-                                        change_30d = self._calculate_crypto_period_change(price, prices, days=30)
-                                        change_ytd = self._calculate_crypto_ytd_change(price, prices)
+                                        change_5d = self._calculate_crypto_period_change(
+                                            price, prices, days=5
+                                        )
+                                        change_30d = self._calculate_crypto_period_change(
+                                            price, prices, days=30
+                                        )
+                                        change_ytd = self._calculate_crypto_ytd_change(
+                                            price, prices
+                                        )
 
                                         logger.debug(
                                             "Historical crypto data retrieved and calculated",
@@ -544,8 +557,8 @@ class MarketWidget(BaseWidget):
                                                 "widget_id": self.widget_id,
                                                 "crypto_id": crypto_id,
                                                 "symbol": id_to_symbol[crypto_id],
-                                                "num_data_points": len(prices)
-                                            }
+                                                "num_data_points": len(prices),
+                                            },
                                         )
                                 else:
                                     logger.warning(
@@ -556,8 +569,8 @@ class MarketWidget(BaseWidget):
                                             "crypto_id": crypto_id,
                                             "symbol": id_to_symbol[crypto_id],
                                             "response_status": hist_response.status,
-                                            "api_url": market_chart_url
-                                        }
+                                            "api_url": market_chart_url,
+                                        },
                                     )
                         except Exception as e:
                             logger.error(
@@ -568,23 +581,31 @@ class MarketWidget(BaseWidget):
                                     "crypto_id": crypto_id,
                                     "symbol": id_to_symbol[crypto_id],
                                     "error_type": type(e).__name__,
-                                    "api_url": market_chart_url
+                                    "api_url": market_chart_url,
                                 },
-                                exc_info=True
+                                exc_info=True,
                             )
 
-                        results.append({
-                            "symbol": id_to_symbol[crypto_id],
-                            "name": id_to_symbol[crypto_id],
-                            "price": round(price, 2) if price >= 1 else round(price, 6),
-                            "change": None,  # Not directly available
-                            "change_percent": round(change_24h, 2) if change_24h else None,
-                            "change_5d_percent": round(change_5d, 2) if change_5d is not None else None,
-                            "change_30d_percent": round(change_30d, 2) if change_30d is not None else None,
-                            "change_ytd_percent": round(change_ytd, 2) if change_ytd is not None else None,
-                            "currency": "USD",
-                            "market_state": "24/7"
-                        })
+                        results.append(
+                            {
+                                "symbol": id_to_symbol[crypto_id],
+                                "name": id_to_symbol[crypto_id],
+                                "price": round(price, 2) if price >= 1 else round(price, 6),
+                                "change": None,  # Not directly available
+                                "change_percent": round(change_24h, 2) if change_24h else None,
+                                "change_5d_percent": (
+                                    round(change_5d, 2) if change_5d is not None else None
+                                ),
+                                "change_30d_percent": (
+                                    round(change_30d, 2) if change_30d is not None else None
+                                ),
+                                "change_ytd_percent": (
+                                    round(change_ytd, 2) if change_ytd is not None else None
+                                ),
+                                "currency": "USD",
+                                "market_state": "24/7",
+                            }
+                        )
 
             except Exception as e:
                 logger.error(
@@ -593,9 +614,9 @@ class MarketWidget(BaseWidget):
                         "widget_type": self.widget_type,
                         "widget_id": self.widget_id,
                         "error_type": type(e).__name__,
-                        "api_url": price_url
+                        "api_url": price_url,
                     },
-                    exc_info=True
+                    exc_info=True,
                 )
 
         logger.info(
@@ -604,17 +625,14 @@ class MarketWidget(BaseWidget):
                 "widget_type": self.widget_type,
                 "widget_id": self.widget_id,
                 "crypto_requested": len(symbols),
-                "crypto_retrieved": len(results)
-            }
+                "crypto_retrieved": len(results),
+            },
         )
 
         return results
 
     def _calculate_crypto_period_change(
-        self,
-        current_price: float,
-        prices: List[List[float]],
-        days: int
+        self, current_price: float, prices: List[List[float]], days: int
     ) -> float:
         """
         Calculate percentage change for a given period for crypto.
@@ -635,7 +653,7 @@ class MarketWidget(BaseWidget):
         target_time = current_time - (days * 24 * 60 * 60 * 1000)
 
         closest_price = None
-        closest_diff = float('inf')
+        closest_diff = float("inf")
 
         for timestamp, price in prices:
             if price is None:
@@ -652,9 +670,7 @@ class MarketWidget(BaseWidget):
         return None
 
     def _calculate_crypto_ytd_change(
-        self,
-        current_price: float,
-        prices: List[List[float]]
+        self, current_price: float, prices: List[List[float]]
     ) -> float:
         """
         Calculate year-to-date percentage change for crypto.

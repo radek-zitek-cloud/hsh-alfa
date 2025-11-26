@@ -1,9 +1,12 @@
 """Weather widget implementation."""
+
+from typing import Any, Dict, Optional
+
 import aiohttp
-from typing import Dict, Any, Optional
-from app.widgets.base_widget import BaseWidget
+
 from app.config import settings
 from app.logging_config import get_logger
+from app.widgets.base_widget import BaseWidget
 
 logger = get_logger(__name__)
 
@@ -22,10 +25,7 @@ class WeatherWidget(BaseWidget):
         if not api_key:
             logger.warning(
                 "Weather API key not configured",
-                extra={
-                    "widget_type": self.widget_type,
-                    "widget_id": self.widget_id
-                }
+                extra={"widget_type": self.widget_type, "widget_id": self.widget_id},
             )
             return False
 
@@ -37,8 +37,8 @@ class WeatherWidget(BaseWidget):
                     extra={
                         "widget_type": self.widget_type,
                         "widget_id": self.widget_id,
-                        "missing_field": field
-                    }
+                        "missing_field": field,
+                    },
                 )
                 return False
 
@@ -47,8 +47,8 @@ class WeatherWidget(BaseWidget):
             extra={
                 "widget_type": self.widget_type,
                 "widget_id": self.widget_id,
-                "location": self.config.get("location")
-            }
+                "location": self.config.get("location"),
+            },
         )
         return True
 
@@ -66,11 +66,7 @@ class WeatherWidget(BaseWidget):
 
         # Build API URL for current weather
         current_url = "https://api.openweathermap.org/data/2.5/weather"
-        current_params = {
-            "q": location,
-            "units": units,
-            "appid": api_key
-        }
+        current_params = {"q": location, "units": units, "appid": api_key}
 
         logger.info(
             "Fetching weather data from OpenWeatherMap",
@@ -79,8 +75,8 @@ class WeatherWidget(BaseWidget):
                 "widget_id": self.widget_id,
                 "location": location,
                 "units": units,
-                "api_url": current_url
-            }
+                "api_url": current_url,
+            },
         )
 
         async with aiohttp.ClientSession() as session:
@@ -92,8 +88,8 @@ class WeatherWidget(BaseWidget):
                         "widget_type": self.widget_type,
                         "widget_id": self.widget_id,
                         "response_status": response.status,
-                        "api_url": current_url
-                    }
+                        "api_url": current_url,
+                    },
                 )
 
                 if response.status != 200:
@@ -105,8 +101,8 @@ class WeatherWidget(BaseWidget):
                             "widget_id": self.widget_id,
                             "response_status": response.status,
                             "error_text": error_text,
-                            "api_url": current_url
-                        }
+                            "api_url": current_url,
+                        },
                     )
                     raise Exception(f"Weather API error: {response.status} - {error_text}")
 
@@ -120,12 +116,7 @@ class WeatherWidget(BaseWidget):
                 lon = current_data["coord"]["lon"]
 
                 forecast_url = "https://api.openweathermap.org/data/2.5/forecast"
-                forecast_params = {
-                    "lat": lat,
-                    "lon": lon,
-                    "units": units,
-                    "appid": api_key
-                }
+                forecast_params = {"lat": lat, "lon": lon, "units": units, "appid": api_key}
 
                 logger.debug(
                     "Fetching weather forecast data",
@@ -133,8 +124,8 @@ class WeatherWidget(BaseWidget):
                         "widget_type": self.widget_type,
                         "widget_id": self.widget_id,
                         "coordinates": {"lat": lat, "lon": lon},
-                        "api_url": forecast_url
-                    }
+                        "api_url": forecast_url,
+                    },
                 )
 
                 async with session.get(forecast_url, params=forecast_params) as response:
@@ -145,8 +136,8 @@ class WeatherWidget(BaseWidget):
                             extra={
                                 "widget_type": self.widget_type,
                                 "widget_id": self.widget_id,
-                                "response_status": response.status
-                            }
+                                "response_status": response.status,
+                            },
                         )
                     else:
                         logger.warning(
@@ -155,14 +146,16 @@ class WeatherWidget(BaseWidget):
                                 "widget_type": self.widget_type,
                                 "widget_id": self.widget_id,
                                 "response_status": response.status,
-                                "api_url": forecast_url
-                            }
+                                "api_url": forecast_url,
+                            },
                         )
 
         # Transform data to widget format
         return self.transform_data(current_data, forecast_data)
 
-    def transform_data(self, current: Dict[str, Any], forecast: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+    def transform_data(
+        self, current: Dict[str, Any], forecast: Optional[Dict[str, Any]] = None
+    ) -> Dict[str, Any]:
         """
         Transform OpenWeatherMap data to widget format.
 
@@ -180,10 +173,7 @@ class WeatherWidget(BaseWidget):
             "location": {
                 "name": current["name"],
                 "country": current["sys"]["country"],
-                "coordinates": {
-                    "lat": current["coord"]["lat"],
-                    "lon": current["coord"]["lon"]
-                }
+                "coordinates": {"lat": current["coord"]["lat"], "lon": current["coord"]["lon"]},
             },
             "current": {
                 "temperature": round(current["main"]["temp"], 1),
@@ -196,8 +186,8 @@ class WeatherWidget(BaseWidget):
                 "description": current["weather"][0]["description"],
                 "icon": current["weather"][0]["icon"],
                 "wind_speed": current["wind"]["speed"],
-                "clouds": current["clouds"]["all"]
-            }
+                "clouds": current["clouds"]["all"],
+            },
         }
 
         # Add forecast if available
@@ -213,16 +203,18 @@ class WeatherWidget(BaseWidget):
 
                 # Take the forecast around 12:00 for each day
                 if date not in processed_dates and "12:00" in time:
-                    daily_forecast.append({
-                        "date": date,
-                        "temperature": round(item["main"]["temp"], 1),
-                        "temp_min": round(item["main"]["temp_min"], 1),
-                        "temp_max": round(item["main"]["temp_max"], 1),
-                        "temp_unit": temp_unit,
-                        "description": item["weather"][0]["description"],
-                        "icon": item["weather"][0]["icon"],
-                        "humidity": item["main"]["humidity"]
-                    })
+                    daily_forecast.append(
+                        {
+                            "date": date,
+                            "temperature": round(item["main"]["temp"], 1),
+                            "temp_min": round(item["main"]["temp_min"], 1),
+                            "temp_max": round(item["main"]["temp_max"], 1),
+                            "temp_unit": temp_unit,
+                            "description": item["weather"][0]["description"],
+                            "icon": item["weather"][0]["icon"],
+                            "humidity": item["main"]["humidity"],
+                        }
+                    )
                     processed_dates.add(date)
 
                 # Limit to 5 days

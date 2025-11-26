@@ -1,18 +1,20 @@
 """Service for exporting and importing application data."""
-import json
+
 import csv
-import yaml
-import toml
+import json
 from io import StringIO
-from typing import Dict, Any, List
+from typing import Any, Dict, List
+
+import toml
+import yaml
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.bookmark import Bookmark
-from app.models.widget import Widget
-from app.models.section import Section
 from app.models.preference import Preference
+from app.models.section import Section
 from app.models.user import User
+from app.models.widget import Widget
 
 
 class ExportImportService:
@@ -47,7 +49,9 @@ class ExportImportService:
         sections = section_result.scalars().all()
 
         # Fetch all preferences for this user
-        preference_result = await db.execute(select(Preference).where(Preference.user_id == user_id))
+        preference_result = await db.execute(
+            select(Preference).where(Preference.user_id == user_id)
+        )
         preferences = preference_result.scalars().all()
 
         # Convert to dictionaries
@@ -56,24 +60,20 @@ class ExportImportService:
             "export_info": {
                 "application": "Home Sweet Home",
                 "description": "User-specific application data export",
-                "user": {
-                    "id": user.id,
-                    "email": user.email,
-                    "name": user.name
-                } if user else None
+                "user": {"id": user.id, "email": user.email, "name": user.name} if user else None,
             },
             "data": {
                 "bookmarks": [bookmark.to_dict() for bookmark in bookmarks],
                 "widgets": [widget.to_dict() for widget in widgets],
                 "sections": [section.to_dict() for section in sections],
-                "preferences": [preference.to_dict() for preference in preferences]
+                "preferences": [preference.to_dict() for preference in preferences],
             },
             "statistics": {
                 "total_bookmarks": len(bookmarks),
                 "total_widgets": len(widgets),
                 "total_sections": len(sections),
-                "total_preferences": len(preferences)
-            }
+                "total_preferences": len(preferences),
+            },
         }
 
         return export_data
@@ -131,6 +131,7 @@ class ExportImportService:
         Returns:
             XML string
         """
+
         def dict_to_xml(tag: str, d: Any, indent: int = 0) -> str:
             """Convert dictionary to XML recursively."""
             xml_lines = []
@@ -205,7 +206,7 @@ class ExportImportService:
                     "refresh_interval": widget.get("refresh_interval"),
                     "config": json.dumps(widget.get("config", {})),
                     "created": widget.get("created"),
-                    "updated": widget.get("updated")
+                    "updated": widget.get("updated"),
                 }
                 flattened_widgets.append(flat_widget)
 
@@ -230,7 +231,7 @@ class ExportImportService:
                     "enabled": section.get("enabled"),
                     "widget_ids": ",".join(section.get("widget_ids", [])),
                     "created": section.get("created"),
-                    "updated": section.get("updated")
+                    "updated": section.get("updated"),
                 }
                 flattened_sections.append(flat_section)
 

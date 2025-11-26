@@ -1,4 +1,5 @@
 """Integration tests for bookmark API endpoints."""
+
 import pytest
 from httpx import AsyncClient
 
@@ -20,7 +21,7 @@ async def test_create_bookmark(client: AsyncClient):
         "category": "Test",
         "description": "A test bookmark",
         "tags": ["test", "example"],
-        "position": 0
+        "position": 0,
     }
 
     response = await client.post("/api/bookmarks/", json=bookmark_data)
@@ -99,7 +100,7 @@ async def test_update_bookmark(client: AsyncClient):
     update_data = {
         "title": "Updated Title",
         "url": "https://updated.example.com",
-        "description": "Now with description"
+        "description": "Now with description",
     }
     response = await client.put(f"/api/bookmarks/{bookmark_id}", json=update_data)
     assert response.status_code == 200
@@ -135,16 +136,18 @@ async def test_delete_bookmark(client: AsyncClient):
 async def test_list_bookmarks_with_category_filter(client: AsyncClient):
     """Test filtering bookmarks by category."""
     # Create bookmarks with different categories
-    await client.post("/api/bookmarks/", json={
-        "title": "Work Bookmark",
-        "url": "https://work.example.com",
-        "category": "Work"
-    })
-    await client.post("/api/bookmarks/", json={
-        "title": "Personal Bookmark",
-        "url": "https://personal.example.com",
-        "category": "Personal"
-    })
+    await client.post(
+        "/api/bookmarks/",
+        json={"title": "Work Bookmark", "url": "https://work.example.com", "category": "Work"},
+    )
+    await client.post(
+        "/api/bookmarks/",
+        json={
+            "title": "Personal Bookmark",
+            "url": "https://personal.example.com",
+            "category": "Personal",
+        },
+    )
 
     # Filter by Work category
     response = await client.get("/api/bookmarks/?category=Work")
@@ -160,16 +163,22 @@ async def test_list_bookmarks_with_category_filter(client: AsyncClient):
 async def test_search_bookmarks(client: AsyncClient):
     """Test searching bookmarks."""
     # Create test bookmarks
-    await client.post("/api/bookmarks/", json={
-        "title": "Python Tutorial",
-        "url": "https://python.example.com",
-        "description": "Learn Python programming"
-    })
-    await client.post("/api/bookmarks/", json={
-        "title": "JavaScript Guide",
-        "url": "https://javascript.example.com",
-        "description": "JavaScript basics"
-    })
+    await client.post(
+        "/api/bookmarks/",
+        json={
+            "title": "Python Tutorial",
+            "url": "https://python.example.com",
+            "description": "Learn Python programming",
+        },
+    )
+    await client.post(
+        "/api/bookmarks/",
+        json={
+            "title": "JavaScript Guide",
+            "url": "https://javascript.example.com",
+            "description": "JavaScript basics",
+        },
+    )
 
     # Search for Python
     response = await client.get("/api/bookmarks/search/?q=Python")
@@ -177,5 +186,7 @@ async def test_search_bookmarks(client: AsyncClient):
 
     data = response.json()
     assert len(data) >= 1
-    assert any("Python" in bookmark["title"] or "Python" in bookmark.get("description", "")
-               for bookmark in data)
+    assert any(
+        "Python" in bookmark["title"] or "Python" in bookmark.get("description", "")
+        for bookmark in data
+    )

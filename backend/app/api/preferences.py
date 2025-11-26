@@ -1,14 +1,15 @@
 """Preferences API endpoints."""
-from fastapi import APIRouter, Depends, HTTPException, status, Request
+
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.api.dependencies import require_auth
 from app.logging_config import get_logger
+from app.models.preference import PreferenceResponse, PreferenceUpdate
+from app.models.user import User
 from app.services.database import get_db
 from app.services.preference_service import preference_service
 from app.services.rate_limit import limiter
-from app.models.preference import PreferenceUpdate, PreferenceResponse
-from app.models.user import User
-from app.api.dependencies import require_auth
 from app.utils.logging import sanitize_log_value
 
 logger = get_logger(__name__)
@@ -22,7 +23,7 @@ async def get_preference(
     request: Request,
     key: str,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(require_auth)
+    current_user: User = Depends(require_auth),
 ):
     """Get a preference by key for the current user.
 
@@ -40,24 +41,22 @@ async def get_preference(
     """
     logger.debug(
         "Getting preference",
-        extra={"preference_key": key, "user_id": current_user.id, "operation": "read"}
+        extra={"preference_key": key, "user_id": current_user.id, "operation": "read"},
     )
 
     preference = await preference_service.get_preference(db, key, current_user.id)
 
     if not preference:
         logger.warning(
-            "Preference not found",
-            extra={"preference_key": key, "user_id": current_user.id}
+            "Preference not found", extra={"preference_key": key, "user_id": current_user.id}
         )
         raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Preference with key '{key}' not found"
+            status_code=status.HTTP_404_NOT_FOUND, detail=f"Preference with key '{key}' not found"
         )
 
     logger.debug(
         "Preference retrieved",
-        extra={"preference_key": key, "user_id": current_user.id, "operation": "read"}
+        extra={"preference_key": key, "user_id": current_user.id, "operation": "read"},
     )
 
     return PreferenceResponse.model_validate(preference)
@@ -70,7 +69,7 @@ async def set_preference(
     key: str,
     preference_data: PreferenceUpdate,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(require_auth)
+    current_user: User = Depends(require_auth),
 ):
     """Set a preference value for the current user.
 
@@ -90,20 +89,18 @@ async def set_preference(
             "preference_key": key,
             "preference_value": sanitize_log_value(key, preference_data.value),
             "user_id": current_user.id,
-            "operation": "update"
-        }
+            "operation": "update",
+        },
     )
 
     try:
-        preference = await preference_service.set_preference(db, key, preference_data.value, current_user.id)
+        preference = await preference_service.set_preference(
+            db, key, preference_data.value, current_user.id
+        )
 
         logger.info(
             "Preference set successfully",
-            extra={
-                "preference_key": key,
-                "user_id": current_user.id,
-                "operation": "update"
-            }
+            extra={"preference_key": key, "user_id": current_user.id, "operation": "update"},
         )
 
         return PreferenceResponse.model_validate(preference)
@@ -116,6 +113,6 @@ async def set_preference(
                 "error_type": type(e).__name__,
                 "error": str(e),
             },
-            exc_info=True
+            exc_info=True,
         )
         raise

@@ -1,31 +1,25 @@
 """Database connection and initialization."""
-from app.logging_config import get_logger
-from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker, AsyncSession
+
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 from sqlalchemy.orm import DeclarativeBase
 
 from app.config import settings
+from app.logging_config import get_logger
 
 logger = get_logger(__name__)
 
 # Create async engine
-engine = create_async_engine(
-    settings.DATABASE_URL,
-    echo=settings.DEBUG,
-    future=True
-)
+engine = create_async_engine(settings.DATABASE_URL, echo=settings.DEBUG, future=True)
 
 # Create session maker
 AsyncSessionLocal = async_sessionmaker(
-    engine,
-    class_=AsyncSession,
-    expire_on_commit=False,
-    autocommit=False,
-    autoflush=False
+    engine, class_=AsyncSession, expire_on_commit=False, autocommit=False, autoflush=False
 )
 
 
 class Base(DeclarativeBase):
     """Base class for all database models."""
+
     pass
 
 
@@ -38,10 +32,10 @@ async def get_db() -> AsyncSession:
             await session.commit()
             logger.debug("Database session committed", extra={"operation": "session_commit"})
         except Exception as e:
-            logger.warning("Database transaction rolled back due to error", extra={
-                "operation": "session_rollback",
-                "error_type": type(e).__name__
-            })
+            logger.warning(
+                "Database transaction rolled back due to error",
+                extra={"operation": "session_rollback", "error_type": type(e).__name__},
+            )
             await session.rollback()
             raise
         finally:
@@ -51,25 +45,38 @@ async def get_db() -> AsyncSession:
 
 async def init_db():
     """Initialize database tables."""
-    logger.info("Initializing database", extra={
-        "operation": "database_init",
-        "database_url": settings.DATABASE_URL.replace(settings.DATABASE_URL.split('@')[0].split('://')[1], "***")
-        if '@' in settings.DATABASE_URL else "***"
-    })
+    logger.info(
+        "Initializing database",
+        extra={
+            "operation": "database_init",
+            "database_url": (
+                settings.DATABASE_URL.replace(
+                    settings.DATABASE_URL.split("@")[0].split("://")[1], "***"
+                )
+                if "@" in settings.DATABASE_URL
+                else "***"
+            ),
+        },
+    )
     try:
         async with engine.begin() as conn:
             # Import models to register them
             from app.models import bookmark  # noqa: F401
             from app.models import section  # noqa: F401
             from app.models import widget  # noqa: F401
+
             await conn.run_sync(Base.metadata.create_all)
-        logger.info("Database initialization completed successfully", extra={
-            "operation": "database_init_complete",
-            "tables": ["bookmark", "section", "widget"]
-        })
+        logger.info(
+            "Database initialization completed successfully",
+            extra={
+                "operation": "database_init_complete",
+                "tables": ["bookmark", "section", "widget"],
+            },
+        )
     except Exception as e:
-        logger.error("Database initialization failed", extra={
-            "operation": "database_init_failed",
-            "error_type": type(e).__name__
-        }, exc_info=True)
+        logger.error(
+            "Database initialization failed",
+            extra={"operation": "database_init_failed", "error_type": type(e).__name__},
+            exc_info=True,
+        )
         raise
