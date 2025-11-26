@@ -6,7 +6,7 @@ across all widgets and services, reducing code duplication and ensuring consiste
 security policies and error handling.
 """
 import aiohttp
-from typing import Optional, Dict, Any
+from typing import Optional, Dict, Any, List, Tuple
 from urllib.parse import urlparse
 import ipaddress
 import socket
@@ -35,6 +35,81 @@ BLOCKED_IP_RANGES = [
 
 # Default user agent
 DEFAULT_USER_AGENT = 'Mozilla/5.0 (compatible; HSH-Alfa/1.0)'
+
+
+def is_blocked_ip(ip: ipaddress.IPv4Address | ipaddress.IPv6Address) -> bool:
+    """
+    Check if an IP address is in the blocked ranges.
+
+    Args:
+        ip: IP address to check
+
+    Returns:
+        True if IP is blocked, False otherwise
+    """
+    for blocked_range in BLOCKED_IP_RANGES:
+        if ip in blocked_range:
+            return True
+    return False
+
+
+class SafeTCPConnector(aiohttp.TCPConnector):
+    """
+    Custom TCP connector that validates IPs at connection time to prevent DNS rebinding attacks.
+
+    This connector resolves hostnames and checks each resolved IP against blocked ranges
+    immediately before establishing the connection, preventing DNS rebinding attacks where
+    DNS resolution could change between initial validation and actual connection.
+    """
+
+    async def _resolve_host(
+        self,
+        host: str,
+        port: int,
+        traces: Optional[List] = None
+    ) -> List[Dict[str, Any]]:
+        """
+        Resolve host and validate IPs are not in blocked ranges.
+
+        Args:
+            host: Hostname to resolve
+            port: Port number
+            traces: Optional traces for monitoring
+
+        Returns:
+            List of resolved address info dicts
+
+        Raises:
+            ValueError: If any resolved IP is in blocked ranges
+        """
+        # Resolve using parent class
+        resolved = await super()._resolve_host(host, port, traces)
+
+        # Validate each resolved IP
+        for addr_info in resolved:
+            ip_str = addr_info['host']
+            try:
+                ip = ipaddress.ip_address(ip_str)
+                if is_blocked_ip(ip):
+                    logger.warning("Blocked connection to private/internal IP", extra={
+                        "operation": "ssrf_validation",
+                        "reason": "private_ip_blocked_at_connection",
+                        "hostname": host,
+                        "ip": str(ip)
+                    })
+                    raise ValueError(f"Connection to private/internal IP blocked: {ip}")
+            except ValueError as e:
+                if "private/internal IP blocked" in str(e):
+                    raise
+                # If IP parsing fails, block it
+                logger.warning("Could not parse resolved IP", extra={
+                    "operation": "ssrf_validation",
+                    "hostname": host,
+                    "ip_str": ip_str
+                })
+                raise ValueError(f"Invalid IP address resolved: {ip_str}")
+
+        return resolved
 
 
 def is_safe_url(url: str) -> bool:
@@ -78,15 +153,14 @@ def is_safe_url(url: str) -> bool:
                 addr_info = socket.getaddrinfo(parsed.hostname, None)
                 for addr in addr_info:
                     ip = ipaddress.ip_address(addr[4][0])
-                    for blocked_range in BLOCKED_IP_RANGES:
-                        if ip in blocked_range:
-                            logger.warning("Blocked private/internal IP URL", extra={
-                                "operation": "ssrf_validation",
-                                "reason": "private_ip_blocked",
-                                "hostname": parsed.hostname,
-                                "ip": str(ip)
-                            })
-                            return False
+                    if is_blocked_ip(ip):
+                        logger.warning("Blocked private/internal IP URL", extra={
+                            "operation": "ssrf_validation",
+                            "reason": "private_ip_blocked",
+                            "hostname": parsed.hostname,
+                            "ip": str(ip)
+                        })
+                        return False
             except (socket.gaierror, ValueError) as e:
                 logger.debug("Could not resolve hostname", extra={
                     "operation": "ssrf_validation",
@@ -176,15 +250,17 @@ class HttpClient:
 
         timeout_obj = aiohttp.ClientTimeout(total=request_timeout)
 
+        # Use SafeTCPConnector to prevent DNS rebinding attacks
+        connector = SafeTCPConnector(ssl=self.verify_ssl)
         async with aiohttp.ClientSession(
             timeout=timeout_obj,
-            headers=request_headers
+            headers=request_headers,
+            connector=connector
         ) as session:
             async with session.get(
                 url,
                 params=params,
-                allow_redirects=True,
-                ssl=self.verify_ssl
+                allow_redirects=True
             ) as response:
                 # Check response status
                 response.raise_for_status()
@@ -239,15 +315,17 @@ class HttpClient:
                 "request_type": "json",
                 "timeout": request_timeout
             })
+            # Use SafeTCPConnector to prevent DNS rebinding attacks
+            connector = SafeTCPConnector(ssl=self.verify_ssl)
             async with aiohttp.ClientSession(
                 timeout=timeout_obj,
-                headers=request_headers
+                headers=request_headers,
+                connector=connector
             ) as session:
                 async with session.get(
                     url,
                     params=params,
-                    allow_redirects=True,
-                    ssl=self.verify_ssl
+                    allow_redirects=True
                 ) as response:
                     response.raise_for_status()
                     logger.debug("JSON response received successfully", extra={
@@ -320,15 +398,17 @@ class HttpClient:
                 "timeout": request_timeout,
                 "max_size": max_size
             })
+            # Use SafeTCPConnector to prevent DNS rebinding attacks
+            connector = SafeTCPConnector(ssl=self.verify_ssl)
             async with aiohttp.ClientSession(
                 timeout=timeout_obj,
-                headers=request_headers
+                headers=request_headers,
+                connector=connector
             ) as session:
                 async with session.get(
                     url,
                     params=params,
-                    allow_redirects=True,
-                    ssl=self.verify_ssl
+                    allow_redirects=True
                 ) as response:
                     response.raise_for_status()
 
@@ -413,14 +493,16 @@ class HttpClient:
 
         timeout_obj = aiohttp.ClientTimeout(total=request_timeout)
 
+        # Use SafeTCPConnector to prevent DNS rebinding attacks
+        connector = SafeTCPConnector(ssl=self.verify_ssl)
         async with aiohttp.ClientSession(
             timeout=timeout_obj,
-            headers=request_headers
+            headers=request_headers,
+            connector=connector
         ) as session:
             async with session.head(
                 url,
-                allow_redirects=True,
-                ssl=self.verify_ssl
+                allow_redirects=True
             ) as response:
                 response.raise_for_status()
                 return response

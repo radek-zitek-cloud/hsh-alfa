@@ -347,16 +347,19 @@ class BookmarkService:
             List of matching bookmarks
         """
         # Escape SQL wildcards to prevent SQL injection via LIKE patterns
+        # Escape backslash first, then % and _
         sanitized_query = query.replace('\\', '\\\\').replace('%', '\\%').replace('_', '\\_')
         search_term = f"%{sanitized_query}%"
 
+        # Use escape parameter to specify backslash as the escape character
+        # This prevents users from injecting wildcards in their search
         search_query = select(Bookmark).where(
             Bookmark.user_id == user_id,
             or_(
-                Bookmark.title.ilike(search_term),
-                Bookmark.description.ilike(search_term),
-                Bookmark.tags.ilike(search_term),
-                Bookmark.url.ilike(search_term)
+                Bookmark.title.ilike(search_term, escape='\\'),
+                Bookmark.description.ilike(search_term, escape='\\'),
+                Bookmark.tags.ilike(search_term, escape='\\'),
+                Bookmark.url.ilike(search_term, escape='\\')
             )
         ).order_by(Bookmark.position, Bookmark.created)
 

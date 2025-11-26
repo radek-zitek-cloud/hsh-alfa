@@ -150,6 +150,55 @@ class RequestSizeLimitMiddleware(BaseHTTPMiddleware):
         return await call_next(request)
 
 
+class SecurityHeadersMiddleware(BaseHTTPMiddleware):
+    """Middleware to add security headers to all responses."""
+
+    async def dispatch(self, request: Request, call_next):
+        """
+        Add security headers to response.
+
+        Args:
+            request: Incoming HTTP request
+            call_next: Next middleware in chain
+
+        Returns:
+            HTTP response with security headers added
+        """
+        response = await call_next(request)
+
+        # Prevent MIME type sniffing
+        response.headers["X-Content-Type-Options"] = "nosniff"
+
+        # Prevent clickjacking by disallowing iframe embedding from other origins
+        response.headers["X-Frame-Options"] = "SAMEORIGIN"
+
+        # Content Security Policy - restrict resource loading
+        # Allow same origin and inline styles (needed for some UI frameworks)
+        csp_directives = [
+            "default-src 'self'",
+            "style-src 'self' 'unsafe-inline'",
+            "script-src 'self' 'unsafe-inline'",
+            "img-src 'self' data: https:",
+            "font-src 'self' data:",
+            "connect-src 'self'",
+            "frame-ancestors 'self'",
+            "form-action 'self'",
+            "base-uri 'self'"
+        ]
+        response.headers["Content-Security-Policy"] = "; ".join(csp_directives)
+
+        # XSS Protection (legacy, but still supported by some browsers)
+        response.headers["X-XSS-Protection"] = "1; mode=block"
+
+        # Referrer Policy - control referrer information
+        response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
+
+        # Permissions Policy - restrict browser features
+        response.headers["Permissions-Policy"] = "geolocation=(), microphone=(), camera=()"
+
+        return response
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Application lifespan manager."""
@@ -292,6 +341,7 @@ async def app_exception_handler(request: Request, exc: AppException):
 # Add middleware
 app.add_middleware(RequestLoggingMiddleware)
 app.add_middleware(RequestSizeLimitMiddleware, max_size=1024 * 1024)  # 1MB limit
+app.add_middleware(SecurityHeadersMiddleware)
 
 # Configure CORS
 app.add_middleware(
