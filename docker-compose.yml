@@ -12,6 +12,7 @@ services:
       - EXCHANGE_RATE_API_KEY=${EXCHANGE_RATE_API_KEY}
       - NEWS_API_KEY=${NEWS_API_KEY}
       - DEBUG=${DEBUG:-false}
+      - LOG_LEVEL=${LOG_LEVEL:-INFO}
     volumes:
       - ./data:/data
       - ./backend/app/config:/app/config:ro
