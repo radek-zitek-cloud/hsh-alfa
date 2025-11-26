@@ -12,6 +12,7 @@ from app.models.user import TokenResponse, UserResponse
 from app.services.auth_service import auth_service, mask_email
 from app.services.database import get_db
 from app.services.rate_limit import limiter
+from app.services.user_initialization_service import UserInitializationService
 from app.api.dependencies import get_current_user, require_auth, security
 from app.models.user import User
 from app.constants import (
@@ -179,6 +180,21 @@ async def oauth_callback(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail=ERROR_AUTH_FAILED
         )
+
+    # Initialize default data for new users (default bookmark and widget)
+    try:
+        await UserInitializationService.initialize_new_user(db, user)
+    except Exception as e:
+        logger.error(
+            "Failed to initialize default data for user",
+            extra={
+                "user_id": user.id,
+                "error_type": type(e).__name__,
+                "error": str(e),
+            },
+            exc_info=True
+        )
+        # Don't fail authentication if initialization fails, just log the error
 
     # Create JWT token
     access_token = auth_service.create_access_token(

@@ -41,7 +41,7 @@ async def list_widgets(
         extra={"user_id": current_user.id}
     )
 
-    result = await db.execute(select(Widget))
+    result = await db.execute(select(Widget).where(Widget.user_id == current_user.id))
     widgets = result.scalars().all()
 
     logger.info(
@@ -321,6 +321,7 @@ async def create_widget(
 
     # Create widget in database
     widget = Widget(
+        user_id=current_user.id,
         widget_id=widget_id,
         widget_type=widget_data.type,
         enabled=widget_data.enabled,
@@ -392,7 +393,10 @@ async def update_widget(
 
     # Find widget
     result = await db.execute(
-        select(Widget).where(Widget.widget_id == widget_id)
+        select(Widget).where(
+            Widget.widget_id == widget_id,
+            Widget.user_id == current_user.id
+        )
     )
     widget = result.scalar_one_or_none()
 
@@ -485,7 +489,10 @@ async def delete_widget(
 
     # Find widget
     result = await db.execute(
-        select(Widget).where(Widget.widget_id == widget_id)
+        select(Widget).where(
+            Widget.widget_id == widget_id,
+            Widget.user_id == current_user.id
+        )
     )
     widget = result.scalar_one_or_none()
 
@@ -545,8 +552,13 @@ async def reload_widget_config(
     # Clear existing instances
     registry._widget_instances.clear()
 
-    # Load all widgets from database
-    result = await db.execute(select(Widget).where(Widget.enabled == True))
+    # Load all widgets from database for current user
+    result = await db.execute(
+        select(Widget).where(
+            Widget.enabled == True,
+            Widget.user_id == current_user.id
+        )
+    )
     widgets = result.scalars().all()
 
     for widget in widgets:

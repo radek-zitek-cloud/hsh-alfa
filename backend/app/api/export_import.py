@@ -48,9 +48,9 @@ async def export_data(
             }
         )
 
-        # Export all data
+        # Export all data for the current user
         export_service = ExportImportService()
-        data = await export_service.export_all_data(db)
+        data = await export_service.export_all_data(db, user.id)
 
         # Format based on requested format
         if format == "json":

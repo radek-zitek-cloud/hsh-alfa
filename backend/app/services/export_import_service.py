@@ -12,44 +12,55 @@ from app.models.bookmark import Bookmark
 from app.models.widget import Widget
 from app.models.section import Section
 from app.models.preference import Preference
+from app.models.user import User
 
 
 class ExportImportService:
     """Service for handling data export and import operations."""
 
     @staticmethod
-    async def export_all_data(db: AsyncSession) -> Dict[str, Any]:
+    async def export_all_data(db: AsyncSession, user_id: int) -> Dict[str, Any]:
         """
-        Export all application data from database.
+        Export all application data for a specific user from database.
 
         Args:
             db: Database session
+            user_id: User ID to export data for
 
         Returns:
-            Dictionary containing all data organized by entity type
+            Dictionary containing all user data organized by entity type
         """
-        # Fetch all bookmarks
-        bookmark_result = await db.execute(select(Bookmark))
+        # Fetch user info
+        user_result = await db.execute(select(User).where(User.id == user_id))
+        user = user_result.scalar_one_or_none()
+
+        # Fetch all bookmarks for this user
+        bookmark_result = await db.execute(select(Bookmark).where(Bookmark.user_id == user_id))
         bookmarks = bookmark_result.scalars().all()
 
-        # Fetch all widgets
-        widget_result = await db.execute(select(Widget))
+        # Fetch all widgets for this user
+        widget_result = await db.execute(select(Widget).where(Widget.user_id == user_id))
         widgets = widget_result.scalars().all()
 
-        # Fetch all sections
-        section_result = await db.execute(select(Section))
+        # Fetch all sections for this user
+        section_result = await db.execute(select(Section).where(Section.user_id == user_id))
         sections = section_result.scalars().all()
 
-        # Fetch all preferences
-        preference_result = await db.execute(select(Preference))
+        # Fetch all preferences for this user
+        preference_result = await db.execute(select(Preference).where(Preference.user_id == user_id))
         preferences = preference_result.scalars().all()
 
         # Convert to dictionaries
         export_data = {
-            "version": "1.0",
+            "version": "1.1",
             "export_info": {
                 "application": "Home Sweet Home",
-                "description": "Complete application data export"
+                "description": "User-specific application data export",
+                "user": {
+                    "id": user.id,
+                    "email": user.email,
+                    "name": user.name
+                } if user else None
             },
             "data": {
                 "bookmarks": [bookmark.to_dict() for bookmark in bookmarks],

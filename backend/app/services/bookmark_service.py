@@ -29,20 +29,22 @@ class BookmarkService:
 
     async def list_bookmarks(
         self,
+        user_id: int,
         category: Optional[str] = None,
         sort_by: Optional[str] = None
     ) -> List[Bookmark]:
         """
-        List all bookmarks, optionally filtered by category and sorted.
+        List all bookmarks for a user, optionally filtered by category and sorted.
 
         Args:
+            user_id: User ID to filter bookmarks
             category: Filter by category (optional)
             sort_by: Sort method - 'alphabetical', 'clicks', or 'position' (default)
 
         Returns:
             List of bookmarks
         """
-        query = select(Bookmark)
+        query = select(Bookmark).where(Bookmark.user_id == user_id)
 
         if category:
             query = query.where(Bookmark.category == category)
@@ -60,35 +62,41 @@ class BookmarkService:
         bookmarks = result.scalars().all()
         logger.debug("Listed bookmarks from database", extra={
             "operation": "list_bookmarks",
+            "user_id": user_id,
             "count": len(bookmarks),
             "category": category,
             "sort_by": sort_by or "position"
         })
         return bookmarks
 
-    async def get_bookmark(self, bookmark_id: int) -> Optional[Bookmark]:
+    async def get_bookmark(self, bookmark_id: int, user_id: int) -> Optional[Bookmark]:
         """
-        Get a specific bookmark by ID.
+        Get a specific bookmark by ID for a user.
 
         Args:
             bookmark_id: Bookmark ID
+            user_id: User ID
 
         Returns:
             Bookmark if found, None otherwise
         """
         result = await self.db.execute(
-            select(Bookmark).where(Bookmark.id == bookmark_id)
+            select(Bookmark).where(
+                Bookmark.id == bookmark_id,
+                Bookmark.user_id == user_id
+            )
         )
         return result.scalar_one_or_none()
 
-    async def create_bookmark(self, bookmark_data: BookmarkCreate) -> Bookmark:
+    async def create_bookmark(self, bookmark_data: BookmarkCreate, user_id: int) -> Bookmark:
         """
-        Create a new bookmark.
+        Create a new bookmark for a user.
 
         Automatically fetches favicon from the URL if not provided.
 
         Args:
             bookmark_data: Bookmark data
+            user_id: User ID
 
         Returns:
             Created bookmark
@@ -128,6 +136,7 @@ class BookmarkService:
                 # Continue without favicon if fetching fails
 
         bookmark = Bookmark(
+            user_id=user_id,
             title=bookmark_data.title,
             url=bookmark_data.url,
             favicon=favicon_url,
@@ -144,6 +153,7 @@ class BookmarkService:
         logger.info("Bookmark created", extra={
             "operation": "bookmark_created",
             "bookmark_id": bookmark.id,
+            "user_id": user_id,
             "title": bookmark.title,
             "url": bookmark.url,
             "category": bookmark.category
@@ -154,22 +164,27 @@ class BookmarkService:
     async def update_bookmark(
         self,
         bookmark_id: int,
-        bookmark_data: BookmarkUpdate
+        bookmark_data: BookmarkUpdate,
+        user_id: int
     ) -> Optional[Bookmark]:
         """
-        Update an existing bookmark.
+        Update an existing bookmark for a user.
 
         Automatically fetches favicon if URL is changed and favicon is not provided.
 
         Args:
             bookmark_id: Bookmark ID
             bookmark_data: Updated bookmark data
+            user_id: User ID
 
         Returns:
             Updated bookmark if found, None otherwise
         """
         result = await self.db.execute(
-            select(Bookmark).where(Bookmark.id == bookmark_id)
+            select(Bookmark).where(
+                Bookmark.id == bookmark_id,
+                Bookmark.user_id == user_id
+            )
         )
         bookmark = result.scalar_one_or_none()
 
@@ -177,6 +192,7 @@ class BookmarkService:
             logger.debug("Bookmark not found for update", extra={
                 "operation": "bookmark_update_failed",
                 "bookmark_id": bookmark_id,
+                "user_id": user_id,
                 "reason": "not_found"
             })
             return None
@@ -233,18 +249,22 @@ class BookmarkService:
 
         return bookmark
 
-    async def delete_bookmark(self, bookmark_id: int) -> bool:
+    async def delete_bookmark(self, bookmark_id: int, user_id: int) -> bool:
         """
-        Delete a bookmark.
+        Delete a bookmark for a user.
 
         Args:
             bookmark_id: Bookmark ID
+            user_id: User ID
 
         Returns:
             True if bookmark was deleted, False if not found
         """
         result = await self.db.execute(
-            select(Bookmark).where(Bookmark.id == bookmark_id)
+            select(Bookmark).where(
+                Bookmark.id == bookmark_id,
+                Bookmark.user_id == user_id
+            )
         )
         bookmark = result.scalar_one_or_none()
 
@@ -252,6 +272,7 @@ class BookmarkService:
             logger.debug("Bookmark not found for deletion", extra={
                 "operation": "bookmark_delete_failed",
                 "bookmark_id": bookmark_id,
+                "user_id": user_id,
                 "reason": "not_found"
             })
             return False
@@ -262,25 +283,30 @@ class BookmarkService:
         logger.info("Bookmark deleted", extra={
             "operation": "bookmark_deleted",
             "bookmark_id": bookmark.id,
+            "user_id": user_id,
             "title": bookmark.title
         })
 
         return True
 
-    async def track_click(self, bookmark_id: int) -> Optional[Bookmark]:
+    async def track_click(self, bookmark_id: int, user_id: int) -> Optional[Bookmark]:
         """
-        Track a click on a bookmark.
+        Track a click on a bookmark for a user.
 
         Increments the click counter for the specified bookmark.
 
         Args:
             bookmark_id: Bookmark ID
+            user_id: User ID
 
         Returns:
             Updated bookmark if found, None otherwise
         """
         result = await self.db.execute(
-            select(Bookmark).where(Bookmark.id == bookmark_id)
+            select(Bookmark).where(
+                Bookmark.id == bookmark_id,
+                Bookmark.user_id == user_id
+            )
         )
         bookmark = result.scalar_one_or_none()
 
@@ -288,6 +314,7 @@ class BookmarkService:
             logger.debug("Bookmark not found for click tracking", extra={
                 "operation": "bookmark_click_failed",
                 "bookmark_id": bookmark_id,
+                "user_id": user_id,
                 "reason": "not_found"
             })
             return None
@@ -301,18 +328,20 @@ class BookmarkService:
         logger.debug("Click tracked for bookmark", extra={
             "operation": "bookmark_click_tracked",
             "bookmark_id": bookmark.id,
+            "user_id": user_id,
             "title": bookmark.title,
             "total_clicks": bookmark.clicks
         })
 
         return bookmark
 
-    async def search_bookmarks(self, query: str) -> List[Bookmark]:
+    async def search_bookmarks(self, query: str, user_id: int) -> List[Bookmark]:
         """
-        Search bookmarks by title, description, URL, or tags.
+        Search bookmarks by title, description, URL, or tags for a user.
 
         Args:
             query: Search query
+            user_id: User ID
 
         Returns:
             List of matching bookmarks
@@ -322,6 +351,7 @@ class BookmarkService:
         search_term = f"%{sanitized_query}%"
 
         search_query = select(Bookmark).where(
+            Bookmark.user_id == user_id,
             or_(
                 Bookmark.title.ilike(search_term),
                 Bookmark.description.ilike(search_term),
@@ -334,6 +364,7 @@ class BookmarkService:
         bookmarks = result.scalars().all()
         logger.debug("Bookmarks searched", extra={
             "operation": "bookmark_search",
+            "user_id": user_id,
             "query": query,
             "results_count": len(bookmarks)
         })

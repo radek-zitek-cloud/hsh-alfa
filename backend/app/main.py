@@ -183,11 +183,13 @@ async def lifespan(app: FastAPI):
             run_migration as run_preferences_migration,
         )
         from app.migrations.create_users_table import run_migration as run_users_migration
+        from app.migrations.add_user_id_to_tables import run_migration as run_user_id_migration
 
         logger.debug("Running database migrations")
         await run_clicks_migration(engine)
         await run_preferences_migration(engine)
         await run_users_migration(engine)
+        await run_user_id_migration(engine)
         logger.info("Database migrations completed successfully")
     except Exception as e:
         logger.error(

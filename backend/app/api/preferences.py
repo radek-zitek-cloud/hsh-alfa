@@ -7,6 +7,8 @@ from app.services.database import get_db
 from app.services.preference_service import preference_service
 from app.services.rate_limit import limiter
 from app.models.preference import PreferenceUpdate, PreferenceResponse
+from app.models.user import User
+from app.api.dependencies import require_auth
 
 logger = get_logger(__name__)
 
@@ -18,14 +20,16 @@ router = APIRouter()
 async def get_preference(
     request: Request,
     key: str,
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(require_auth)
 ):
-    """Get a preference by key.
+    """Get a preference by key for the current user.
 
     Args:
         request: HTTP request
         key: Preference key
         db: Database session
+        current_user: Current authenticated user
 
     Returns:
         Preference value
@@ -35,15 +39,15 @@ async def get_preference(
     """
     logger.debug(
         "Getting preference",
-        extra={"preference_key": key, "operation": "read"}
+        extra={"preference_key": key, "user_id": current_user.id, "operation": "read"}
     )
 
-    preference = await preference_service.get_preference(db, key)
+    preference = await preference_service.get_preference(db, key, current_user.id)
 
     if not preference:
         logger.warning(
             "Preference not found",
-            extra={"preference_key": key}
+            extra={"preference_key": key, "user_id": current_user.id}
         )
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -52,7 +56,7 @@ async def get_preference(
 
     logger.debug(
         "Preference retrieved",
-        extra={"preference_key": key, "operation": "read"}
+        extra={"preference_key": key, "user_id": current_user.id, "operation": "read"}
     )
 
     return PreferenceResponse.model_validate(preference)
@@ -64,15 +68,17 @@ async def set_preference(
     request: Request,
     key: str,
     preference_data: PreferenceUpdate,
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(require_auth)
 ):
-    """Set a preference value.
+    """Set a preference value for the current user.
 
     Args:
         request: HTTP request
         key: Preference key
         preference_data: Preference data
         db: Database session
+        current_user: Current authenticated user
 
     Returns:
         Created or updated preference
@@ -82,17 +88,19 @@ async def set_preference(
         extra={
             "preference_key": key,
             "preference_value": preference_data.value,
+            "user_id": current_user.id,
             "operation": "update"
         }
     )
 
     try:
-        preference = await preference_service.set_preference(db, key, preference_data.value)
+        preference = await preference_service.set_preference(db, key, preference_data.value, current_user.id)
 
         logger.info(
             "Preference set successfully",
             extra={
                 "preference_key": key,
+                "user_id": current_user.id,
                 "operation": "update"
             }
         )
@@ -103,6 +111,7 @@ async def set_preference(
             "Error setting preference",
             extra={
                 "preference_key": key,
+                "user_id": current_user.id,
                 "error_type": type(e).__name__,
                 "error": str(e),
             },
