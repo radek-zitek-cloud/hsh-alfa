@@ -1,6 +1,6 @@
 """User preferences database model."""
 from typing import Optional
-from sqlalchemy import String, Integer
+from sqlalchemy import String, Integer, ForeignKey, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column
 from pydantic import BaseModel, field_validator
 
@@ -11,9 +11,13 @@ class Preference(Base):
     """User preferences database model."""
 
     __tablename__ = "preferences"
+    __table_args__ = (
+        UniqueConstraint('user_id', 'key', name='uix_user_preference'),
+    )
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
-    key: Mapped[str] = mapped_column(String(100), nullable=False, unique=True)
+    user_id: Mapped[int] = mapped_column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    key: Mapped[str] = mapped_column(String(100), nullable=False)
     value: Mapped[str] = mapped_column(String(255), nullable=False)
 
     def to_dict(self) -> dict:

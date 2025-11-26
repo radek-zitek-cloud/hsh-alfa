@@ -1,7 +1,7 @@
 """Section database model for widget organization."""
 from datetime import datetime, timezone
 from typing import Optional, List
-from sqlalchemy import String, Integer, DateTime, Boolean, Text
+from sqlalchemy import String, Integer, DateTime, Boolean, Text, ForeignKey, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column
 from pydantic import BaseModel
 
@@ -12,9 +12,13 @@ class Section(Base):
     """Section database model for organizing widgets."""
 
     __tablename__ = "sections"
+    __table_args__ = (
+        UniqueConstraint('user_id', 'name', name='uix_user_section'),
+    )
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
-    name: Mapped[str] = mapped_column(String(100), nullable=False, unique=True)
+    user_id: Mapped[int] = mapped_column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    name: Mapped[str] = mapped_column(String(100), nullable=False)
     title: Mapped[str] = mapped_column(String(255), nullable=False)
     position: Mapped[int] = mapped_column(Integer, default=0)
     enabled: Mapped[bool] = mapped_column(Boolean, default=True)

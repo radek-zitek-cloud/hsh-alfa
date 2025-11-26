@@ -1,7 +1,7 @@
 """Widget database model."""
 from datetime import datetime
 from typing import Optional, Dict, Any
-from sqlalchemy import String, Integer, DateTime, Text, Boolean, JSON
+from sqlalchemy import String, Integer, DateTime, Text, Boolean, JSON, ForeignKey
 from sqlalchemy.orm import Mapped, mapped_column
 from pydantic import BaseModel, field_validator, Field
 import json
@@ -16,6 +16,7 @@ class Widget(Base):
     __tablename__ = "widgets"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    user_id: Mapped[int] = mapped_column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
     widget_id: Mapped[str] = mapped_column(String(255), unique=True, nullable=False, index=True)
     widget_type: Mapped[str] = mapped_column(String(100), nullable=False)
     enabled: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)

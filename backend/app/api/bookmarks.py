@@ -64,7 +64,7 @@ async def list_bookmarks(
     )
 
     service = BookmarkService(db)
-    bookmarks = await service.list_bookmarks(category=category, sort_by=sort_by)
+    bookmarks = await service.list_bookmarks(user_id=current_user.id, category=category, sort_by=sort_by)
 
     logger.info(
         "Bookmarks retrieved",
@@ -100,7 +100,7 @@ async def get_bookmark(
     )
 
     service = BookmarkService(db)
-    bookmark = await service.get_bookmark(bookmark_id)
+    bookmark = await service.get_bookmark(bookmark_id, current_user.id)
 
     if not bookmark:
         logger.warning(
@@ -119,7 +119,12 @@ async def get_bookmark(
 
 @router.post("/{bookmark_id}/click", response_model=BookmarkResponse)
 @limiter.limit("20/minute")
-async def track_bookmark_click(request: Request, bookmark_id: int, db: AsyncSession = Depends(get_db)):
+async def track_bookmark_click(
+    request: Request,
+    bookmark_id: int,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(require_auth)
+):
     """
     Track a click on a bookmark.
 
@@ -134,16 +139,16 @@ async def track_bookmark_click(request: Request, bookmark_id: int, db: AsyncSess
     """
     logger.info(
         "Tracking bookmark click",
-        extra={"bookmark_id": bookmark_id}
+        extra={"bookmark_id": bookmark_id, "user_id": current_user.id}
     )
 
     service = BookmarkService(db)
-    bookmark = await service.track_click(bookmark_id)
+    bookmark = await service.track_click(bookmark_id, current_user.id)
 
     if not bookmark:
         logger.warning(
             "Bookmark not found for click tracking",
-            extra={"bookmark_id": bookmark_id}
+            extra={"bookmark_id": bookmark_id, "user_id": current_user.id}
         )
         raise HTTPException(status_code=404, detail="Bookmark not found")
 
@@ -151,6 +156,7 @@ async def track_bookmark_click(request: Request, bookmark_id: int, db: AsyncSess
         "Bookmark click tracked",
         extra={
             "bookmark_id": bookmark_id,
+            "user_id": current_user.id,
             "total_clicks": bookmark.clicks,
         }
     )
@@ -189,7 +195,7 @@ async def create_bookmark(
     )
 
     service = BookmarkService(db)
-    bookmark = await service.create_bookmark(bookmark_data)
+    bookmark = await service.create_bookmark(bookmark_data, current_user.id)
 
     logger.info(
         "Bookmark created",
@@ -234,7 +240,7 @@ async def update_bookmark(
     )
 
     service = BookmarkService(db)
-    bookmark = await service.update_bookmark(bookmark_id, bookmark_data)
+    bookmark = await service.update_bookmark(bookmark_id, bookmark_data, current_user.id)
 
     if not bookmark:
         logger.warning(
@@ -273,7 +279,7 @@ async def delete_bookmark(
     )
 
     service = BookmarkService(db)
-    deleted = await service.delete_bookmark(bookmark_id)
+    deleted = await service.delete_bookmark(bookmark_id, current_user.id)
 
     if not deleted:
         logger.warning(
@@ -312,7 +318,7 @@ async def search_bookmarks(
     )
 
     service = BookmarkService(db)
-    bookmarks = await service.search_bookmarks(q)
+    bookmarks = await service.search_bookmarks(q, current_user.id)
 
     logger.info(
         "Bookmark search completed",
