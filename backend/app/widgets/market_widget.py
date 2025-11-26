@@ -29,14 +29,34 @@ class MarketWidget(BaseWidget):
             )
             return False
 
+        # Filter out empty symbols from stocks and crypto lists
+        if has_stocks:
+            self.config["stocks"] = [s for s in self.config["stocks"] if s and s.strip()]
+        if has_crypto:
+            self.config["crypto"] = [c for c in self.config["crypto"] if c and c.strip()]
+
+        # Re-check if we still have valid data after filtering
+        has_valid_stocks = has_stocks and len(self.config["stocks"]) > 0
+        has_valid_crypto = has_crypto and len(self.config["crypto"]) > 0
+
+        if not has_valid_stocks and not has_valid_crypto:
+            logger.warning(
+                "Market widget must have at least one valid stock or crypto symbol",
+                extra={
+                    "widget_type": self.widget_type,
+                    "widget_id": self.widget_id
+                }
+            )
+            return False
+
         logger.debug(
             "Market widget configuration validated",
             extra={
                 "widget_type": self.widget_type,
                 "widget_id": self.widget_id,
-                "has_stocks": has_stocks,
+                "has_stocks": has_valid_stocks,
                 "num_stocks": len(self.config.get("stocks", [])),
-                "has_crypto": has_crypto,
+                "has_crypto": has_valid_crypto,
                 "num_crypto": len(self.config.get("crypto", []))
             }
         )
