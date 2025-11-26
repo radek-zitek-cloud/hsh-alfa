@@ -12,7 +12,7 @@ from slowapi.errors import RateLimitExceeded
 
 from app.config import settings
 from app.logging_config import setup_logging, get_logger
-from app.api import bookmarks, widgets, sections, preferences, auth
+from app.api import bookmarks, widgets, sections, preferences, auth, export_import
 from app.services.database import init_db, get_db
 from app.services.scheduler import scheduler_service
 from app.services.rate_limit import limiter
@@ -307,6 +307,7 @@ app.include_router(bookmarks.router, prefix="/api/bookmarks", tags=["bookmarks"]
 app.include_router(widgets.router, prefix="/api/widgets", tags=["widgets"])
 app.include_router(sections.router)
 app.include_router(preferences.router, prefix="/api/preferences", tags=["preferences"])
+app.include_router(export_import.router, prefix="/api", tags=["export-import"])
 
 
 @app.get("/")

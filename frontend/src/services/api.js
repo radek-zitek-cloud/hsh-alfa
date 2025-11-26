@@ -116,4 +116,15 @@ export const preferencesApi = {
   set: (key, value) => api.put(`/preferences/${key}`, { value }),
 };
 
+// Export/Import API
+export const exportImportApi = {
+  exportData: (format = 'json') =>
+    api.get('/export', {
+      params: { format },
+      responseType: 'blob' // Important for file download
+    }),
+
+  importData: (data) => api.post('/import', data),
+};
+
 export default api;
