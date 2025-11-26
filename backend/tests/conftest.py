@@ -1,6 +1,9 @@
 """Pytest configuration and fixtures for tests."""
 
+import asyncio
 import os
+import sys
+from unittest.mock import MagicMock, Mock, patch
 
 import pytest
 from httpx import AsyncClient
@@ -11,8 +14,30 @@ os.environ["SECRET_KEY"] = "test-secret-key-for-testing-only"
 os.environ["DATABASE_URL"] = "sqlite+aiosqlite:///:memory:"
 os.environ["REDIS_ENABLED"] = "false"
 
-from app.main import app
-from app.services.database import Base, get_db
+# Mock the connector before importing app modules that use it
+import aiohttp
+
+
+class MockConnector:
+    """Mock connector for testing that doesn't require an event loop."""
+
+    def __init__(self, *args, **kwargs):
+        pass
+
+    async def close(self):
+        pass
+
+
+# Temporarily replace TCPConnector during imports
+original_connector = aiohttp.TCPConnector
+aiohttp.TCPConnector = MockConnector
+
+try:
+    from app.main import app
+    from app.services.database import Base, get_db
+finally:
+    # Restore original connector
+    aiohttp.TCPConnector = original_connector
 
 
 @pytest.fixture
