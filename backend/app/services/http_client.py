@@ -293,7 +293,10 @@ class HttpClient:
 
         # Use SafeTCPConnector to prevent DNS rebinding attacks
         async with aiohttp.ClientSession(
-            timeout=timeout_obj, headers=request_headers, connector=self.connector
+            timeout=timeout_obj,
+            headers=request_headers,
+            connector=self.connector,
+            connector_owner=False,
         ) as session:
             async with session.get(url, params=params, allow_redirects=True) as response:
                 # Check response status
@@ -355,7 +358,10 @@ class HttpClient:
             )
             # Use SafeTCPConnector to prevent DNS rebinding attacks
             async with aiohttp.ClientSession(
-                timeout=timeout_obj, headers=request_headers, connector=self.connector
+                timeout=timeout_obj,
+                headers=request_headers,
+                connector=self.connector,
+                connector_owner=False,
             ) as session:
                 async with session.get(url, params=params, allow_redirects=True) as response:
                     response.raise_for_status()
@@ -438,7 +444,10 @@ class HttpClient:
             )
             # Use SafeTCPConnector to prevent DNS rebinding attacks
             async with aiohttp.ClientSession(
-                timeout=timeout_obj, headers=request_headers, connector=self.connector
+                timeout=timeout_obj,
+                headers=request_headers,
+                connector=self.connector,
+                connector_owner=False,
             ) as session:
                 async with session.get(url, params=params, allow_redirects=True) as response:
                     response.raise_for_status()
@@ -541,7 +550,10 @@ class HttpClient:
 
         # Use SafeTCPConnector to prevent DNS rebinding attacks
         async with aiohttp.ClientSession(
-            timeout=timeout_obj, headers=request_headers, connector=self.connector
+            timeout=timeout_obj,
+            headers=request_headers,
+            connector=self.connector,
+            connector_owner=False,
         ) as session:
             async with session.head(url, allow_redirects=True) as response:
                 response.raise_for_status()
