@@ -1,15 +1,17 @@
 """Tests for HTTP client SSRF protection and DNS rebinding prevention."""
-import pytest
+
 import ipaddress
-from unittest.mock import Mock, AsyncMock, patch
+from unittest.mock import AsyncMock, Mock, patch
+
 import aiohttp
+import pytest
 
 from app.services.http_client import (
+    BlockedIPError,
+    HttpClient,
+    SafeTCPConnector,
     is_blocked_ip,
     is_safe_url,
-    SafeTCPConnector,
-    HttpClient,
-    BlockedIPError
 )
 
 
@@ -95,22 +97,18 @@ class TestSafeURLValidation:
         assert is_safe_url("ftp://example.com/file") is False
         assert is_safe_url("javascript:alert(1)") is False
 
-    @patch('app.services.http_client.socket.getaddrinfo')
+    @patch("app.services.http_client.socket.getaddrinfo")
     def test_blocks_urls_resolving_to_private_ips(self, mock_getaddrinfo):
         """Verify URLs that resolve to private IPs are blocked."""
         # Mock DNS resolution to return a private IP
-        mock_getaddrinfo.return_value = [
-            (None, None, None, None, ("192.168.1.1", 80))
-        ]
+        mock_getaddrinfo.return_value = [(None, None, None, None, ("192.168.1.1", 80))]
         assert is_safe_url("http://malicious.example.com") is False
 
-    @patch('app.services.http_client.socket.getaddrinfo')
+    @patch("app.services.http_client.socket.getaddrinfo")
     def test_allows_urls_resolving_to_public_ips(self, mock_getaddrinfo):
         """Verify URLs that resolve to public IPs are allowed."""
         # Mock DNS resolution to return a public IP
-        mock_getaddrinfo.return_value = [
-            (None, None, None, None, ("8.8.8.8", 80))
-        ]
+        mock_getaddrinfo.return_value = [(None, None, None, None, ("8.8.8.8", 80))]
         assert is_safe_url("http://google.com") is True
 
 
@@ -124,12 +122,10 @@ class TestSafeTCPConnector:
 
         # Mock the parent class _resolve_host to return a private IP
         with patch.object(
-            aiohttp.TCPConnector,
-            '_resolve_host',
-            new_callable=AsyncMock
+            aiohttp.TCPConnector, "_resolve_host", new_callable=AsyncMock
         ) as mock_resolve:
             mock_resolve.return_value = [
-                {'host': '192.168.1.1', 'port': 80, 'family': 2, 'proto': 6, 'flags': 0}
+                {"host": "192.168.1.1", "port": 80, "family": 2, "proto": 6, "flags": 0}
             ]
 
             # Should raise BlockedIPError
@@ -146,12 +142,10 @@ class TestSafeTCPConnector:
         connector = SafeTCPConnector()
 
         with patch.object(
-            aiohttp.TCPConnector,
-            '_resolve_host',
-            new_callable=AsyncMock
+            aiohttp.TCPConnector, "_resolve_host", new_callable=AsyncMock
         ) as mock_resolve:
             mock_resolve.return_value = [
-                {'host': '127.0.0.1', 'port': 80, 'family': 2, 'proto': 6, 'flags': 0}
+                {"host": "127.0.0.1", "port": 80, "family": 2, "proto": 6, "flags": 0}
             ]
 
             with pytest.raises(BlockedIPError):
@@ -165,14 +159,10 @@ class TestSafeTCPConnector:
         connector = SafeTCPConnector()
 
         with patch.object(
-            aiohttp.TCPConnector,
-            '_resolve_host',
-            new_callable=AsyncMock
+            aiohttp.TCPConnector, "_resolve_host", new_callable=AsyncMock
         ) as mock_resolve:
             # Mock resolution to a public IP
-            expected_result = [
-                {'host': '8.8.8.8', 'port': 80, 'family': 2, 'proto': 6, 'flags': 0}
-            ]
+            expected_result = [{"host": "8.8.8.8", "port": 80, "family": 2, "proto": 6, "flags": 0}]
             mock_resolve.return_value = expected_result
 
             # Should not raise an exception
@@ -187,12 +177,10 @@ class TestSafeTCPConnector:
         connector = SafeTCPConnector()
 
         with patch.object(
-            aiohttp.TCPConnector,
-            '_resolve_host',
-            new_callable=AsyncMock
+            aiohttp.TCPConnector, "_resolve_host", new_callable=AsyncMock
         ) as mock_resolve:
             mock_resolve.return_value = [
-                {'host': 'invalid-ip', 'port': 80, 'family': 2, 'proto': 6, 'flags': 0}
+                {"host": "invalid-ip", "port": 80, "family": 2, "proto": 6, "flags": 0}
             ]
 
             with pytest.raises(BlockedIPError) as exc_info:
@@ -261,7 +249,7 @@ class TestHttpClientSSRFProtection:
 
         # This should not raise an error even though localhost is blocked
         # We're not actually making the request, just checking the validation is bypassed
-        with patch.object(aiohttp.ClientSession, 'get', new_callable=AsyncMock) as mock_get:
+        with patch.object(aiohttp.ClientSession, "get", new_callable=AsyncMock) as mock_get:
             mock_response = AsyncMock()
             mock_response.raise_for_status = Mock()
             mock_response.json = AsyncMock(return_value={"test": "data"})
@@ -281,7 +269,7 @@ class TestHttpClientSSRFProtection:
         connector = client.connector
 
         # Mock the session to avoid actual network requests
-        with patch('aiohttp.ClientSession') as mock_session_class:
+        with patch("aiohttp.ClientSession") as mock_session_class:
             mock_session = AsyncMock()
             mock_response = AsyncMock()
             mock_response.raise_for_status = Mock()
@@ -290,7 +278,7 @@ class TestHttpClientSSRFProtection:
             mock_session_class.return_value.__aenter__.return_value = mock_session
 
             # Make multiple requests
-            with patch('app.services.http_client.is_safe_url', return_value=True):
+            with patch("app.services.http_client.is_safe_url", return_value=True):
                 await client.get_json("http://example.com/1")
                 await client.get_json("http://example.com/2")
 
@@ -300,6 +288,6 @@ class TestHttpClientSSRFProtection:
             # Verify session was created with the connector
             calls = mock_session_class.call_args_list
             for call in calls:
-                assert call[1]['connector'] is connector
+                assert call[1]["connector"] is connector
 
         await client.close()

@@ -1,13 +1,15 @@
 """Service for initializing default data for new users."""
-import logging
+
 import json
+import logging
 import uuid
 from datetime import datetime
-from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select
 
-from app.models.user import User
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
+
 from app.models.bookmark import Bookmark
+from app.models.user import User
 from app.models.widget import Widget
 
 logger = logging.getLogger(__name__)
@@ -58,17 +60,13 @@ class UserInitializationService:
     @staticmethod
     async def _user_has_bookmarks(db: AsyncSession, user_id: int) -> bool:
         """Check if user has any bookmarks."""
-        result = await db.execute(
-            select(Bookmark).where(Bookmark.user_id == user_id).limit(1)
-        )
+        result = await db.execute(select(Bookmark).where(Bookmark.user_id == user_id).limit(1))
         return result.scalar_one_or_none() is not None
 
     @staticmethod
     async def _user_has_widgets(db: AsyncSession, user_id: int) -> bool:
         """Check if user has any widgets."""
-        result = await db.execute(
-            select(Widget).where(Widget.user_id == user_id).limit(1)
-        )
+        result = await db.execute(select(Widget).where(Widget.user_id == user_id).limit(1))
         return result.scalar_one_or_none() is not None
 
     @staticmethod

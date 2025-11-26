@@ -1,12 +1,14 @@
 """Widget registry for managing widget types."""
-import logging
-from typing import Dict, Type, List, Optional, Any
-import yaml
-import os
-import json
 
-from app.widgets.base_widget import BaseWidget
+import json
+import logging
+import os
+from typing import Any, Dict, List, Optional, Type
+
+import yaml
+
 from app.config import settings
+from app.widgets.base_widget import BaseWidget
 
 logger = logging.getLogger(__name__)
 
@@ -46,7 +48,9 @@ class WidgetRegistry:
         """
         return self._widget_classes.get(widget_type)
 
-    def create_widget(self, widget_id: str, widget_type: str, config: Dict[str, Any]) -> Optional[BaseWidget]:
+    def create_widget(
+        self, widget_id: str, widget_type: str, config: Dict[str, Any]
+    ) -> Optional[BaseWidget]:
         """
         Create a widget instance.
 
@@ -107,9 +111,10 @@ class WidgetRegistry:
         Load widget configuration from database.
         """
         try:
-            from app.services.database import AsyncSessionLocal
-            from app.models.widget import Widget
             from sqlalchemy import select
+
+            from app.models.widget import Widget
+            from app.services.database import AsyncSessionLocal
 
             async with AsyncSessionLocal() as session:
                 result = await session.execute(select(Widget).where(Widget.enabled == True))

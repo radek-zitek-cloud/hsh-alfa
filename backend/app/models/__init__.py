@@ -1,10 +1,20 @@
 """Database models."""
-from app.models.bookmark import Bookmark, BookmarkCreate, BookmarkUpdate, BookmarkResponse
-from app.models.widget import Widget, WidgetCreate, WidgetUpdate, WidgetResponse, WidgetPosition
-from app.models.preference import Preference, PreferenceUpdate, PreferenceResponse
+
+from app.models.bookmark import Bookmark, BookmarkCreate, BookmarkResponse, BookmarkUpdate
+from app.models.preference import Preference, PreferenceResponse, PreferenceUpdate
+from app.models.widget import Widget, WidgetCreate, WidgetPosition, WidgetResponse, WidgetUpdate
 
 __all__ = [
-    "Bookmark", "BookmarkCreate", "BookmarkUpdate", "BookmarkResponse",
-    "Widget", "WidgetCreate", "WidgetUpdate", "WidgetResponse", "WidgetPosition",
-    "Preference", "PreferenceUpdate", "PreferenceResponse"
+    "Bookmark",
+    "BookmarkCreate",
+    "BookmarkUpdate",
+    "BookmarkResponse",
+    "Widget",
+    "WidgetCreate",
+    "WidgetUpdate",
+    "WidgetResponse",
+    "WidgetPosition",
+    "Preference",
+    "PreferenceUpdate",
+    "PreferenceResponse",
 ]

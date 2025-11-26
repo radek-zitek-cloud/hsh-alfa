@@ -1,9 +1,11 @@
 """User database model."""
+
 from datetime import datetime, timezone
 from typing import Optional
-from sqlalchemy import String, Integer, DateTime, Boolean
-from sqlalchemy.orm import Mapped, mapped_column
+
 from pydantic import BaseModel, EmailStr
+from sqlalchemy import Boolean, DateTime, Integer, String
+from sqlalchemy.orm import Mapped, mapped_column
 
 from app.services.database import Base
 
@@ -19,7 +21,9 @@ class User(Base):
     name: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
     picture: Mapped[Optional[str]] = mapped_column(String(2048), nullable=True)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
-    created_at: Mapped[datetime] = mapped_column(DateTime, default=lambda: datetime.now(timezone.utc), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime, default=lambda: datetime.now(timezone.utc), nullable=False
+    )
     last_login: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
 
     def to_dict(self) -> dict:
@@ -51,6 +55,7 @@ class User(Base):
 # Pydantic schemas for API
 class UserCreate(BaseModel):
     """Schema for creating a user."""
+
     email: EmailStr
     google_id: str
     name: Optional[str] = None
@@ -59,6 +64,7 @@ class UserCreate(BaseModel):
 
 class UserResponse(BaseModel):
     """Schema for user response."""
+
     id: int
     email: str
     name: Optional[str] = None
@@ -73,6 +79,7 @@ class UserResponse(BaseModel):
 
 class TokenResponse(BaseModel):
     """Schema for token response."""
+
     access_token: str
     token_type: str = "bearer"
     user: UserResponse

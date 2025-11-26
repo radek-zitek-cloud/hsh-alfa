@@ -1,5 +1,7 @@
 """Migration: Create users table."""
+
 import logging
+
 from sqlalchemy import text
 
 logger = logging.getLogger(__name__)
@@ -15,14 +17,16 @@ async def run_migration(engine):
 
     async with engine.begin() as conn:
         # Check if users table already exists
-        result = await conn.execute(text(
-            "SELECT name FROM sqlite_master WHERE type='table' AND name='users'"
-        ))
+        result = await conn.execute(
+            text("SELECT name FROM sqlite_master WHERE type='table' AND name='users'")
+        )
         table_exists = result.fetchone() is not None
 
         if not table_exists:
             logger.info("Creating users table...")
-            await conn.execute(text("""
+            await conn.execute(
+                text(
+                    """
                 CREATE TABLE users (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
                     email VARCHAR(255) NOT NULL UNIQUE,
@@ -33,15 +37,15 @@ async def run_migration(engine):
                     created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
                     last_login DATETIME
                 )
-            """))
+            """
+                )
+            )
 
             # Create indexes
-            await conn.execute(text(
-                "CREATE INDEX IF NOT EXISTS idx_users_email ON users(email)"
-            ))
-            await conn.execute(text(
-                "CREATE INDEX IF NOT EXISTS idx_users_google_id ON users(google_id)"
-            ))
+            await conn.execute(text("CREATE INDEX IF NOT EXISTS idx_users_email ON users(email)"))
+            await conn.execute(
+                text("CREATE INDEX IF NOT EXISTS idx_users_google_id ON users(google_id)")
+            )
 
             logger.info("Users table created successfully")
         else:

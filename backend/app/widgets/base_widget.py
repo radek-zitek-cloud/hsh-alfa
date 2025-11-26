@@ -1,10 +1,12 @@
 """Base widget class for all widgets."""
+
+import hashlib
+import json
 from abc import ABC, abstractmethod
 from datetime import datetime
 from typing import Any, Dict, Optional
+
 from app.logging_config import get_logger
-import hashlib
-import json
 
 logger = get_logger(__name__)
 
@@ -81,17 +83,14 @@ class BaseWidget(ABC):
         if not self.enabled:
             logger.debug(
                 "Widget is disabled",
-                extra={
-                    "widget_type": self.widget_type,
-                    "widget_id": self.widget_id
-                }
+                extra={"widget_type": self.widget_type, "widget_id": self.widget_id},
             )
             return {
                 "widget_id": self.widget_id,
                 "widget_type": self.widget_type,
                 "enabled": False,
                 "data": None,
-                "error": "Widget is disabled"
+                "error": "Widget is disabled",
             }
 
         try:
@@ -99,34 +98,25 @@ class BaseWidget(ABC):
             if not self.validate_config():
                 logger.warning(
                     "Invalid widget configuration",
-                    extra={
-                        "widget_type": self.widget_type,
-                        "widget_id": self.widget_id
-                    }
+                    extra={"widget_type": self.widget_type, "widget_id": self.widget_id},
                 )
                 return {
                     "widget_id": self.widget_id,
                     "widget_type": self.widget_type,
                     "error": "Invalid widget configuration",
-                    "last_updated": self.get_timestamp()
+                    "last_updated": self.get_timestamp(),
                 }
 
             # Fetch data
             logger.info(
                 "Fetching widget data",
-                extra={
-                    "widget_type": self.widget_type,
-                    "widget_id": self.widget_id
-                }
+                extra={"widget_type": self.widget_type, "widget_id": self.widget_id},
             )
             data = await self.fetch_data()
 
             logger.debug(
                 "Widget data fetch completed successfully",
-                extra={
-                    "widget_type": self.widget_type,
-                    "widget_id": self.widget_id
-                }
+                extra={"widget_type": self.widget_type, "widget_id": self.widget_id},
             )
 
             return {
@@ -134,7 +124,7 @@ class BaseWidget(ABC):
                 "widget_type": self.widget_type,
                 "data": data,
                 "last_updated": self.get_timestamp(),
-                "error": None
+                "error": None,
             }
 
         except Exception as e:
@@ -143,15 +133,15 @@ class BaseWidget(ABC):
                 extra={
                     "widget_type": self.widget_type,
                     "widget_id": self.widget_id,
-                    "error_type": type(e).__name__
+                    "error_type": type(e).__name__,
                 },
-                exc_info=True
+                exc_info=True,
             )
             return {
                 "widget_id": self.widget_id,
                 "widget_type": self.widget_type,
                 "error": str(e),
-                "last_updated": self.get_timestamp()
+                "last_updated": self.get_timestamp(),
             }
 
     def transform_data(self, raw_data: Any) -> Dict[str, Any]:

@@ -4,8 +4,10 @@ Section business logic service.
 This service contains the business logic for widget section management,
 separated from the API layer for better maintainability and testability.
 """
+
 import logging
-from typing import List, Optional, Dict, Any
+from typing import Any, Dict, List, Optional
+
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -26,9 +28,27 @@ async def initialize_default_sections(db: AsyncSession):
 
     if not existing:
         default_sections = [
-            {"name": "weather", "title": "Weather", "position": 0, "enabled": True, "widget_ids": ""},
-            {"name": "rates", "title": "Exchange Rates", "position": 1, "enabled": True, "widget_ids": ""},
-            {"name": "markets", "title": "Markets", "position": 2, "enabled": True, "widget_ids": ""},
+            {
+                "name": "weather",
+                "title": "Weather",
+                "position": 0,
+                "enabled": True,
+                "widget_ids": "",
+            },
+            {
+                "name": "rates",
+                "title": "Exchange Rates",
+                "position": 1,
+                "enabled": True,
+                "widget_ids": "",
+            },
+            {
+                "name": "markets",
+                "title": "Markets",
+                "position": 2,
+                "enabled": True,
+                "widget_ids": "",
+            },
             {"name": "news", "title": "News", "position": 3, "enabled": True, "widget_ids": ""},
         ]
 
@@ -59,9 +79,7 @@ class SectionService:
         Returns:
             List of sections ordered by position
         """
-        result = await self.db.execute(
-            select(Section).order_by(Section.position)
-        )
+        result = await self.db.execute(select(Section).order_by(Section.position))
         return result.scalars().all()
 
     async def get_section(self, section_id: int) -> Optional[Section]:
@@ -74,9 +92,7 @@ class SectionService:
         Returns:
             Section if found, None otherwise
         """
-        result = await self.db.execute(
-            select(Section).where(Section.id == section_id)
-        )
+        result = await self.db.execute(select(Section).where(Section.id == section_id))
         return result.scalar_one_or_none()
 
     async def create_section(self, section_data: SectionCreate) -> Optional[Section]:
@@ -90,9 +106,7 @@ class SectionService:
             Created section, or None if section with same name exists
         """
         # Check if section with same name already exists
-        result = await self.db.execute(
-            select(Section).where(Section.name == section_data.name)
-        )
+        result = await self.db.execute(select(Section).where(Section.name == section_data.name))
         existing = result.scalar_one_or_none()
 
         if existing:
@@ -117,9 +131,7 @@ class SectionService:
         return section
 
     async def update_section(
-        self,
-        section_id: int,
-        section_data: SectionUpdate
+        self, section_id: int, section_data: SectionUpdate
     ) -> Optional[Section]:
         """
         Update a section.
@@ -131,9 +143,7 @@ class SectionService:
         Returns:
             Updated section if found, None otherwise
         """
-        result = await self.db.execute(
-            select(Section).where(Section.id == section_id)
-        )
+        result = await self.db.execute(select(Section).where(Section.id == section_id))
         section = result.scalar_one_or_none()
 
         if not section:
@@ -165,9 +175,7 @@ class SectionService:
         Returns:
             True if section was deleted, False if not found
         """
-        result = await self.db.execute(
-            select(Section).where(Section.id == section_id)
-        )
+        result = await self.db.execute(select(Section).where(Section.id == section_id))
         section = result.scalar_one_or_none()
 
         if not section:
@@ -203,9 +211,7 @@ class SectionService:
         await self.db.commit()
 
         # Return updated sections ordered by position
-        result = await self.db.execute(
-            select(Section).order_by(Section.position)
-        )
+        result = await self.db.execute(select(Section).order_by(Section.position))
         updated_sections = result.scalars().all()
 
         logger.info("Reordered sections")

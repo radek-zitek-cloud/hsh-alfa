@@ -1,16 +1,18 @@
 """Export/Import API endpoints."""
+
 from datetime import datetime
 from typing import Literal
-from fastapi import APIRouter, Depends, HTTPException, status, Request
+
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from fastapi.responses import Response
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.api.dependencies import require_auth
+from app.logging_config import get_logger
+from app.models.user import User
 from app.services.database import get_db
 from app.services.export_import_service import ExportImportService
 from app.services.rate_limit import limiter
-from app.api.dependencies import require_auth
-from app.models.user import User
-from app.logging_config import get_logger
 
 logger = get_logger(__name__)
 router = APIRouter()
@@ -22,7 +24,7 @@ async def export_data(
     request: Request,
     format: Literal["json", "yaml", "toml", "xml", "csv"] = "json",
     db: AsyncSession = Depends(get_db),
-    user: User = Depends(require_auth)
+    user: User = Depends(require_auth),
 ):
     """
     Export complete application database in specified format.
@@ -41,11 +43,7 @@ async def export_data(
     try:
         logger.info(
             "Starting data export",
-            extra={
-                "user_id": user.id,
-                "user_email": user.email,
-                "format": format
-            }
+            extra={"user_id": user.id, "user_email": user.email, "format": format},
         )
 
         # Export all data for the current user
@@ -75,8 +73,7 @@ async def export_data(
             filename = f"home-sweet-home-export-{datetime.now().strftime('%Y%m%d-%H%M%S')}.csv"
         else:
             raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"Unsupported format: {format}"
+                status_code=status.HTTP_400_BAD_REQUEST, detail=f"Unsupported format: {format}"
             )
 
         logger.info(
@@ -87,8 +84,8 @@ async def export_data(
                 "total_bookmarks": data["statistics"]["total_bookmarks"],
                 "total_widgets": data["statistics"]["total_widgets"],
                 "total_sections": data["statistics"]["total_sections"],
-                "total_preferences": data["statistics"]["total_preferences"]
-            }
+                "total_preferences": data["statistics"]["total_preferences"],
+            },
         )
 
         # Return file download
@@ -99,8 +96,8 @@ async def export_data(
                 "Content-Disposition": f'attachment; filename="{filename}"',
                 "Cache-Control": "no-cache, no-store, must-revalidate",
                 "Pragma": "no-cache",
-                "Expires": "0"
-            }
+                "Expires": "0",
+            },
         )
 
     except Exception as e:
@@ -110,22 +107,19 @@ async def export_data(
                 "user_id": user.id,
                 "format": format,
                 "error": str(e),
-                "error_type": type(e).__name__
+                "error_type": type(e).__name__,
             },
-            exc_info=True
+            exc_info=True,
         )
         raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Export failed: {str(e)}"
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Export failed: {str(e)}"
         )
 
 
 @router.post("/import")
 @limiter.limit("5/minute")  # Even stricter limit for import
 async def import_data(
-    request: Request,
-    db: AsyncSession = Depends(get_db),
-    user: User = Depends(require_auth)
+    request: Request, db: AsyncSession = Depends(get_db), user: User = Depends(require_auth)
 ):
     """
     Import application data (placeholder - not yet implemented).
@@ -140,11 +134,8 @@ async def import_data(
     Raises:
         HTTPException: Not implemented yet
     """
-    logger.warning(
-        "Import endpoint called but not implemented",
-        extra={"user_id": user.id}
-    )
+    logger.warning("Import endpoint called but not implemented", extra={"user_id": user.id})
     raise HTTPException(
         status_code=status.HTTP_501_NOT_IMPLEMENTED,
-        detail="Import functionality is not yet implemented"
+        detail="Import functionality is not yet implemented",
     )

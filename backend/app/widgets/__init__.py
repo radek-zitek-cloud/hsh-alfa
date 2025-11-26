@@ -1,9 +1,10 @@
 """Widget implementations."""
+
 from app.widgets.base_widget import BaseWidget
-from app.widgets.weather_widget import WeatherWidget
 from app.widgets.exchange_rate_widget import ExchangeRateWidget
-from app.widgets.news_widget import NewsWidget
 from app.widgets.market_widget import MarketWidget
+from app.widgets.news_widget import NewsWidget
+from app.widgets.weather_widget import WeatherWidget
 
 
 def register_all_widgets():
@@ -22,5 +23,5 @@ __all__ = [
     "ExchangeRateWidget",
     "NewsWidget",
     "MarketWidget",
-    "register_all_widgets"
+    "register_all_widgets",
 ]

@@ -1,19 +1,19 @@
 """Logging utilities for sanitizing sensitive data."""
+
 import re
 from typing import Any, Dict
 
-
 # Patterns that indicate sensitive data
 SENSITIVE_PATTERNS = [
-    r'api[_-]?key',
-    r'password',
-    r'secret',
-    r'token',
-    r'auth',
-    r'credential',
-    r'private[_-]?key',
-    r'access[_-]?key',
-    r'bearer',
+    r"api[_-]?key",
+    r"password",
+    r"secret",
+    r"token",
+    r"auth",
+    r"credential",
+    r"private[_-]?key",
+    r"access[_-]?key",
+    r"bearer",
 ]
 
 

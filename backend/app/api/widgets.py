@@ -1,21 +1,23 @@
 """Widget API endpoints."""
+
 import json
 import uuid
-from typing import Dict, Any, List
-from fastapi import APIRouter, HTTPException, Depends, Request
-from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select
-from pydantic import ValidationError
+from typing import Any, Dict, List
 
-from app.logging_config import get_logger
-from app.services.widget_registry import get_widget_registry, WidgetRegistry
-from app.services.cache import get_cache_service, CacheService
-from app.services.rate_limit import limiter
-from app.services.database import get_db
-from app.models.widget import Widget, WidgetCreate, WidgetUpdate, WidgetResponse
-from app.models.widget_configs import validate_widget_config
-from app.models.user import User
+from fastapi import APIRouter, Depends, HTTPException, Request
+from pydantic import ValidationError
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
+
 from app.api.dependencies import require_auth
+from app.logging_config import get_logger
+from app.models.user import User
+from app.models.widget import Widget, WidgetCreate, WidgetResponse, WidgetUpdate
+from app.models.widget_configs import validate_widget_config
+from app.services.cache import CacheService, get_cache_service
+from app.services.database import get_db
+from app.services.rate_limit import limiter
+from app.services.widget_registry import WidgetRegistry, get_widget_registry
 from app.utils.logging import sanitize_log_dict
 
 logger = get_logger(__name__)
@@ -26,9 +28,7 @@ router = APIRouter()
 @router.get("/", response_model=List[WidgetResponse])
 @limiter.limit("100/minute")
 async def list_widgets(
-    request: Request,
-    db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(require_auth)
+    request: Request, db: AsyncSession = Depends(get_db), current_user: User = Depends(require_auth)
 ):
     """
     List all widget configurations from database.
@@ -39,17 +39,13 @@ async def list_widgets(
     Returns:
         List of widget configurations
     """
-    logger.debug(
-        "Listing all widget configurations",
-        extra={"user_id": current_user.id}
-    )
+    logger.debug("Listing all widget configurations", extra={"user_id": current_user.id})
 
     result = await db.execute(select(Widget).where(Widget.user_id == current_user.id))
     widgets = result.scalars().all()
 
     logger.info(
-        "Widget configurations retrieved",
-        extra={"count": len(widgets), "user_id": current_user.id}
+        "Widget configurations retrieved", extra={"count": len(widgets), "user_id": current_user.id}
     )
 
     return [WidgetResponse(**widget.to_dict()) for widget in widgets]
@@ -58,8 +54,7 @@ async def list_widgets(
 @router.get("/types")
 @limiter.limit("100/minute")
 async def list_widget_types(
-    request: Request,
-    registry: WidgetRegistry = Depends(get_widget_registry)
+    request: Request, registry: WidgetRegistry = Depends(get_widget_registry)
 ):
     """
     List all available widget types.
@@ -72,12 +67,9 @@ async def list_widget_types(
     """
     widget_types = registry.list_widget_types()
     logger.debug(
-        "Listing widget types",
-        extra={"types_count": len(widget_types), "types": widget_types}
+        "Listing widget types", extra={"types_count": len(widget_types), "types": widget_types}
     )
-    return {
-        "widget_types": widget_types
-    }
+    return {"widget_types": widget_types}
 
 
 @router.get("/{widget_id}")
@@ -86,7 +78,7 @@ async def get_widget_config(
     request: Request,
     widget_id: str,
     registry: WidgetRegistry = Depends(get_widget_registry),
-    current_user: User = Depends(require_auth)
+    current_user: User = Depends(require_auth),
 ):
     """
     Get widget configuration.
@@ -99,8 +91,7 @@ async def get_widget_config(
         Widget configuration
     """
     logger.debug(
-        "Getting widget configuration",
-        extra={"widget_id": widget_id, "user_id": current_user.id}
+        "Getting widget configuration", extra={"widget_id": widget_id, "user_id": current_user.id}
     )
 
     widget = registry.get_widget(widget_id)
@@ -108,7 +99,7 @@ async def get_widget_config(
     if not widget:
         logger.warning(
             "Widget configuration not found",
-            extra={"widget_id": widget_id, "user_id": current_user.id}
+            extra={"widget_id": widget_id, "user_id": current_user.id},
         )
         raise HTTPException(status_code=404, detail=f"Widget {widget_id} not found")
 
@@ -118,14 +109,14 @@ async def get_widget_config(
             "widget_id": widget_id,
             "widget_type": widget.widget_type,
             "user_id": current_user.id,
-        }
+        },
     )
 
     return {
         "widget_id": widget_id,
         "widget_type": widget.widget_type,
         "config": widget.config,
-        "enabled": widget.enabled
+        "enabled": widget.enabled,
     }
 
 
@@ -137,7 +128,7 @@ async def get_widget_data(
     force_refresh: bool = False,
     registry: WidgetRegistry = Depends(get_widget_registry),
     cache: CacheService = Depends(get_cache_service),
-    current_user: User = Depends(require_auth)
+    current_user: User = Depends(require_auth),
 ):
     """
     Get widget data (with caching).
@@ -159,7 +150,7 @@ async def get_widget_data(
             "widget_id": widget_id,
             "force_refresh": force_refresh,
             "user_id": current_user.id,
-        }
+        },
     )
 
     widget = registry.get_widget(widget_id)
@@ -167,7 +158,7 @@ async def get_widget_data(
     if not widget:
         logger.warning(
             "Widget not found for data retrieval",
-            extra={"widget_id": widget_id, "user_id": current_user.id}
+            extra={"widget_id": widget_id, "user_id": current_user.id},
         )
         raise HTTPException(status_code=404, detail=f"Widget {widget_id} not found")
 
@@ -177,36 +168,32 @@ async def get_widget_data(
         if cached_data:
             logger.debug(
                 "Widget data cache hit",
-                extra={"widget_id": widget_id, "cache_key": widget.get_cache_key()}
+                extra={"widget_id": widget_id, "cache_key": widget.get_cache_key()},
             )
             return cached_data
 
     # Fetch fresh data
     logger.info(
         "Fetching fresh widget data",
-        extra={"widget_id": widget_id, "widget_type": widget.widget_type}
+        extra={"widget_id": widget_id, "widget_type": widget.widget_type},
     )
     data = await widget.get_data()
 
     # Cache the result if no error
     if not data.get("error"):
-        await cache.set(
-            widget.get_cache_key(),
-            data,
-            ttl=widget.refresh_interval
-        )
+        await cache.set(widget.get_cache_key(), data, ttl=widget.refresh_interval)
         logger.debug(
             "Widget data cached",
             extra={
                 "widget_id": widget_id,
                 "cache_key": widget.get_cache_key(),
                 "ttl": widget.refresh_interval,
-            }
+            },
         )
     else:
         logger.warning(
             "Widget data fetch returned error",
-            extra={"widget_id": widget_id, "error": data.get("error")}
+            extra={"widget_id": widget_id, "error": data.get("error")},
         )
 
     return data
@@ -219,7 +206,7 @@ async def refresh_widget(
     widget_id: str,
     registry: WidgetRegistry = Depends(get_widget_registry),
     cache: CacheService = Depends(get_cache_service),
-    current_user: User = Depends(require_auth)
+    current_user: User = Depends(require_auth),
 ):
     """
     Force refresh widget data.
@@ -235,8 +222,7 @@ async def refresh_widget(
         Fresh widget data
     """
     logger.info(
-        "Refreshing widget data",
-        extra={"widget_id": widget_id, "user_id": current_user.id}
+        "Refreshing widget data", extra={"widget_id": widget_id, "user_id": current_user.id}
     )
 
     widget = registry.get_widget(widget_id)
@@ -244,15 +230,14 @@ async def refresh_widget(
     if not widget:
         logger.warning(
             "Widget not found for refresh",
-            extra={"widget_id": widget_id, "user_id": current_user.id}
+            extra={"widget_id": widget_id, "user_id": current_user.id},
         )
         raise HTTPException(status_code=404, detail=f"Widget {widget_id} not found")
 
     # Clear cache
     await cache.delete(widget.get_cache_key())
     logger.debug(
-        "Widget cache cleared",
-        extra={"widget_id": widget_id, "cache_key": widget.get_cache_key()}
+        "Widget cache cleared", extra={"widget_id": widget_id, "cache_key": widget.get_cache_key()}
     )
 
     # Fetch fresh data
@@ -260,11 +245,7 @@ async def refresh_widget(
 
     # Cache the result if no error
     if not data.get("error"):
-        await cache.set(
-            widget.get_cache_key(),
-            data,
-            ttl=widget.refresh_interval
-        )
+        await cache.set(widget.get_cache_key(), data, ttl=widget.refresh_interval)
 
     logger.info(
         "Widget refreshed successfully",
@@ -272,7 +253,7 @@ async def refresh_widget(
             "widget_id": widget_id,
             "widget_type": widget.widget_type,
             "has_error": bool(data.get("error")),
-        }
+        },
     )
 
     return data
@@ -285,7 +266,7 @@ async def create_widget(
     widget_data: WidgetCreate,
     db: AsyncSession = Depends(get_db),
     registry: WidgetRegistry = Depends(get_widget_registry),
-    current_user: User = Depends(require_auth)
+    current_user: User = Depends(require_auth),
 ):
     """
     Create a new widget.
@@ -304,7 +285,7 @@ async def create_widget(
             "widget_type": widget_data.type,
             "enabled": widget_data.enabled,
             "user_id": current_user.id,
-        }
+        },
     )
 
     # Generate a unique widget ID
@@ -318,7 +299,7 @@ async def create_widget(
                 "widget_type": widget_data.type,
                 "valid_types": registry.list_widget_types(),
                 "user_id": current_user.id,
-            }
+            },
         )
         raise HTTPException(status_code=400, detail=f"Invalid widget type '{widget_data.type}'")
 
@@ -331,7 +312,7 @@ async def create_widget(
                 "widget_type": widget_data.type,
                 "user_id": current_user.id,
                 "config_keys": list(validated_config.keys()),
-            }
+            },
         )
     except ValidationError as e:
         logger.warning(
@@ -341,12 +322,9 @@ async def create_widget(
                 "validation_errors": str(e),
                 "user_id": current_user.id,
                 "config_preview": sanitize_log_dict(widget_data.config, max_length=30),
-            }
+            },
         )
-        raise HTTPException(
-            status_code=400,
-            detail=f"Invalid widget configuration: {str(e)}"
-        )
+        raise HTTPException(status_code=400, detail=f"Invalid widget configuration: {str(e)}")
     except ValueError as e:
         logger.warning(
             "Widget configuration validation failed",
@@ -355,7 +333,7 @@ async def create_widget(
                 "error": str(e),
                 "user_id": current_user.id,
                 "config_preview": sanitize_log_dict(widget_data.config, max_length=30),
-            }
+            },
         )
         raise HTTPException(status_code=400, detail=str(e))
 
@@ -370,7 +348,7 @@ async def create_widget(
         position_width=widget_data.position.width,
         position_height=widget_data.position.height,
         refresh_interval=widget_data.refresh_interval,
-        config=json.dumps(validated_config)
+        config=json.dumps(validated_config),
     )
 
     db.add(widget)
@@ -396,7 +374,7 @@ async def create_widget(
             "widget_type": widget_data.type,
             "enabled": widget_data.enabled,
             "user_id": current_user.id,
-        }
+        },
     )
 
     return WidgetResponse(**widget.to_dict())
@@ -411,7 +389,7 @@ async def update_widget(
     db: AsyncSession = Depends(get_db),
     registry: WidgetRegistry = Depends(get_widget_registry),
     cache: CacheService = Depends(get_cache_service),
-    current_user: User = Depends(require_auth)
+    current_user: User = Depends(require_auth),
 ):
     """
     Update an existing widget.
@@ -426,24 +404,18 @@ async def update_widget(
     Returns:
         Updated widget configuration
     """
-    logger.info(
-        "Updating widget",
-        extra={"widget_id": widget_id, "user_id": current_user.id}
-    )
+    logger.info("Updating widget", extra={"widget_id": widget_id, "user_id": current_user.id})
 
     # Find widget
     result = await db.execute(
-        select(Widget).where(
-            Widget.widget_id == widget_id,
-            Widget.user_id == current_user.id
-        )
+        select(Widget).where(Widget.widget_id == widget_id, Widget.user_id == current_user.id)
     )
     widget = result.scalar_one_or_none()
 
     if not widget:
         logger.warning(
             "Widget not found for update",
-            extra={"widget_id": widget_id, "user_id": current_user.id}
+            extra={"widget_id": widget_id, "user_id": current_user.id},
         )
         raise HTTPException(status_code=404, detail=f"Widget '{widget_id}' not found")
 
@@ -477,7 +449,7 @@ async def update_widget(
                     "widget_type": widget.widget_type,
                     "user_id": current_user.id,
                     "config_keys": list(validated_config.keys()),
-                }
+                },
             )
         except ValidationError as e:
             logger.warning(
@@ -488,12 +460,9 @@ async def update_widget(
                     "validation_errors": str(e),
                     "user_id": current_user.id,
                     "config_preview": sanitize_log_dict(widget_data.config, max_length=30),
-                }
+                },
             )
-            raise HTTPException(
-                status_code=400,
-                detail=f"Invalid widget configuration: {str(e)}"
-            )
+            raise HTTPException(status_code=400, detail=f"Invalid widget configuration: {str(e)}")
         except ValueError as e:
             logger.warning(
                 "Widget configuration validation failed during update",
@@ -503,7 +472,7 @@ async def update_widget(
                     "error": str(e),
                     "user_id": current_user.id,
                     "config_preview": sanitize_log_dict(widget_data.config, max_length=30),
-                }
+                },
             )
             raise HTTPException(status_code=400, detail=str(e))
 
@@ -524,7 +493,7 @@ async def update_widget(
         await cache.delete(old_widget.get_cache_key())
         logger.debug(
             "Widget cache cleared after update",
-            extra={"widget_id": widget_id, "cache_key": old_widget.get_cache_key()}
+            extra={"widget_id": widget_id, "cache_key": old_widget.get_cache_key()},
         )
 
     logger.info(
@@ -533,7 +502,7 @@ async def update_widget(
             "widget_id": widget_id,
             "widget_type": widget_dict["type"],
             "user_id": current_user.id,
-        }
+        },
     )
 
     return WidgetResponse(**widget.to_dict())
@@ -547,7 +516,7 @@ async def delete_widget(
     db: AsyncSession = Depends(get_db),
     registry: WidgetRegistry = Depends(get_widget_registry),
     cache: CacheService = Depends(get_cache_service),
-    current_user: User = Depends(require_auth)
+    current_user: User = Depends(require_auth),
 ):
     """
     Delete a widget.
@@ -561,24 +530,18 @@ async def delete_widget(
     Returns:
         No content (204)
     """
-    logger.info(
-        "Deleting widget",
-        extra={"widget_id": widget_id, "user_id": current_user.id}
-    )
+    logger.info("Deleting widget", extra={"widget_id": widget_id, "user_id": current_user.id})
 
     # Find widget
     result = await db.execute(
-        select(Widget).where(
-            Widget.widget_id == widget_id,
-            Widget.user_id == current_user.id
-        )
+        select(Widget).where(Widget.widget_id == widget_id, Widget.user_id == current_user.id)
     )
     widget = result.scalar_one_or_none()
 
     if not widget:
         logger.warning(
             "Widget not found for deletion",
-            extra={"widget_id": widget_id, "user_id": current_user.id}
+            extra={"widget_id": widget_id, "user_id": current_user.id},
         )
         raise HTTPException(status_code=404, detail=f"Widget '{widget_id}' not found")
 
@@ -601,7 +564,7 @@ async def delete_widget(
             "widget_id": widget_id,
             "widget_type": widget.widget_type,
             "user_id": current_user.id,
-        }
+        },
     )
 
 
@@ -611,7 +574,7 @@ async def reload_widget_config(
     request: Request,
     registry: WidgetRegistry = Depends(get_widget_registry),
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(require_auth)
+    current_user: User = Depends(require_auth),
 ):
     """
     Reload widget configuration from database.
@@ -623,20 +586,14 @@ async def reload_widget_config(
     Returns:
         Status message
     """
-    logger.info(
-        "Reloading widget configuration from database",
-        extra={"user_id": current_user.id}
-    )
+    logger.info("Reloading widget configuration from database", extra={"user_id": current_user.id})
 
     # Clear existing instances
     registry._widget_instances.clear()
 
     # Load all widgets from database for current user
     result = await db.execute(
-        select(Widget).where(
-            Widget.enabled == True,
-            Widget.user_id == current_user.id
-        )
+        select(Widget).where(Widget.enabled == True, Widget.user_id == current_user.id)
     )
     widgets = result.scalars().all()
 
@@ -650,11 +607,11 @@ async def reload_widget_config(
 
     logger.info(
         "Widget configuration reloaded from database",
-        extra={"widget_count": len(widgets), "user_id": current_user.id}
+        extra={"widget_count": len(widgets), "user_id": current_user.id},
     )
 
     return {
         "status": "success",
         "message": "Widget configuration reloaded from database",
-        "widget_count": len(widgets)
+        "widget_count": len(widgets),
     }

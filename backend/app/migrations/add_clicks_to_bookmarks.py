@@ -1,5 +1,7 @@
 """Migration: Add clicks column to bookmarks table."""
+
 import logging
+
 from sqlalchemy import text
 
 logger = logging.getLogger(__name__)

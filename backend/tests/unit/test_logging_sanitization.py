@@ -1,11 +1,8 @@
 """Unit tests for logging sanitization utilities."""
+
 import pytest
 
-from app.utils.logging import (
-    is_sensitive_key,
-    sanitize_log_value,
-    sanitize_log_dict,
-)
+from app.utils.logging import is_sensitive_key, sanitize_log_dict, sanitize_log_value
 
 
 class TestIsSensitiveKey:
@@ -142,7 +139,7 @@ class TestSanitizeLogDict:
             "location": "Prague",
             "api_key": "sk-1234567890",
             "username": "john_doe",
-            "password": "secret123"
+            "password": "secret123",
         }
         result = sanitize_log_dict(data)
 
@@ -158,10 +155,7 @@ class TestSanitizeLogDict:
 
     def test_truncates_long_values_in_dictionary(self):
         """Test that long values in dictionary are truncated."""
-        data = {
-            "description": "A" * 100,
-            "title": "Short title"
-        }
+        data = {"description": "A" * 100, "title": "Short title"}
         result = sanitize_log_dict(data, max_length=50)
 
         assert result["description"] == "A" * 50 + "..."
@@ -169,10 +163,7 @@ class TestSanitizeLogDict:
 
     def test_handles_nested_structures_as_strings(self):
         """Test handling of nested structures (converted to strings)."""
-        data = {
-            "config": {"nested": "value"},
-            "items": [1, 2, 3]
-        }
+        data = {"config": {"nested": "value"}, "items": [1, 2, 3]}
         result = sanitize_log_dict(data)
 
         # Nested structures are converted to strings
@@ -181,10 +172,7 @@ class TestSanitizeLogDict:
 
     def test_custom_max_length_in_dictionary(self):
         """Test custom max_length parameter for dictionary."""
-        data = {
-            "text1": "Hello World!",
-            "text2": "Short"
-        }
+        data = {"text1": "Hello World!", "text2": "Short"}
         result = sanitize_log_dict(data, max_length=5)
 
         assert result["text1"] == "Hello..."
@@ -192,11 +180,7 @@ class TestSanitizeLogDict:
 
     def test_preserves_all_keys(self):
         """Test that all keys are preserved in result."""
-        data = {
-            "key1": "value1",
-            "key2": "value2",
-            "key3": "value3"
-        }
+        data = {"key1": "value1", "key2": "value2", "key3": "value3"}
         result = sanitize_log_dict(data)
 
         assert set(result.keys()) == set(data.keys())

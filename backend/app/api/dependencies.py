@@ -1,8 +1,10 @@
 """API dependencies for authentication and authorization."""
+
 import logging
 from typing import Optional
-from fastapi import Depends, HTTPException, status, Request
-from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
+
+from fastapi import Depends, HTTPException, Request, status
+from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.user import User
@@ -15,7 +17,7 @@ security = HTTPBearer(auto_error=False)
 
 async def get_current_user(
     credentials: Optional[HTTPAuthorizationCredentials] = Depends(security),
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
 ) -> Optional[User]:
     """Get current authenticated user from JWT token.
 
@@ -73,16 +75,13 @@ async def get_current_user(
 
     if not user.is_active:
         raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="User account is inactive"
+            status_code=status.HTTP_403_FORBIDDEN, detail="User account is inactive"
         )
 
     return user
 
 
-async def require_auth(
-    user: Optional[User] = Depends(get_current_user)
-) -> User:
+async def require_auth(user: Optional[User] = Depends(get_current_user)) -> User:
     """Require authentication - raises 401 if user is not authenticated.
 
     Args:
