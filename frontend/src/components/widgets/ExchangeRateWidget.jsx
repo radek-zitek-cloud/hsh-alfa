@@ -59,7 +59,9 @@ const ExchangeRateWidget = ({ widgetId, config }) => {
             if (!rate || !rate.currency) return null
             const rateValue = rate.rate ?? 0
             const reverseRateValue = rate.reverse_rate ?? 0
-            const yahooFinanceUrl = `https://finance.yahoo.com/quote/${rateData.base_currency}${rate.currency}=X/`
+            const baseCurrency = encodeURIComponent(rateData.base_currency)
+            const targetCurrency = encodeURIComponent(rate.currency)
+            const yahooFinanceUrl = `https://finance.yahoo.com/quote/${baseCurrency}${targetCurrency}=X/`
 
             return (
               <a
@@ -67,6 +69,7 @@ const ExchangeRateWidget = ({ widgetId, config }) => {
                 href={yahooFinanceUrl}
                 target="_blank"
                 rel="noopener noreferrer"
+                aria-label={`View ${rateData.base_currency} to ${rate.currency} exchange rate details on Yahoo Finance`}
                 className="flex items-center justify-between p-2 bg-[var(--bg-primary)] rounded border border-[var(--border-color)] hover:border-[var(--accent-color)] hover:bg-[var(--bg-hover)] transition-colors cursor-pointer group"
               >
                 <div className="flex items-center gap-2">
