@@ -127,4 +127,32 @@ export const exportImportApi = {
   importData: (data) => api.post('/import', data),
 };
 
+// Admin API
+export const adminApi = {
+  // Users
+  getUsers: () => api.get('/admin/users'),
+
+  getUser: (id) => api.get(`/admin/users/${id}`),
+
+  updateUser: (id, data) => api.put(`/admin/users/${id}`, data),
+
+  // Bookmarks
+  getBookmarks: (userId = null) => {
+    const params = {};
+    if (userId) params.user_id = userId;
+    return api.get('/admin/bookmarks', { params });
+  },
+
+  deleteBookmark: (id) => api.delete(`/admin/bookmarks/${id}`),
+
+  // Widgets
+  getWidgets: (userId = null) => {
+    const params = {};
+    if (userId) params.user_id = userId;
+    return api.get('/admin/widgets', { params });
+  },
+
+  deleteWidget: (id) => api.delete(`/admin/widgets/${id}`),
+};
+
 export default api;

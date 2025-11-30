@@ -3,12 +3,12 @@
 import logging
 from typing import Optional
 
-from fastapi import Depends, HTTPException, Request, status
+from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models.user import User
-from app.services.auth_service import auth_service, mask_email
+from app.models.user import User, UserRole
+from app.services.auth_service import auth_service
 from app.services.database import get_db
 
 logger = logging.getLogger(__name__)
@@ -98,5 +98,29 @@ async def require_auth(user: Optional[User] = Depends(get_current_user)) -> User
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Authentication required",
             headers={"WWW-Authenticate": "Bearer"},
+        )
+    return user
+
+
+async def require_admin(user: User = Depends(require_auth)) -> User:
+    """Require admin role - raises 403 if user is not an admin.
+
+    Args:
+        user: Current authenticated user
+
+    Returns:
+        User object
+
+    Raises:
+        HTTPException: If user is not an admin
+    """
+    if user.role != UserRole.ADMIN.value:
+        logger.warning(
+            "Unauthorized admin access attempt",
+            extra={"user_id": user.id, "user_role": user.role},
+        )
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Admin access required",
         )
     return user
