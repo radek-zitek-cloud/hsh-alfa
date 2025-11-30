@@ -198,6 +198,7 @@ class BookmarkResponse(BaseModel):
     """Schema for bookmark response."""
 
     id: int
+    user_id: Optional[int] = None
     title: str
     url: str
     favicon: Optional[str] = None
@@ -207,6 +208,7 @@ class BookmarkResponse(BaseModel):
     position: int = 0
     clicks: int = 0
     created: Optional[str] = None
+    updated: Optional[str] = None
     last_accessed: Optional[str] = None
 
     class Config:

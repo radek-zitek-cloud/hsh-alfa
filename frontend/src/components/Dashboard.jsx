@@ -1,6 +1,7 @@
 import { useState, useMemo } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { Sun, Moon, Plus, LogOut, Database, Cloud, DollarSign, TrendingUp, Newspaper } from 'lucide-react'
+import { useNavigate } from 'react-router-dom'
+import { Sun, Moon, Plus, LogOut, Database, Cloud, DollarSign, TrendingUp, Newspaper, Shield } from 'lucide-react'
 import { useAuth } from '../contexts/AuthContext'
 import { sectionsApi, widgetsApi } from '../services/api'
 import BookmarkGrid from './BookmarkGrid'
@@ -28,9 +29,12 @@ const WIDGET_TYPE_TO_SECTION = {
 
 const Dashboard = ({ theme, toggleTheme }) => {
   const { user, logout } = useAuth()
+  const navigate = useNavigate()
   const [isAddModalOpen, setIsAddModalOpen] = useState(false)
   const [isAddWidgetModalOpen, setIsAddWidgetModalOpen] = useState(false)
   const [isExportImportModalOpen, setIsExportImportModalOpen] = useState(false)
+
+  const isAdmin = user?.role === 'admin'
 
   // Fetch sections for navigation
   const { data: sectionsData } = useQuery({
@@ -137,6 +141,17 @@ const Dashboard = ({ theme, toggleTheme }) => {
           </button>
           {user && (
             <div className="flex items-center gap-3">
+              {/* Admin Icon - Only visible to admins */}
+              {isAdmin && (
+                <button
+                  onClick={() => navigate('/admin')}
+                  className="p-2 rounded-lg bg-purple-100 dark:bg-purple-900 hover:bg-purple-200 dark:hover:bg-purple-800 transition-colors"
+                  aria-label="Administration"
+                  title="Administration"
+                >
+                  <Shield size={24} className="text-purple-600 dark:text-purple-300" />
+                </button>
+              )}
               {user.picture && (
                 <img
                   src={user.picture}

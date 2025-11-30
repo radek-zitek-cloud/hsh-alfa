@@ -1,6 +1,7 @@
 """User database model."""
 
 from datetime import datetime, timezone
+from enum import Enum
 from typing import Optional
 
 from pydantic import BaseModel, EmailStr
@@ -8,6 +9,13 @@ from sqlalchemy import Boolean, DateTime, Integer, String
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.services.database import Base
+
+
+class UserRole(str, Enum):
+    """User role enumeration."""
+
+    USER = "user"
+    ADMIN = "admin"
 
 
 class User(Base):
@@ -20,6 +28,7 @@ class User(Base):
     google_id: Mapped[str] = mapped_column(String(255), unique=True, nullable=False, index=True)
     name: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
     picture: Mapped[Optional[str]] = mapped_column(String(2048), nullable=True)
+    role: Mapped[str] = mapped_column(String(50), default=UserRole.USER.value, nullable=False)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
     created_at: Mapped[datetime] = mapped_column(
         DateTime, default=lambda: datetime.now(timezone.utc), nullable=False
@@ -34,6 +43,7 @@ class User(Base):
             "google_id": self.google_id,
             "name": self.name,
             "picture": self.picture,
+            "role": self.role,
             "is_active": self.is_active,
             "created_at": self.created_at.isoformat() if self.created_at else None,
             "last_login": self.last_login.isoformat() if self.last_login else None,
@@ -46,6 +56,7 @@ class User(Base):
             "email": self.email,
             "name": self.name,
             "picture": self.picture,
+            "role": self.role,
             "is_active": self.is_active,
             "created_at": self.created_at.isoformat() if self.created_at else None,
             "last_login": self.last_login.isoformat() if self.last_login else None,
@@ -62,6 +73,14 @@ class UserCreate(BaseModel):
     picture: Optional[str] = None
 
 
+class UserUpdate(BaseModel):
+    """Schema for updating a user."""
+
+    name: Optional[str] = None
+    role: Optional[str] = None
+    is_active: Optional[bool] = None
+
+
 class UserResponse(BaseModel):
     """Schema for user response."""
 
@@ -69,6 +88,7 @@ class UserResponse(BaseModel):
     email: str
     name: Optional[str] = None
     picture: Optional[str] = None
+    role: str = UserRole.USER.value
     is_active: bool
     created_at: str
     last_login: Optional[str] = None
