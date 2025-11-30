@@ -1,6 +1,5 @@
-import React from 'react'
 import { useWidget } from '../../hooks/useWidget'
-import { DollarSign, TrendingUp, TrendingDown, Loader, AlertCircle } from 'lucide-react'
+import { DollarSign, Loader, AlertCircle, ExternalLink } from 'lucide-react'
 
 const ExchangeRateWidget = ({ widgetId, config }) => {
   const { data, isLoading, error } = useWidget(widgetId, {
@@ -60,23 +59,28 @@ const ExchangeRateWidget = ({ widgetId, config }) => {
             if (!rate || !rate.currency) return null
             const rateValue = rate.rate ?? 0
             const reverseRateValue = rate.reverse_rate ?? 0
+            const yahooFinanceUrl = `https://finance.yahoo.com/quote/${rateData.base_currency}${rate.currency}=X/`
 
             return (
-              <div
+              <a
                 key={rate.currency}
-                className="flex items-center justify-between p-2 bg-[var(--bg-primary)] rounded border border-[var(--border-color)]"
+                href={yahooFinanceUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex items-center justify-between p-2 bg-[var(--bg-primary)] rounded border border-[var(--border-color)] hover:border-[var(--accent-color)] hover:bg-[var(--bg-hover)] transition-colors cursor-pointer group"
               >
                 <div className="flex items-center gap-2">
-                  <span className="font-semibold text-[var(--text-primary)]">
+                  <span className="font-semibold text-[var(--text-primary)] group-hover:text-[var(--accent-color)]">
                     {rate.currency}
                   </span>
+                  <ExternalLink size={14} className="opacity-0 group-hover:opacity-100 text-[var(--accent-color)] transition-opacity" />
                 </div>
                 <div className="text-right">
                   <div className="font-mono text-[var(--text-primary)]">
                     {rateValue.toFixed(4)} / {reverseRateValue.toFixed(4)}
                   </div>
                 </div>
-              </div>
+              </a>
             )
           })}
         </div>
