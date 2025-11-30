@@ -23,6 +23,49 @@ const WeatherIcon = ({ icon }) => {
   return iconMap[icon] || <Cloud size={48} />
 }
 
+const getTemperatureColor = (temp) => {
+  // Parse temperature if it's a string
+  const temperature = typeof temp === 'string' ? parseFloat(temp) : temp
+
+  if (isNaN(temperature)) {
+    return 'var(--text-primary)' // Default color if temperature is invalid
+  }
+
+  let r, g, b
+
+  if (temperature <= -30) {
+    // Solid blue at -30 and below
+    r = 59
+    g = 130
+    b = 246
+  } else if (temperature < 0) {
+    // Gradient from blue (-30) to neutral/white (0)
+    const ratio = (temperature + 30) / 30 // 0 at -30, 1 at 0
+    r = Math.round(59 + (255 - 59) * ratio)
+    g = Math.round(130 + (255 - 130) * ratio)
+    b = Math.round(246 + (255 - 246) * ratio)
+  } else if (temperature <= 20) {
+    // Gradient from neutral (0) to green (20)
+    const ratio = temperature / 20 // 0 at 0, 1 at 20
+    r = Math.round(255 - (255 - 34) * ratio)
+    g = Math.round(255 - (255 - 197) * ratio)
+    b = Math.round(255 - (255 - 94) * ratio)
+  } else if (temperature < 40) {
+    // Gradient from green (20) to red (40)
+    const ratio = (temperature - 20) / 20 // 0 at 20, 1 at 40
+    r = Math.round(34 + (239 - 34) * ratio)
+    g = Math.round(197 - (197 - 68) * ratio)
+    b = Math.round(94 - (94 - 68) * ratio)
+  } else {
+    // Solid red at 40 and above
+    r = 239
+    g = 68
+    b = 68
+  }
+
+  return `rgb(${r}, ${g}, ${b})`
+}
+
 const LocalTime = ({ timezoneOffset }) => {
   const [localTime, setLocalTime] = useState('')
 
@@ -112,7 +155,10 @@ const WeatherWidget = ({ widgetId, config }) => {
         {/* Current Weather */}
         <div className="flex items-center justify-between mb-4">
           <div>
-            <div className="text-4xl font-bold text-[var(--text-primary)]">
+            <div
+              className="text-4xl font-bold"
+              style={{ color: getTemperatureColor(weatherData.current?.temperature) }}
+            >
               {weatherData.current?.temperature}
               {weatherData.current?.temp_unit}
             </div>
@@ -148,7 +194,10 @@ const WeatherWidget = ({ widgetId, config }) => {
                   <p className="text-[var(--text-secondary)] mb-1">
                     {new Date(day.date).toLocaleDateString('en-US', { weekday: 'short' })}
                   </p>
-                  <p className="font-semibold text-[var(--text-primary)]">
+                  <p
+                    className="font-semibold"
+                    style={{ color: getTemperatureColor(day.temperature) }}
+                  >
                     {Math.round(day.temperature)}°
                   </p>
                 </div>
