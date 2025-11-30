@@ -1,5 +1,5 @@
 import React from 'react'
-import { ChevronUp, ChevronDown } from 'lucide-react'
+import { ChevronUp, ChevronDown, Eye, EyeOff } from 'lucide-react'
 
 const SectionHeader = ({ section, onMoveUp, onMoveDown, isFirst, isLast, onToggleCollapse, isCollapsed }) => {
   return (
@@ -14,10 +14,11 @@ const SectionHeader = ({ section, onMoveUp, onMoveDown, isFirst, isLast, onToggl
           aria-label={isCollapsed ? "Expand section" : "Collapse section"}
           title={isCollapsed ? "Expand section" : "Collapse section"}
         >
-          <ChevronDown
-            size={20}
-            className={`transition-transform ${isCollapsed ? '-rotate-90' : ''}`}
-          />
+          {isCollapsed ? (
+            <EyeOff size={20} />
+          ) : (
+            <Eye size={20} />
+          )}
         </button>
         <button
           onClick={onMoveUp}
