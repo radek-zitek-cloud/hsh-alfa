@@ -304,6 +304,7 @@ async def update_bookmark(
     if bookmark_update.url is not None:
         bookmark.url = bookmark_update.url
     if bookmark_update.favicon is not None:
+        # Convert empty string to None to clear the favicon
         bookmark.favicon = bookmark_update.favicon if bookmark_update.favicon else None
     if bookmark_update.description is not None:
         bookmark.description = bookmark_update.description

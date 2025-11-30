@@ -151,6 +151,7 @@ const AdminDashboard = () => {
     setWidgetEditForm({
       enabled: widget.enabled,
       refresh_interval: widget.refresh_interval,
+      // Use existing position or default to row 0, col 0 with 1x1 size for new widgets
       position: widget.position || { row: 0, col: 0, width: 1, height: 1 },
     })
   }
@@ -632,15 +633,16 @@ const AdminDashboard = () => {
                             type="number"
                             min="0"
                             value={widgetEditForm.position?.row ?? 0}
-                            onChange={(e) =>
+                            onChange={(e) => {
+                              const value = parseInt(e.target.value, 10)
                               setWidgetEditForm({
                                 ...widgetEditForm,
                                 position: {
                                   ...widgetEditForm.position,
-                                  row: parseInt(e.target.value) || 0,
+                                  row: Number.isNaN(value) ? 0 : value,
                                 },
                               })
-                            }
+                            }}
                             className="px-1 py-1 border border-[var(--border-color)] rounded bg-[var(--bg-primary)] text-[var(--text-primary)] w-12"
                           />
                           <span>C:</span>
@@ -648,15 +650,16 @@ const AdminDashboard = () => {
                             type="number"
                             min="0"
                             value={widgetEditForm.position?.col ?? 0}
-                            onChange={(e) =>
+                            onChange={(e) => {
+                              const value = parseInt(e.target.value, 10)
                               setWidgetEditForm({
                                 ...widgetEditForm,
                                 position: {
                                   ...widgetEditForm.position,
-                                  col: parseInt(e.target.value) || 0,
+                                  col: Number.isNaN(value) ? 0 : value,
                                 },
                               })
-                            }
+                            }}
                             className="px-1 py-1 border border-[var(--border-color)] rounded bg-[var(--bg-primary)] text-[var(--text-primary)] w-12"
                           />
                         </div>
@@ -671,12 +674,13 @@ const AdminDashboard = () => {
                           min="60"
                           max="86400"
                           value={widgetEditForm.refresh_interval}
-                          onChange={(e) =>
+                          onChange={(e) => {
+                            const value = parseInt(e.target.value, 10)
                             setWidgetEditForm({
                               ...widgetEditForm,
-                              refresh_interval: parseInt(e.target.value) || 60,
+                              refresh_interval: Number.isNaN(value) ? 60 : value,
                             })
-                          }
+                          }}
                           className="px-2 py-1 border border-[var(--border-color)] rounded bg-[var(--bg-primary)] text-[var(--text-primary)] w-20"
                         />
                       ) : (
