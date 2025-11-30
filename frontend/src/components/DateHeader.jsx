@@ -94,32 +94,42 @@ const GENERIC_FACTS = [
   "Ancient Romans counted years from the founding of Rome in 753 BC"
 ]
 
+// Helper function to get date key in MM-DD format
+const getDateKey = (date) => {
+  const month = String(date.getMonth() + 1).padStart(2, '0')
+  const day = String(date.getDate()).padStart(2, '0')
+  return `${month}-${day}`
+}
+
+// Helper function to get a random fact for a given date
+const getRandomFact = (dateKey) => {
+  const factsForDate = HISTORY_FACTS[dateKey] || GENERIC_FACTS
+  const randomIndex = Math.floor(Math.random() * factsForDate.length)
+  return factsForDate[randomIndex]
+}
+
 const DateHeader = () => {
-  const [historyFact, setHistoryFact] = useState('')
   const [currentDate, setCurrentDate] = useState(new Date())
+  const [currentDateKey, setCurrentDateKey] = useState(() => getDateKey(new Date()))
+  const [historyFact, setHistoryFact] = useState(() => getRandomFact(getDateKey(new Date())))
 
   useEffect(() => {
     // Update the date every minute to keep it current
     const interval = setInterval(() => {
-      setCurrentDate(new Date())
+      const newDate = new Date()
+      const newDateKey = getDateKey(newDate)
+      
+      setCurrentDate(newDate)
+      
+      // Only update the fact if the day has changed
+      if (newDateKey !== currentDateKey) {
+        setCurrentDateKey(newDateKey)
+        setHistoryFact(getRandomFact(newDateKey))
+      }
     }, 60000)
 
     return () => clearInterval(interval)
-  }, [])
-
-  useEffect(() => {
-    // Get the current month and day in MM-DD format
-    const month = String(currentDate.getMonth() + 1).padStart(2, '0')
-    const day = String(currentDate.getDate()).padStart(2, '0')
-    const dateKey = `${month}-${day}`
-
-    // Try to get facts for this specific date, otherwise use generic facts
-    const factsForDate = HISTORY_FACTS[dateKey] || GENERIC_FACTS
-    
-    // Select a random fact
-    const randomIndex = Math.floor(Math.random() * factsForDate.length)
-    setHistoryFact(factsForDate[randomIndex])
-  }, [currentDate])
+  }, [currentDateKey])
 
   // Format the date in a nice readable format
   const formatDate = (date) => {
