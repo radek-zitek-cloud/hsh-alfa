@@ -170,24 +170,32 @@ const BookmarkCard = ({ bookmark }) => {
 
 const BookmarkGrid = () => {
   const [sortBy, setSortBy] = useState('position')
+  const [groupByCategory, setGroupByCategory] = useState(false)
   const [isLoadingPreference, setIsLoadingPreference] = useState(true)
 
-  // Load saved sort preference on mount
+  // Load saved preferences on mount
   useEffect(() => {
-    const loadSortPreference = async () => {
+    const loadPreferences = async () => {
       try {
-        const response = await preferencesApi.get('bookmarks_sort_order')
-        if (response.data && response.data.value) {
-          setSortBy(response.data.value)
+        const [sortResponse, groupResponse] = await Promise.all([
+          preferencesApi.get('bookmarks_sort_order').catch(() => ({ data: null })),
+          preferencesApi.get('bookmarks_group_by_category').catch(() => ({ data: null }))
+        ])
+
+        if (sortResponse.data && sortResponse.data.value) {
+          setSortBy(sortResponse.data.value)
+        }
+
+        if (groupResponse.data && groupResponse.data.value !== undefined) {
+          setGroupByCategory(groupResponse.data.value)
         }
       } catch (error) {
-        // If preference doesn't exist yet, that's ok - use default
-        console.debug('No saved sort preference found, using default')
+        console.debug('Error loading preferences:', error)
       } finally {
         setIsLoadingPreference(false)
       }
     }
-    loadSortPreference()
+    loadPreferences()
   }, [])
 
   // Save sort preference whenever it changes
@@ -204,6 +212,21 @@ const BookmarkGrid = () => {
     }
     saveSortPreference()
   }, [sortBy, isLoadingPreference])
+
+  // Save group by category preference whenever it changes
+  useEffect(() => {
+    // Skip saving during initial load
+    if (isLoadingPreference) return
+
+    const saveGroupPreference = async () => {
+      try {
+        await preferencesApi.set('bookmarks_group_by_category', groupByCategory)
+      } catch (error) {
+        console.error('Failed to save group preference:', error)
+      }
+    }
+    saveGroupPreference()
+  }, [groupByCategory, isLoadingPreference])
 
   const { data: bookmarks, isLoading, error } = useQuery({
     queryKey: ['bookmarks', sortBy],
@@ -240,50 +263,111 @@ const BookmarkGrid = () => {
   return (
     <div>
       {/* Sorting Controls */}
-      <div className="mb-4 flex items-center gap-2">
-        <label className="text-sm font-medium text-[var(--text-primary)]">
-          Sort by:
-        </label>
-        <div className="flex gap-2">
-          <button
-            onClick={() => setSortBy('position')}
-            className={`px-3 py-1.5 text-sm rounded border transition-colors ${
-              sortBy === 'position'
-                ? 'bg-[var(--accent-color)] text-white border-[var(--accent-color)]'
-                : 'bg-[var(--bg-primary)] text-[var(--text-primary)] border-[var(--border-color)] hover:bg-[var(--bg-secondary)]'
-            }`}
+      <div className="mb-4 flex items-center gap-4 flex-wrap">
+        <div className="flex items-center gap-2">
+          <label className="text-sm font-medium text-[var(--text-primary)]">
+            Sort by:
+          </label>
+          <div className="flex gap-2">
+            <button
+              onClick={() => setSortBy('position')}
+              className={`px-3 py-1.5 text-sm rounded border transition-colors ${
+                sortBy === 'position'
+                  ? 'bg-[var(--accent-color)] text-white border-[var(--accent-color)]'
+                  : 'bg-[var(--bg-primary)] text-[var(--text-primary)] border-[var(--border-color)] hover:bg-[var(--bg-secondary)]'
+              }`}
+            >
+              Default
+            </button>
+            <button
+              onClick={() => setSortBy('alphabetical')}
+              className={`px-3 py-1.5 text-sm rounded border transition-colors ${
+                sortBy === 'alphabetical'
+                  ? 'bg-[var(--accent-color)] text-white border-[var(--accent-color)]'
+                  : 'bg-[var(--bg-primary)] text-[var(--text-primary)] border-[var(--border-color)] hover:bg-[var(--bg-secondary)]'
+              }`}
+            >
+              Alphabetical
+            </button>
+            <button
+              onClick={() => setSortBy('clicks')}
+              className={`px-3 py-1.5 text-sm rounded border transition-colors ${
+                sortBy === 'clicks'
+                  ? 'bg-[var(--accent-color)] text-white border-[var(--accent-color)]'
+                  : 'bg-[var(--bg-primary)] text-[var(--text-primary)] border-[var(--border-color)] hover:bg-[var(--bg-secondary)]'
+              }`}
+            >
+              Most Clicked
+            </button>
+          </div>
+        </div>
+
+        {/* Category Sections Toggle */}
+        <div className="flex items-center gap-2">
+          <input
+            type="checkbox"
+            id="groupByCategory"
+            checked={groupByCategory}
+            onChange={(e) => setGroupByCategory(e.target.checked)}
+            className="w-4 h-4 rounded border-[var(--border-color)] text-[var(--accent-color)] focus:ring-2 focus:ring-[var(--accent-color)] cursor-pointer"
+          />
+          <label
+            htmlFor="groupByCategory"
+            className="text-sm font-medium text-[var(--text-primary)] cursor-pointer"
           >
-            Default
-          </button>
-          <button
-            onClick={() => setSortBy('alphabetical')}
-            className={`px-3 py-1.5 text-sm rounded border transition-colors ${
-              sortBy === 'alphabetical'
-                ? 'bg-[var(--accent-color)] text-white border-[var(--accent-color)]'
-                : 'bg-[var(--bg-primary)] text-[var(--text-primary)] border-[var(--border-color)] hover:bg-[var(--bg-secondary)]'
-            }`}
-          >
-            Alphabetical
-          </button>
-          <button
-            onClick={() => setSortBy('clicks')}
-            className={`px-3 py-1.5 text-sm rounded border transition-colors ${
-              sortBy === 'clicks'
-                ? 'bg-[var(--accent-color)] text-white border-[var(--accent-color)]'
-                : 'bg-[var(--bg-primary)] text-[var(--text-primary)] border-[var(--border-color)] hover:bg-[var(--bg-secondary)]'
-            }`}
-          >
-            Most Clicked
-          </button>
+            Group by Category
+          </label>
         </div>
       </div>
 
       {/* Bookmarks Grid */}
-      <div className="unified-grid">
-        {bookmarks.map((bookmark) => (
-          <BookmarkCard key={bookmark.id} bookmark={bookmark} />
-        ))}
-      </div>
+      {groupByCategory ? (
+        // Group bookmarks by category
+        (() => {
+          // Group bookmarks by category
+          const groupedBookmarks = bookmarks.reduce((groups, bookmark) => {
+            const category = bookmark.category || 'Uncategorized'
+            if (!groups[category]) {
+              groups[category] = []
+            }
+            groups[category].push(bookmark)
+            return groups
+          }, {})
+
+          // Sort categories alphabetically, but put Uncategorized last
+          const sortedCategories = Object.keys(groupedBookmarks).sort((a, b) => {
+            if (a === 'Uncategorized') return 1
+            if (b === 'Uncategorized') return -1
+            return a.localeCompare(b)
+          })
+
+          return (
+            <div className="space-y-6">
+              {sortedCategories.map((category) => (
+                <div key={category}>
+                  {/* Category Header */}
+                  <h2 className="text-lg font-semibold text-[var(--text-primary)] mb-3 pb-2 border-b border-[var(--border-color)]">
+                    {category}
+                  </h2>
+                  {/* Category Bookmarks */}
+                  <div className="unified-grid">
+                    {groupedBookmarks[category].map((bookmark) => (
+                      <BookmarkCard key={bookmark.id} bookmark={bookmark} />
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )
+        })()
+      ) : (
+        // Show all bookmarks without grouping
+        <div className="unified-grid">
+          {bookmarks.map((bookmark) => (
+            <BookmarkCard key={bookmark.id} bookmark={bookmark} />
+          ))}
+        </div>
+      )}
     </div>
   )
 }
