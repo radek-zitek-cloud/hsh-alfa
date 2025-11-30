@@ -130,8 +130,36 @@ const WeatherWidget = ({ widgetId, config }) => {
     )
   }
 
+  // Build weather.com URL using coordinates for reliable location matching
+  const locationName = weatherData.location?.name || ''
+  const lat = weatherData.location?.coordinates?.lat
+  const lon = weatherData.location?.coordinates?.lon
+  const weatherUrl =
+    lat !== undefined && lon !== undefined
+      ? `https://weather.com/weather/today/l/${lat},${lon}`
+      : null
+
+  const handleClick = () => {
+    if (weatherUrl) {
+      window.open(weatherUrl, '_blank', 'noopener,noreferrer')
+    }
+  }
+
   return (
-    <div className="widget-card">
+    <div
+      className="widget-card cursor-pointer hover:shadow-lg transition-shadow"
+      onClick={handleClick}
+      role="button"
+      tabIndex={0}
+      aria-label={locationName ? `View forecast for ${locationName} on weather.com` : undefined}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault()
+          handleClick()
+        }
+      }}
+      title={locationName ? `View forecast for ${locationName} on weather.com` : undefined}
+    >
       <div className="flex flex-col h-full">
         {/* Header */}
         <div className="mb-4">
