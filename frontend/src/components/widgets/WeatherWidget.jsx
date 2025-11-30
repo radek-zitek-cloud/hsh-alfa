@@ -1,6 +1,6 @@
-import React from 'react'
+import React, { useState, useEffect } from 'react'
 import { useWidget } from '../../hooks/useWidget'
-import { Cloud, CloudRain, Sun, Wind, Droplets, Loader, AlertCircle } from 'lucide-react'
+import { Cloud, CloudRain, Sun, Wind, Droplets, Loader, AlertCircle, Clock } from 'lucide-react'
 
 const WeatherIcon = ({ icon }) => {
   const iconMap = {
@@ -21,6 +21,41 @@ const WeatherIcon = ({ icon }) => {
   }
 
   return iconMap[icon] || <Cloud size={48} />
+}
+
+const LocalTime = ({ timezoneOffset }) => {
+  const [localTime, setLocalTime] = useState('')
+
+  useEffect(() => {
+    const updateTime = () => {
+      // Get current UTC time
+      const now = new Date()
+      // Apply timezone offset (offset is in seconds)
+      const localDate = new Date(now.getTime() + timezoneOffset * 1000)
+
+      // Format time as HH:MM:SS
+      const hours = String(localDate.getUTCHours()).padStart(2, '0')
+      const minutes = String(localDate.getUTCMinutes()).padStart(2, '0')
+      const seconds = String(localDate.getUTCSeconds()).padStart(2, '0')
+
+      setLocalTime(`${hours}:${minutes}:${seconds}`)
+    }
+
+    // Update immediately
+    updateTime()
+
+    // Update every second
+    const interval = setInterval(updateTime, 1000)
+
+    return () => clearInterval(interval)
+  }, [timezoneOffset])
+
+  return (
+    <div className="flex items-center gap-1 text-xs text-[var(--text-secondary)]">
+      <Clock size={12} />
+      <span>{localTime}</span>
+    </div>
+  )
 }
 
 const WeatherWidget = ({ widgetId, config }) => {
@@ -69,6 +104,9 @@ const WeatherWidget = ({ widgetId, config }) => {
           <p className="text-xs text-[var(--text-secondary)]">
             {weatherData.location?.country}
           </p>
+          {weatherData.location?.timezone !== undefined && (
+            <LocalTime timezoneOffset={weatherData.location.timezone} />
+          )}
         </div>
 
         {/* Current Weather */}

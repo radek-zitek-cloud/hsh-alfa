@@ -174,6 +174,7 @@ class WeatherWidget(BaseWidget):
                 "name": current["name"],
                 "country": current["sys"]["country"],
                 "coordinates": {"lat": current["coord"]["lat"], "lon": current["coord"]["lon"]},
+                "timezone": current.get("timezone", 0),  # Timezone offset in seconds from UTC
             },
             "current": {
                 "temperature": round(current["main"]["temp"], 1),
