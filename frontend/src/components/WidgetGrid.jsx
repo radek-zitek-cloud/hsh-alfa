@@ -1,6 +1,6 @@
-import React, { useMemo, useState } from 'react'
+import React, { useMemo, useState, useEffect } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { widgetsApi, sectionsApi } from '../services/api'
+import { widgetsApi, sectionsApi, preferencesApi } from '../services/api'
 import { Loader, Edit2, Trash2 } from 'lucide-react'
 import WeatherWidget from './widgets/WeatherWidget'
 import ExchangeRateWidget from './widgets/ExchangeRateWidget'
@@ -122,6 +122,8 @@ const WidgetCard = ({ widget, widthMultiple }) => {
 
 const WidgetGrid = () => {
   const queryClient = useQueryClient()
+  const [collapsedSections, setCollapsedSections] = useState({})
+  const [isLoadingPreference, setIsLoadingPreference] = useState(true)
 
   // Fetch widgets
   const { data: widgetsData, isLoading: widgetsLoading, error: widgetsError } = useQuery({
@@ -140,6 +142,37 @@ const WidgetGrid = () => {
       return response.data
     },
   })
+
+  // Load collapsed sections preference on mount
+  useEffect(() => {
+    const loadPreferences = async () => {
+      try {
+        const response = await preferencesApi.get('widget_sections_collapsed')
+        if (response.data && response.data.value) {
+          setCollapsedSections(response.data.value)
+        }
+      } catch (error) {
+        console.error('Failed to load collapsed sections preference:', error)
+      } finally {
+        setIsLoadingPreference(false)
+      }
+    }
+    loadPreferences()
+  }, [])
+
+  // Save collapsed sections preference when changed
+  useEffect(() => {
+    if (isLoadingPreference) return
+
+    const savePreference = async () => {
+      try {
+        await preferencesApi.set('widget_sections_collapsed', collapsedSections)
+      } catch (error) {
+        console.error('Failed to save collapsed sections preference:', error)
+      }
+    }
+    savePreference()
+  }, [collapsedSections, isLoadingPreference])
 
   // Mutation for reordering sections
   const reorderMutation = useMutation({
@@ -207,6 +240,14 @@ const WidgetGrid = () => {
     }))
 
     reorderMutation.mutate(reorderData)
+  }
+
+  // Handle toggling section collapse
+  const handleToggleCollapse = (sectionName) => {
+    setCollapsedSections(prev => ({
+      ...prev,
+      [sectionName]: !prev[sectionName]
+    }))
   }
 
   if (widgetsLoading || sectionsLoading) {
@@ -289,19 +330,23 @@ const WidgetGrid = () => {
               onMoveDown={() => handleMoveDown(section)}
               isFirst={actualIndex === 0}
               isLast={actualIndex === sectionsData.length - 1}
+              onToggleCollapse={() => handleToggleCollapse(section.name)}
+              isCollapsed={collapsedSections[section.name] || false}
             />
-            <div className="unified-grid">
-              {sectionWidgets.map((widget) => {
-                const widthMultiple = widget.position?.width || 1
-                return (
-                  <WidgetCard
-                    key={widget.id}
-                    widget={widget}
-                    widthMultiple={widthMultiple}
-                  />
-                )
-              })}
-            </div>
+            {!collapsedSections[section.name] && (
+              <div className="unified-grid">
+                {sectionWidgets.map((widget) => {
+                  const widthMultiple = widget.position?.width || 1
+                  return (
+                    <WidgetCard
+                      key={widget.id}
+                      widget={widget}
+                      widthMultiple={widthMultiple}
+                    />
+                  )
+                })}
+              </div>
+            )}
           </section>
         )
       })}
