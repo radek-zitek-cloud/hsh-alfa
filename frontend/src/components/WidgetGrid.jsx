@@ -251,7 +251,32 @@ const WidgetGrid = () => {
   return (
     <div className="space-y-8">
       {visibleSections.map((section, displayIndex) => {
-        const sectionWidgets = widgetsBySection[section.name] || []
+        let sectionWidgets = widgetsBySection[section.name] || []
+
+        // Sort weather widgets by country and then by city
+        if (section.name === 'weather') {
+          sectionWidgets = [...sectionWidgets].sort((a, b) => {
+            // Parse location from config (format: "City, Country" or "City, CountryCode")
+            const getLocationParts = (widget) => {
+              const location = widget.config?.location || ''
+              const parts = location.split(',').map(part => part.trim())
+              return {
+                city: parts[0] || '',
+                country: parts[1] || ''
+              }
+            }
+
+            const locA = getLocationParts(a)
+            const locB = getLocationParts(b)
+
+            // First compare by country
+            const countryCompare = locA.country.localeCompare(locB.country)
+            if (countryCompare !== 0) return countryCompare
+
+            // Then compare by city
+            return locA.city.localeCompare(locB.city)
+          })
+        }
 
         // Find the actual index in the full sections array
         const actualIndex = sectionsData.findIndex(s => s.id === section.id)
