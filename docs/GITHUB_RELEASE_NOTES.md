@@ -1,56 +1,81 @@
-# 🎉 Home Sweet Home v1.0.0 - First Stable Release
+# 🎉 Home Sweet Home v1.1.0 - Enhanced Dashboard Experience
 
-The first production-ready release of **Home Sweet Home** - a self-hosted, customizable browser homepage application that serves as your personal dashboard.
+The second major release of **Home Sweet Home** - bringing role-based administration, interactive widgets, and comprehensive user configuration management.
 
-## ✨ What's New
+## ✨ What's New in v1.1.0
 
-This is the initial stable release with complete functionality:
+### 🔐 Role-Based Administration
+- **Admin Dashboard** - Dedicated admin section for managing users, bookmarks, widgets
+- **Role System** - User and admin roles with differentiated access
+- **User Settings Visibility** - View and manage all user preferences
+- **Inline Editing** - Edit data directly in admin tables
 
-### 🎯 Core Features
-- **📚 Bookmark Management** - Organize your favorite websites with categories and search
-- **🌤️ Weather Widget** - Real-time weather and 5-day forecast (OpenWeatherMap)
-- **💱 Exchange Rate Widget** - Live currency conversion with multiple pairs
-- **📈 Market Data Widget** - Real-time stock quotes and market trends
-- **📰 News Widget** - RSS feed aggregation from your favorite sources
-- **🎨 Theme System** - Light and dark mode with responsive design
-- **🔄 Auto-Refresh** - Configurable background updates for widgets
+### 🖱️ Interactive Widgets
+- **Clickable Weather** - Opens weather.com forecast for any location
+- **Clickable Exchange Rates** - Opens Yahoo Finance for currency pairs
+- **Clickable Market Tickers** - Opens Yahoo Finance for stock/crypto quotes
+- **Temperature Color Coding** - Blue to green to red gradient based on temperature
+- **Local Time Display** - Shows local time in each weather widget
 
-### 🏗️ Technical Highlights
-- **Backend:** FastAPI (Python 3.11) with async SQLAlchemy
-- **Frontend:** React 18 + Vite + Tailwind CSS
-- **Deployment:** Docker Compose with Traefik support
-- **Database:** SQLite with automatic migrations
-- **Caching:** Redis integration for API optimization
-- **Documentation:** Complete setup guides and API docs
+### 📅 Dynamic Date Header
+- Current date in large format replaces static heading
+- "On This Day" historical facts updated daily
+- Auto-updates at midnight
 
-## 🚀 Quick Start
+### 📚 Bookmark Enhancements
+- **Category Sections** - Group bookmarks by category with toggle
+- **Alphabetical Sorting** - Categories sorted A-Z
+- **Persistent Preferences** - Settings saved across sessions
+
+### 🎨 Navigation & UI
+- **Section Navigation** - Quick-jump icons to each widget section
+- **Scroll to Top** - Arrow buttons in section headers
+- **Collapsible Sections** - Eye icons to hide/show widget sections
+- **Smooth Scrolling** - Enhanced navigation experience
+
+### 💾 Database-Backed Configuration
+- User-isolated data (bookmarks, widgets linked to users)
+- Export/import in multiple formats (JSON, YAML, TOML, XML, CSV)
+- Default data initialization for new users
+
+## 🔒 Security Improvements
+
+- DNS rebinding protection with IP validation
+- Security headers middleware (CSP, X-Frame-Options, etc.)
+- Comprehensive rate limiting on all endpoints
+- Widget configuration validation
+- Logging sanitization for sensitive data
+
+## 🐛 Bug Fixes
+
+- Fixed news widget RSS fetching errors
+- Fixed OAuth login infinite loop
+- Fixed bookmark creation display issues
+- Fixed weather widget location initialization
+- Fixed CORS configuration errors
+
+## 🚀 Quick Upgrade
 
 ```bash
-# Clone and setup
-git clone https://github.com/radek-zitek-cloud/hsh-alfa.git
-cd hsh-alfa
-cp .env.example .env
-
-# Configure your API keys in .env
-# REQUIRED: SECRET_KEY, WEATHER_API_KEY
-
-# Create data directory
-mkdir -p data && sudo chown -R 1000:1000 data
-
-# Launch
-docker-compose up -d
+# Pull latest and rebuild
+git pull origin main
+docker-compose down
+docker-compose up -d --build
 ```
 
-## 📦 What's Included
+## 📦 Included Features
 
-✅ Complete RESTful API with FastAPI
-✅ Modern React frontend with responsive design
-✅ Database-backed widget configuration
-✅ Docker containers for easy deployment
-✅ Comprehensive documentation
-✅ Auto-generated API docs (Swagger/OpenAPI)
-✅ Widget management UI
-✅ Error handling and loading states
+✅ Role-based access control (admin/user)
+✅ Interactive clickable widgets
+✅ Category-based bookmark organization
+✅ Collapsible widget sections
+✅ Section navigation with smooth scrolling
+✅ Dynamic date header with history facts
+✅ Temperature color-coded weather display
+✅ Local time in weather widgets
+✅ Database export/import functionality
+✅ Comprehensive admin management
+✅ Enhanced security with rate limiting
 
 ## 🔧 Requirements
 
@@ -59,51 +84,28 @@ docker-compose up -d
 - (Optional) ExchangeRate-API key
 - (Optional) Traefik reverse proxy for HTTPS
 
-## 📝 Recent Fixes & Improvements
-
-- ✅ Fixed blank page on refresh with comprehensive error handling
-- ✅ Resolved stocks display issue in market widget
-- ✅ Fixed widget disappearance on section reorder
-- ✅ Enhanced database-backed widget configuration
-- ✅ Improved Docker container startup reliability
-- ✅ Simplified widget management UI
-- ✅ Code organization improvements
-
 ## 📚 Documentation
 
 - **README.md** - Complete setup and usage guide
-- **CODE_REVIEW.md** - Code quality analysis
-- **ACTION_ITEMS.md** - Future improvement roadmap
-- **WIDGET_DATA_SOURCES.md** - Widget APIs and data sources
+- **RELEASE_NOTES_v1.1.0.md** - Detailed release notes
+- **CODE_REVIEW.md** - Security and code quality analysis
+- **GOOGLE_OAUTH_SETUP.md** - OAuth2 configuration guide
 - **API Docs** - Available at `/docs` endpoint
-
-## 🔐 Security Notes
-
-- Change `SECRET_KEY` in production
-- Use HTTPS (Traefik + Let's Encrypt recommended)
-- Never commit `.env` files
-- API rate limiting recommended (see CODE_REVIEW.md)
 
 ## 🎯 What's Next
 
 Planned for future releases:
-- Bookmark import/export functionality
-- Additional widget types
-- Multi-user support with authentication
+- Multi-user collaboration
+- Calendar and task widgets
 - Browser extension
-- Mobile app
+- Mobile app companion
 - Widget marketplace
-
-See [README.md](https://github.com/radek-zitek-cloud/hsh-alfa/blob/main/README.md) for complete roadmap.
-
-## 🙏 Acknowledgments
-
-Built with amazing open-source tools: FastAPI, React, Tailwind CSS, Docker, and many more.
 
 ---
 
 **Full Installation Guide:** [README.md](https://github.com/radek-zitek-cloud/hsh-alfa/blob/main/README.md)
-**Detailed Release Notes:** [RELEASE_NOTES_v1.0.0.md](https://github.com/radek-zitek-cloud/hsh-alfa/blob/main/RELEASE_NOTES_v1.0.0.md)
+**Detailed Release Notes:** [RELEASE_NOTES_v1.1.0.md](https://github.com/radek-zitek-cloud/hsh-alfa/blob/main/docs/RELEASE_NOTES_v1.1.0.md)
+**Previous Release:** [v1.0.0](https://github.com/radek-zitek-cloud/hsh-alfa/releases/tag/v1.0.0)
 **Report Issues:** [GitHub Issues](https://github.com/radek-zitek-cloud/hsh-alfa/issues)
 
 **Happy Homelabing! 🏠**
