@@ -89,9 +89,15 @@ const MarketWidget = ({ widgetId, config }) => {
         <div className="flex items-start justify-between mb-2">
           {/* Left: Symbol and Name */}
           <div className="flex flex-col">
-            <span className="font-semibold text-[var(--text-primary)]">
+            <a
+              href={`https://finance.yahoo.com/quote/${encodeURIComponent(item.symbol.replace(/[^a-zA-Z0-9.^=-]/g, ''))}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              aria-label={`View ${item.symbol} on Yahoo Finance`}
+              className="font-semibold text-[var(--text-primary)] hover:text-[var(--accent-color)] hover:underline transition-colors"
+            >
               {item.symbol}
-            </span>
+            </a>
             {item.name && item.name !== item.symbol && (
               <span className="text-xs text-[var(--text-secondary)]">
                 {item.name}
