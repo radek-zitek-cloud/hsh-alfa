@@ -1,6 +1,8 @@
-import React, { useState } from 'react'
-import { Sun, Moon, Plus, LogOut, Database } from 'lucide-react'
+import { useState, useMemo } from 'react'
+import { useQuery } from '@tanstack/react-query'
+import { Sun, Moon, Plus, LogOut, Database, Cloud, DollarSign, TrendingUp, Newspaper } from 'lucide-react'
 import { useAuth } from '../contexts/AuthContext'
+import { sectionsApi, widgetsApi } from '../services/api'
 import BookmarkGrid from './BookmarkGrid'
 import WidgetGrid from './WidgetGrid'
 import BookmarkModal from './BookmarkModal'
@@ -8,11 +10,73 @@ import BookmarkForm from './BookmarkForm'
 import WidgetForm from './WidgetForm'
 import ExportImportModal from './ExportImportModal'
 
+// Map section names to icons
+const SECTION_ICONS = {
+  weather: Cloud,
+  rates: DollarSign,
+  markets: TrendingUp,
+  news: Newspaper,
+}
+
+// Map widget types to section names (matching WidgetGrid)
+const WIDGET_TYPE_TO_SECTION = {
+  weather: 'weather',
+  exchange_rate: 'rates',
+  market: 'markets',
+  news: 'news',
+}
+
 const Dashboard = ({ theme, toggleTheme }) => {
   const { user, logout } = useAuth()
   const [isAddModalOpen, setIsAddModalOpen] = useState(false)
   const [isAddWidgetModalOpen, setIsAddWidgetModalOpen] = useState(false)
   const [isExportImportModalOpen, setIsExportImportModalOpen] = useState(false)
+
+  // Fetch sections for navigation
+  const { data: sectionsData } = useQuery({
+    queryKey: ['sections'],
+    queryFn: async () => {
+      const response = await sectionsApi.getAll()
+      return response.data
+    },
+  })
+
+  // Fetch widgets to determine which sections have content
+  const { data: widgetsData } = useQuery({
+    queryKey: ['widgets'],
+    queryFn: async () => {
+      const response = await widgetsApi.getAll()
+      return response.data
+    },
+  })
+
+  // Determine which sections have widgets
+  const visibleSections = useMemo(() => {
+    if (!sectionsData || !widgetsData) return []
+
+    const widgetsBySection = {}
+    sectionsData.forEach((section) => {
+      widgetsBySection[section.name] = []
+    })
+
+    widgetsData.forEach((widget) => {
+      const sectionName = WIDGET_TYPE_TO_SECTION[widget.type]
+      if (sectionName && widgetsBySection[sectionName]) {
+        widgetsBySection[sectionName].push(widget)
+      }
+    })
+
+    return sectionsData.filter(
+      (section) => widgetsBySection[section.name]?.length > 0
+    )
+  }, [sectionsData, widgetsData])
+
+  const scrollToSection = (sectionName) => {
+    const element = document.getElementById(`section-${sectionName}`)
+    if (element) {
+      element.scrollIntoView({ behavior: 'smooth' })
+    }
+  }
 
   const handleLogout = async () => {
     await logout()
@@ -26,6 +90,28 @@ const Dashboard = ({ theme, toggleTheme }) => {
           Home Sweet Home
         </h1>
         <div className="flex items-center gap-4">
+          {/* Section Navigation Icons */}
+          {visibleSections.map((section) => {
+            const IconComponent = SECTION_ICONS[section.name]
+            if (!IconComponent) return null
+            return (
+              <button
+                key={section.id}
+                onClick={() => scrollToSection(section.name)}
+                className="p-2 rounded-lg bg-[var(--bg-secondary)] hover:bg-[var(--border-color)] transition-colors"
+                aria-label={`Jump to ${section.title}`}
+                title={`Jump to ${section.title}`}
+              >
+                <IconComponent size={24} />
+              </button>
+            )
+          })}
+          
+          {/* Divider between navigation and action icons */}
+          {visibleSections.length > 0 && (
+            <div className="h-6 w-px bg-[var(--border-color)]" />
+          )}
+          
           <button
             onClick={() => setIsExportImportModalOpen(true)}
             className="p-2 rounded-lg bg-[var(--bg-secondary)] hover:bg-[var(--border-color)] transition-colors"

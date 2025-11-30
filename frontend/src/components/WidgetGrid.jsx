@@ -323,7 +323,7 @@ const WidgetGrid = () => {
         const actualIndex = sectionsData.findIndex(s => s.id === section.id)
 
         return (
-          <section key={section.id}>
+          <section key={section.id} id={`section-${section.name}`}>
             <SectionHeader
               section={section}
               onMoveUp={() => handleMoveUp(section)}
