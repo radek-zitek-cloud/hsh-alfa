@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { ArrowLeft, Users, Bookmark, LayoutGrid, Save, X, Trash2, Edit2 } from 'lucide-react'
+import { ArrowLeft, Users, Bookmark, LayoutGrid, Save, X, Trash2, Edit2, Settings } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 import { adminApi } from '../services/api'
 
@@ -43,6 +43,16 @@ const AdminDashboard = () => {
       return response.data
     },
     enabled: activeTab === 'widgets',
+  })
+
+  // Fetch preferences
+  const { data: preferences = [], isLoading: preferencesLoading } = useQuery({
+    queryKey: ['admin-preferences', selectedUserId],
+    queryFn: async () => {
+      const response = await adminApi.getPreferences(selectedUserId)
+      return response.data
+    },
+    enabled: activeTab === 'settings',
   })
 
   // Update user mutation
@@ -88,6 +98,14 @@ const AdminDashboard = () => {
       queryClient.invalidateQueries({ queryKey: ['admin-widgets'] })
       setEditingWidget(null)
       setWidgetEditForm({})
+    },
+  })
+
+  // Delete preference mutation
+  const deletePreferenceMutation = useMutation({
+    mutationFn: (preferenceId) => adminApi.deletePreference(preferenceId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['admin-preferences'] })
     },
   })
 
@@ -168,15 +186,35 @@ const AdminDashboard = () => {
     setWidgetEditForm({})
   }
 
+  const handleDeletePreference = (preferenceId) => {
+    if (window.confirm('Are you sure you want to delete this preference?')) {
+      deletePreferenceMutation.mutate(preferenceId)
+    }
+  }
+
   const getUserName = (userId) => {
     const user = users.find((u) => u.id === userId)
     return user ? user.name || user.email : `User ${userId}`
+  }
+
+  // Format preference value for display (handles JSON objects)
+  const formatPreferenceValue = (value) => {
+    try {
+      const parsed = JSON.parse(value)
+      if (typeof parsed === 'object') {
+        return JSON.stringify(parsed, null, 2)
+      }
+      return String(parsed)
+    } catch {
+      return value
+    }
   }
 
   const tabs = [
     { id: 'users', label: 'Users', icon: Users },
     { id: 'bookmarks', label: 'Bookmarks', icon: Bookmark },
     { id: 'widgets', label: 'Widgets', icon: LayoutGrid },
+    { id: 'settings', label: 'Settings', icon: Settings },
   ]
 
   return (
@@ -216,8 +254,8 @@ const AdminDashboard = () => {
         })}
       </div>
 
-      {/* User filter for bookmarks and widgets */}
-      {(activeTab === 'bookmarks' || activeTab === 'widgets') && (
+      {/* User filter for bookmarks, widgets and settings */}
+      {(activeTab === 'bookmarks' || activeTab === 'widgets' || activeTab === 'settings') && (
         <div className="mb-4">
           <label className="block text-sm text-[var(--text-secondary)] mb-1">
             Filter by User
@@ -725,6 +763,78 @@ const AdminDashboard = () => {
                           </button>
                         </div>
                       )}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+        </div>
+      )}
+
+      {/* Settings Tab */}
+      {activeTab === 'settings' && (
+        <div className="bg-[var(--bg-secondary)] rounded-lg overflow-hidden">
+          {preferencesLoading ? (
+            <div className="p-8 text-center text-[var(--text-secondary)]">
+              Loading settings...
+            </div>
+          ) : preferences.length === 0 ? (
+            <div className="p-8 text-center text-[var(--text-secondary)]">
+              No user settings found
+            </div>
+          ) : (
+            <table className="w-full">
+              <thead className="bg-[var(--bg-primary)] border-b border-[var(--border-color)]">
+                <tr>
+                  <th className="px-4 py-3 text-left text-sm font-medium text-[var(--text-secondary)]">
+                    ID
+                  </th>
+                  <th className="px-4 py-3 text-left text-sm font-medium text-[var(--text-secondary)]">
+                    User
+                  </th>
+                  <th className="px-4 py-3 text-left text-sm font-medium text-[var(--text-secondary)]">
+                    Key
+                  </th>
+                  <th className="px-4 py-3 text-left text-sm font-medium text-[var(--text-secondary)]">
+                    Value
+                  </th>
+                  <th className="px-4 py-3 text-left text-sm font-medium text-[var(--text-secondary)]">
+                    Actions
+                  </th>
+                </tr>
+              </thead>
+              <tbody>
+                {preferences.map((preference) => (
+                  <tr
+                    key={preference.id}
+                    className="border-b border-[var(--border-color)] hover:bg-[var(--bg-primary)]"
+                  >
+                    <td className="px-4 py-3 text-sm text-[var(--text-primary)]">
+                      {preference.id}
+                    </td>
+                    <td className="px-4 py-3 text-sm text-[var(--text-primary)]">
+                      {getUserName(preference.user_id)}
+                    </td>
+                    <td className="px-4 py-3 text-sm text-[var(--text-primary)]">
+                      <span className="px-2 py-1 bg-[var(--bg-primary)] rounded text-xs font-mono">
+                        {preference.key}
+                      </span>
+                    </td>
+                    <td className="px-4 py-3 text-sm text-[var(--text-secondary)] max-w-md">
+                      <pre className="whitespace-pre-wrap text-xs bg-[var(--bg-primary)] p-2 rounded overflow-x-auto">
+                        {formatPreferenceValue(preference.value)}
+                      </pre>
+                    </td>
+                    <td className="px-4 py-3 text-sm">
+                      <button
+                        onClick={() => handleDeletePreference(preference.id)}
+                        disabled={deletePreferenceMutation.isPending}
+                        className="p-1 text-red-600 hover:text-red-800 disabled:opacity-50"
+                        title="Delete"
+                      >
+                        <Trash2 size={18} />
+                      </button>
                     </td>
                   </tr>
                 ))}

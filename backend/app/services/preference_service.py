@@ -1,7 +1,7 @@
 """Preferences service for managing user preferences."""
 
 import logging
-from typing import Optional
+from typing import List, Optional
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -31,6 +31,25 @@ class PreferenceService:
             select(Preference).where(Preference.key == key, Preference.user_id == user_id)
         )
         return result.scalar_one_or_none()
+
+    async def get_all_preferences(
+        self, db: AsyncSession, user_id: int
+    ) -> List[Preference]:
+        """Get all preferences for a user.
+
+        Args:
+            db: Database session
+            user_id: User ID
+
+        Returns:
+            List of preferences for the user
+        """
+        result = await db.execute(
+            select(Preference)
+            .where(Preference.user_id == user_id)
+            .order_by(Preference.key)
+        )
+        return list(result.scalars().all())
 
     async def set_preference(
         self, db: AsyncSession, key: str, value: str, user_id: int

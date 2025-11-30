@@ -111,6 +111,8 @@ export const sectionsApi = {
 
 // Preferences API
 export const preferencesApi = {
+  getAll: () => api.get('/preferences/'),
+
   get: (key) => api.get(`/preferences/${key}`),
 
   set: (key, value) => api.put(`/preferences/${key}`, { value }),
@@ -157,6 +159,15 @@ export const adminApi = {
   updateWidget: (id, data) => api.put(`/admin/widgets/${id}`, data),
 
   deleteWidget: (id) => api.delete(`/admin/widgets/${id}`),
+
+  // Preferences
+  getPreferences: (userId = null) => {
+    const params = {};
+    if (userId) params.user_id = userId;
+    return api.get('/admin/preferences', { params });
+  },
+
+  deletePreference: (id) => api.delete(`/admin/preferences/${id}`),
 };
 
 export default api;

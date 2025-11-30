@@ -10,6 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.api.dependencies import require_admin
 from app.logging_config import get_logger
 from app.models.bookmark import Bookmark, BookmarkResponse, BookmarkUpdate
+from app.models.preference import Preference, PreferenceResponse
 from app.models.user import User, UserResponse, UserRole, UserUpdate
 from app.models.widget import Widget, WidgetResponse, WidgetUpdate
 from app.services.database import get_db
@@ -483,3 +484,98 @@ async def update_widget(
     )
 
     return widget.to_dict()
+
+
+# Preference Management Endpoints
+
+
+class AdminPreferenceResponse(PreferenceResponse):
+    """Extended preference response with user_id for admin."""
+
+    user_id: int
+
+
+@router.get("/preferences", response_model=List[AdminPreferenceResponse])
+@limiter.limit("30/minute")
+async def list_all_preferences(
+    request: Request,
+    user_id: Optional[int] = None,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(require_admin),
+):
+    """List all preferences in the system (admin only).
+
+    Args:
+        request: HTTP request
+        user_id: Optional filter by user ID
+        db: Database session
+        current_user: Current authenticated admin user
+
+    Returns:
+        List of all preferences
+    """
+    logger.info(
+        "Admin listing preferences",
+        extra={"admin_id": current_user.id, "filter_user_id": user_id},
+    )
+
+    query = select(Preference).order_by(Preference.user_id, Preference.key)
+    if user_id is not None:
+        query = query.where(Preference.user_id == user_id)
+
+    result = await db.execute(query)
+    preferences = result.scalars().all()
+
+    return [
+        AdminPreferenceResponse(
+            id=pref.id,
+            key=pref.key,
+            value=pref.value,
+            user_id=pref.user_id,
+        )
+        for pref in preferences
+    ]
+
+
+@router.delete("/preferences/{preference_id}")
+@limiter.limit("30/minute")
+async def delete_preference(
+    request: Request,
+    preference_id: int,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(require_admin),
+):
+    """Delete a preference (admin only).
+
+    Args:
+        request: HTTP request
+        preference_id: Preference ID to delete
+        db: Database session
+        current_user: Current authenticated admin user
+
+    Returns:
+        Success message
+    """
+    result = await db.execute(select(Preference).where(Preference.id == preference_id))
+    preference = result.scalar_one_or_none()
+
+    if not preference:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Preference not found",
+        )
+
+    await db.delete(preference)
+    await db.commit()
+
+    logger.info(
+        "Admin deleted preference",
+        extra={
+            "admin_id": current_user.id,
+            "preference_id": preference_id,
+            "preference_key": preference.key,
+            "preference_user_id": preference.user_id,
+        },
+    )
+
+    return {"message": "Preference deleted successfully"}
