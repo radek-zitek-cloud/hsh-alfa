@@ -1,5 +1,7 @@
 """Preferences API endpoints."""
 
+from typing import List
+
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -15,6 +17,42 @@ from app.utils.logging import sanitize_log_value
 logger = get_logger(__name__)
 
 router = APIRouter()
+
+
+@router.get("/", response_model=List[PreferenceResponse])
+@limiter.limit("100/minute")
+async def get_all_preferences(
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(require_auth),
+):
+    """Get all preferences for the current user.
+
+    Args:
+        request: HTTP request
+        db: Database session
+        current_user: Current authenticated user
+
+    Returns:
+        List of all user preferences
+    """
+    logger.debug(
+        "Getting all preferences",
+        extra={"user_id": current_user.id, "operation": "read"},
+    )
+
+    preferences = await preference_service.get_all_preferences(db, current_user.id)
+
+    logger.debug(
+        "All preferences retrieved",
+        extra={
+            "user_id": current_user.id,
+            "operation": "read",
+            "count": len(preferences),
+        },
+    )
+
+    return [PreferenceResponse.model_validate(pref) for pref in preferences]
 
 
 @router.get("/{key}", response_model=PreferenceResponse)

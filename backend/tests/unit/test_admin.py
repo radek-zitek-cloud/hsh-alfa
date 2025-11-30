@@ -295,3 +295,34 @@ class TestAdminWidgetUpdate:
         assert update.enabled is True
         assert update.refresh_interval is None
         assert update.position is None
+
+
+class TestAdminPreferenceResponse:
+    """Test admin preference response functionality."""
+
+    def test_preference_response_import(self):
+        """Test that PreferenceResponse can be imported."""
+        from app.models.preference import PreferenceResponse
+        assert PreferenceResponse is not None
+
+    def test_preference_response_fields(self):
+        """Test PreferenceResponse has required fields."""
+        from app.models.preference import PreferenceResponse
+        response = PreferenceResponse(id=1, key="theme", value="dark")
+        assert response.id == 1
+        assert response.key == "theme"
+        assert response.value == "dark"
+
+    def test_admin_preference_response_import(self):
+        """Test that AdminPreferenceResponse can be imported from admin module."""
+        from app.api.admin import AdminPreferenceResponse
+        assert AdminPreferenceResponse is not None
+
+    def test_admin_preference_response_includes_user_id(self):
+        """Test AdminPreferenceResponse includes user_id field."""
+        from app.api.admin import AdminPreferenceResponse
+        response = AdminPreferenceResponse(id=1, key="theme", value="dark", user_id=42)
+        assert response.id == 1
+        assert response.key == "theme"
+        assert response.value == "dark"
+        assert response.user_id == 42
