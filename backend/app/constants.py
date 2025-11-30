@@ -15,6 +15,9 @@ GOOGLE_API_TIMEOUT = 10.0
 AUTH_CODE_MIN_LENGTH = 10
 AUTH_CODE_MAX_LENGTH = 512
 
+# Admin Email
+ADMIN_EMAIL = "radek@zitek.cloud"
+
 # Error Messages
 ERROR_AUTH_FAILED = "Authentication failed"
 ERROR_INVALID_CODE_FORMAT = "Invalid authorization code format"

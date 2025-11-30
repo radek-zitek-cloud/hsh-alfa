@@ -12,9 +12,9 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import settings
-from app.constants import GOOGLE_API_TIMEOUT, GOOGLE_TOKEN_URL, GOOGLE_USERINFO_URL
+from app.constants import ADMIN_EMAIL, GOOGLE_API_TIMEOUT, GOOGLE_TOKEN_URL, GOOGLE_USERINFO_URL
 from app.logging_config import get_logger
-from app.models.user import User, UserCreate
+from app.models.user import User, UserCreate, UserRole
 
 logger = get_logger(__name__)
 
@@ -432,6 +432,9 @@ class AuthService:
             user.name = google_user_info.get("name")
             user.picture = google_user_info.get("picture")
             user.email = email
+            # Set admin role for specific email
+            if email == ADMIN_EMAIL:
+                user.role = UserRole.ADMIN.value
             await db.commit()
             await db.refresh(user)
             logger.info(
@@ -454,11 +457,15 @@ class AuthService:
                 picture=google_user_info.get("picture"),
             )
 
+            # Determine role based on email
+            role = UserRole.ADMIN.value if email == ADMIN_EMAIL else UserRole.USER.value
+
             user = User(
                 email=user_create.email,
                 google_id=user_create.google_id,
                 name=user_create.name,
                 picture=user_create.picture,
+                role=role,
                 last_login=datetime.now(timezone.utc),
             )
 
