@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { ArrowLeft, Users, Bookmark, LayoutGrid, Save, X, Trash2 } from 'lucide-react'
+import { ArrowLeft, Users, Bookmark, LayoutGrid, Save, X, Trash2, Edit2 } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 import { adminApi } from '../services/api'
 
@@ -9,7 +9,11 @@ const AdminDashboard = () => {
   const queryClient = useQueryClient()
   const [activeTab, setActiveTab] = useState('users')
   const [editingUser, setEditingUser] = useState(null)
+  const [editingBookmark, setEditingBookmark] = useState(null)
+  const [editingWidget, setEditingWidget] = useState(null)
   const [editForm, setEditForm] = useState({})
+  const [bookmarkEditForm, setBookmarkEditForm] = useState({})
+  const [widgetEditForm, setWidgetEditForm] = useState({})
   const [selectedUserId, setSelectedUserId] = useState(null)
 
   // Fetch users
@@ -59,11 +63,31 @@ const AdminDashboard = () => {
     },
   })
 
+  // Update bookmark mutation
+  const updateBookmarkMutation = useMutation({
+    mutationFn: ({ bookmarkId, data }) => adminApi.updateBookmark(bookmarkId, data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['admin-bookmarks'] })
+      setEditingBookmark(null)
+      setBookmarkEditForm({})
+    },
+  })
+
   // Delete widget mutation
   const deleteWidgetMutation = useMutation({
     mutationFn: (widgetId) => adminApi.deleteWidget(widgetId),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['admin-widgets'] })
+    },
+  })
+
+  // Update widget mutation
+  const updateWidgetMutation = useMutation({
+    mutationFn: ({ widgetId, data }) => adminApi.updateWidget(widgetId, data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['admin-widgets'] })
+      setEditingWidget(null)
+      setWidgetEditForm({})
     },
   })
 
@@ -94,10 +118,53 @@ const AdminDashboard = () => {
     }
   }
 
+  const handleEditBookmark = (bookmark) => {
+    setEditingBookmark(bookmark.id)
+    setBookmarkEditForm({
+      title: bookmark.title || '',
+      url: bookmark.url || '',
+      category: bookmark.category || '',
+      description: bookmark.description || '',
+    })
+  }
+
+  const handleSaveBookmark = () => {
+    updateBookmarkMutation.mutate({
+      bookmarkId: editingBookmark,
+      data: bookmarkEditForm,
+    })
+  }
+
+  const handleCancelBookmarkEdit = () => {
+    setEditingBookmark(null)
+    setBookmarkEditForm({})
+  }
+
   const handleDeleteWidget = (widgetId) => {
     if (window.confirm('Are you sure you want to delete this widget?')) {
       deleteWidgetMutation.mutate(widgetId)
     }
+  }
+
+  const handleEditWidget = (widget) => {
+    setEditingWidget(widget.id)
+    setWidgetEditForm({
+      enabled: widget.enabled,
+      refresh_interval: widget.refresh_interval,
+      position: widget.position || { row: 0, col: 0, width: 1, height: 1 },
+    })
+  }
+
+  const handleSaveWidget = () => {
+    updateWidgetMutation.mutate({
+      widgetId: editingWidget,
+      data: widgetEditForm,
+    })
+  }
+
+  const handleCancelWidgetEdit = () => {
+    setEditingWidget(null)
+    setWidgetEditForm({})
   }
 
   const getUserName = (userId) => {
@@ -374,42 +441,104 @@ const AdminDashboard = () => {
                       {getUserName(bookmark.user_id)}
                     </td>
                     <td className="px-4 py-3 text-sm text-[var(--text-primary)]">
-                      <div className="flex items-center gap-2">
-                        {bookmark.favicon && (
-                          <img
-                            src={bookmark.favicon}
-                            alt=""
-                            className="w-4 h-4"
-                          />
-                        )}
-                        {bookmark.title}
-                      </div>
+                      {editingBookmark === bookmark.id ? (
+                        <input
+                          type="text"
+                          value={bookmarkEditForm.title}
+                          onChange={(e) =>
+                            setBookmarkEditForm({ ...bookmarkEditForm, title: e.target.value })
+                          }
+                          className="px-2 py-1 border border-[var(--border-color)] rounded bg-[var(--bg-primary)] text-[var(--text-primary)] w-full"
+                        />
+                      ) : (
+                        <div className="flex items-center gap-2">
+                          {bookmark.favicon && (
+                            <img
+                              src={bookmark.favicon}
+                              alt=""
+                              className="w-4 h-4"
+                            />
+                          )}
+                          {bookmark.title}
+                        </div>
+                      )}
                     </td>
-                    <td className="px-4 py-3 text-sm text-[var(--text-secondary)] max-w-xs truncate">
-                      <a
-                        href={bookmark.url}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="hover:text-[var(--accent-color)]"
-                      >
-                        {bookmark.url}
-                      </a>
+                    <td className="px-4 py-3 text-sm text-[var(--text-secondary)] max-w-xs">
+                      {editingBookmark === bookmark.id ? (
+                        <input
+                          type="text"
+                          value={bookmarkEditForm.url}
+                          onChange={(e) =>
+                            setBookmarkEditForm({ ...bookmarkEditForm, url: e.target.value })
+                          }
+                          className="px-2 py-1 border border-[var(--border-color)] rounded bg-[var(--bg-primary)] text-[var(--text-primary)] w-full"
+                        />
+                      ) : (
+                        <a
+                          href={bookmark.url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="hover:text-[var(--accent-color)] truncate block"
+                        >
+                          {bookmark.url}
+                        </a>
+                      )}
                     </td>
                     <td className="px-4 py-3 text-sm text-[var(--text-primary)]">
-                      {bookmark.category || '-'}
+                      {editingBookmark === bookmark.id ? (
+                        <input
+                          type="text"
+                          value={bookmarkEditForm.category}
+                          onChange={(e) =>
+                            setBookmarkEditForm({ ...bookmarkEditForm, category: e.target.value })
+                          }
+                          className="px-2 py-1 border border-[var(--border-color)] rounded bg-[var(--bg-primary)] text-[var(--text-primary)] w-full"
+                        />
+                      ) : (
+                        bookmark.category || '-'
+                      )}
                     </td>
                     <td className="px-4 py-3 text-sm text-[var(--text-primary)]">
                       {bookmark.clicks}
                     </td>
                     <td className="px-4 py-3 text-sm">
-                      <button
-                        onClick={() => handleDeleteBookmark(bookmark.id)}
-                        disabled={deleteBookmarkMutation.isPending}
-                        className="p-1 text-red-600 hover:text-red-800 disabled:opacity-50"
-                        title="Delete"
-                      >
-                        <Trash2 size={18} />
-                      </button>
+                      {editingBookmark === bookmark.id ? (
+                        <div className="flex gap-2">
+                          <button
+                            onClick={handleSaveBookmark}
+                            disabled={updateBookmarkMutation.isPending}
+                            className="p-1 text-green-600 hover:text-green-800 disabled:opacity-50"
+                            title="Save"
+                          >
+                            <Save size={18} />
+                          </button>
+                          <button
+                            onClick={handleCancelBookmarkEdit}
+                            className="p-1 text-gray-600 hover:text-gray-800"
+                            title="Cancel"
+                          >
+                            <X size={18} />
+                          </button>
+                        </div>
+                      ) : (
+                        <div className="flex gap-2">
+                          <button
+                            onClick={() => handleEditBookmark(bookmark)}
+                            className="p-1 text-blue-600 hover:text-blue-800"
+                            title="Edit"
+                          >
+                            <Edit2 size={18} />
+                          </button>
+                          <button
+                            onClick={() => handleDeleteBookmark(bookmark.id)}
+                            disabled={deleteBookmarkMutation.isPending}
+                            className="p-1 text-red-600 hover:text-red-800 disabled:opacity-50"
+                            title="Delete"
+                          >
+                            <Trash2 size={18} />
+                          </button>
+                        </div>
+                      )}
                     </td>
                   </tr>
                 ))}
@@ -469,31 +598,129 @@ const AdminDashboard = () => {
                       </span>
                     </td>
                     <td className="px-4 py-3 text-sm">
-                      <span
-                        className={`px-2 py-1 rounded text-xs font-medium ${
-                          widget.enabled
-                            ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200'
-                            : 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-200'
-                        }`}
-                      >
-                        {widget.enabled ? 'Enabled' : 'Disabled'}
-                      </span>
+                      {editingWidget === widget.id ? (
+                        <select
+                          value={widgetEditForm.enabled ? 'enabled' : 'disabled'}
+                          onChange={(e) =>
+                            setWidgetEditForm({
+                              ...widgetEditForm,
+                              enabled: e.target.value === 'enabled',
+                            })
+                          }
+                          className="px-2 py-1 border border-[var(--border-color)] rounded bg-[var(--bg-primary)] text-[var(--text-primary)]"
+                        >
+                          <option value="enabled">Enabled</option>
+                          <option value="disabled">Disabled</option>
+                        </select>
+                      ) : (
+                        <span
+                          className={`px-2 py-1 rounded text-xs font-medium ${
+                            widget.enabled
+                              ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200'
+                              : 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-200'
+                          }`}
+                        >
+                          {widget.enabled ? 'Enabled' : 'Disabled'}
+                        </span>
+                      )}
                     </td>
                     <td className="px-4 py-3 text-sm text-[var(--text-secondary)]">
-                      Row: {widget.position?.row}, Col: {widget.position?.col}
+                      {editingWidget === widget.id ? (
+                        <div className="flex gap-1 items-center">
+                          <span>R:</span>
+                          <input
+                            type="number"
+                            min="0"
+                            value={widgetEditForm.position?.row ?? 0}
+                            onChange={(e) =>
+                              setWidgetEditForm({
+                                ...widgetEditForm,
+                                position: {
+                                  ...widgetEditForm.position,
+                                  row: parseInt(e.target.value) || 0,
+                                },
+                              })
+                            }
+                            className="px-1 py-1 border border-[var(--border-color)] rounded bg-[var(--bg-primary)] text-[var(--text-primary)] w-12"
+                          />
+                          <span>C:</span>
+                          <input
+                            type="number"
+                            min="0"
+                            value={widgetEditForm.position?.col ?? 0}
+                            onChange={(e) =>
+                              setWidgetEditForm({
+                                ...widgetEditForm,
+                                position: {
+                                  ...widgetEditForm.position,
+                                  col: parseInt(e.target.value) || 0,
+                                },
+                              })
+                            }
+                            className="px-1 py-1 border border-[var(--border-color)] rounded bg-[var(--bg-primary)] text-[var(--text-primary)] w-12"
+                          />
+                        </div>
+                      ) : (
+                        <>Row: {widget.position?.row}, Col: {widget.position?.col}</>
+                      )}
                     </td>
                     <td className="px-4 py-3 text-sm text-[var(--text-secondary)]">
-                      {widget.refresh_interval}s
+                      {editingWidget === widget.id ? (
+                        <input
+                          type="number"
+                          min="60"
+                          max="86400"
+                          value={widgetEditForm.refresh_interval}
+                          onChange={(e) =>
+                            setWidgetEditForm({
+                              ...widgetEditForm,
+                              refresh_interval: parseInt(e.target.value) || 60,
+                            })
+                          }
+                          className="px-2 py-1 border border-[var(--border-color)] rounded bg-[var(--bg-primary)] text-[var(--text-primary)] w-20"
+                        />
+                      ) : (
+                        <>{widget.refresh_interval}s</>
+                      )}
                     </td>
                     <td className="px-4 py-3 text-sm">
-                      <button
-                        onClick={() => handleDeleteWidget(widget.id)}
-                        disabled={deleteWidgetMutation.isPending}
-                        className="p-1 text-red-600 hover:text-red-800 disabled:opacity-50"
-                        title="Delete"
-                      >
-                        <Trash2 size={18} />
-                      </button>
+                      {editingWidget === widget.id ? (
+                        <div className="flex gap-2">
+                          <button
+                            onClick={handleSaveWidget}
+                            disabled={updateWidgetMutation.isPending}
+                            className="p-1 text-green-600 hover:text-green-800 disabled:opacity-50"
+                            title="Save"
+                          >
+                            <Save size={18} />
+                          </button>
+                          <button
+                            onClick={handleCancelWidgetEdit}
+                            className="p-1 text-gray-600 hover:text-gray-800"
+                            title="Cancel"
+                          >
+                            <X size={18} />
+                          </button>
+                        </div>
+                      ) : (
+                        <div className="flex gap-2">
+                          <button
+                            onClick={() => handleEditWidget(widget)}
+                            className="p-1 text-blue-600 hover:text-blue-800"
+                            title="Edit"
+                          >
+                            <Edit2 size={18} />
+                          </button>
+                          <button
+                            onClick={() => handleDeleteWidget(widget.id)}
+                            disabled={deleteWidgetMutation.isPending}
+                            className="p-1 text-red-600 hover:text-red-800 disabled:opacity-50"
+                            title="Delete"
+                          >
+                            <Trash2 size={18} />
+                          </button>
+                        </div>
+                      )}
                     </td>
                   </tr>
                 ))}
