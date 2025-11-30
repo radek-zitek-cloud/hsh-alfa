@@ -1,8 +1,11 @@
 """Tests for admin functionality including user roles and admin API endpoints."""
 
+import pytest
 from datetime import datetime, timezone
 
+from app.constants import ADMIN_EMAIL
 from app.models.user import User, UserResponse, UserRole, UserUpdate
+from app.services.auth_service import AuthService
 
 
 class TestUserRole:
@@ -129,3 +132,92 @@ class TestUserResponse:
             created_at="2024-01-01T00:00:00",
         )
         assert response.role == "user"
+
+
+class TestAdminEmailAssignment:
+    """Test admin role assignment for specific email."""
+
+    def test_admin_email_constant(self):
+        """Test ADMIN_EMAIL constant is set correctly."""
+        assert ADMIN_EMAIL == "radek@zitek.cloud"
+
+    @pytest.mark.asyncio
+    async def test_new_user_with_admin_email_gets_admin_role(self, db_session):
+        """Test that a new user with admin email gets admin role."""
+        auth_service = AuthService()
+
+        google_user_info = {
+            "id": "google_admin_123",
+            "email": ADMIN_EMAIL,
+            "name": "Admin User",
+            "picture": "https://example.com/pic.jpg",
+        }
+
+        user = await auth_service.get_or_create_user(db_session, google_user_info)
+
+        assert user is not None
+        assert user.email == ADMIN_EMAIL
+        assert user.role == UserRole.ADMIN.value
+
+    @pytest.mark.asyncio
+    async def test_new_user_with_regular_email_gets_user_role(self, db_session):
+        """Test that a new user with regular email gets user role."""
+        auth_service = AuthService()
+
+        google_user_info = {
+            "id": "google_regular_123",
+            "email": "regular@example.com",
+            "name": "Regular User",
+            "picture": "https://example.com/pic.jpg",
+        }
+
+        user = await auth_service.get_or_create_user(db_session, google_user_info)
+
+        assert user is not None
+        assert user.email == "regular@example.com"
+        assert user.role == UserRole.USER.value
+
+    @pytest.mark.asyncio
+    async def test_existing_admin_email_user_gets_admin_role_on_login(self, db_session):
+        """Test that existing user with admin email gets admin role on login."""
+        auth_service = AuthService()
+
+        # First, create a user with admin email (simulates initial creation)
+        google_user_info = {
+            "id": "google_admin_456",
+            "email": ADMIN_EMAIL,
+            "name": "Admin User",
+            "picture": "https://example.com/pic.jpg",
+        }
+
+        # Create user first time
+        user = await auth_service.get_or_create_user(db_session, google_user_info)
+        assert user is not None
+        assert user.role == UserRole.ADMIN.value
+
+        # Simulate a second login (existing user)
+        user = await auth_service.get_or_create_user(db_session, google_user_info)
+        assert user is not None
+        assert user.role == UserRole.ADMIN.value
+
+    @pytest.mark.asyncio
+    async def test_existing_regular_user_keeps_user_role_on_login(self, db_session):
+        """Test that existing regular user keeps user role on login."""
+        auth_service = AuthService()
+
+        google_user_info = {
+            "id": "google_regular_456",
+            "email": "regular2@example.com",
+            "name": "Regular User 2",
+            "picture": "https://example.com/pic.jpg",
+        }
+
+        # Create user first time
+        user = await auth_service.get_or_create_user(db_session, google_user_info)
+        assert user is not None
+        assert user.role == UserRole.USER.value
+
+        # Simulate a second login (existing user)
+        user = await auth_service.get_or_create_user(db_session, google_user_info)
+        assert user is not None
+        assert user.role == UserRole.USER.value
