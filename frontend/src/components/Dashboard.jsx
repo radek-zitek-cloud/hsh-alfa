@@ -10,6 +10,7 @@ import BookmarkModal from './BookmarkModal'
 import BookmarkForm from './BookmarkForm'
 import WidgetForm from './WidgetForm'
 import ExportImportModal from './ExportImportModal'
+import DateHeader from './DateHeader'
 
 // Map section names to icons
 const SECTION_ICONS = {
@@ -90,9 +91,7 @@ const Dashboard = ({ theme, toggleTheme }) => {
     <div className="min-h-screen p-4 md:p-6 lg:p-8">
       {/* Header */}
       <header className="flex justify-between items-center mb-8">
-        <h1 className="text-3xl font-bold text-[var(--text-primary)]">
-          Home Sweet Home
-        </h1>
+        <DateHeader />
         <div className="flex items-center gap-4">
           {/* Section Navigation Icons */}
           {visibleSections.map((section) => {
