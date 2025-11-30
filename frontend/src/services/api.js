@@ -143,6 +143,8 @@ export const adminApi = {
     return api.get('/admin/bookmarks', { params });
   },
 
+  updateBookmark: (id, data) => api.put(`/admin/bookmarks/${id}`, data),
+
   deleteBookmark: (id) => api.delete(`/admin/bookmarks/${id}`),
 
   // Widgets
@@ -151,6 +153,8 @@ export const adminApi = {
     if (userId) params.user_id = userId;
     return api.get('/admin/widgets', { params });
   },
+
+  updateWidget: (id, data) => api.put(`/admin/widgets/${id}`, data),
 
   deleteWidget: (id) => api.delete(`/admin/widgets/${id}`),
 };

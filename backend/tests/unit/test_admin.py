@@ -221,3 +221,77 @@ class TestAdminEmailAssignment:
         user = await auth_service.get_or_create_user(db_session, google_user_info)
         assert user is not None
         assert user.role == UserRole.USER.value
+
+
+class TestAdminBookmarkUpdate:
+    """Test admin bookmark update functionality."""
+
+    def test_bookmark_update_schema_import(self):
+        """Test that BookmarkUpdate schema can be imported."""
+        from app.models.bookmark import BookmarkUpdate
+        assert BookmarkUpdate is not None
+
+    def test_bookmark_update_title(self):
+        """Test updating bookmark title."""
+        from app.models.bookmark import BookmarkUpdate
+        update = BookmarkUpdate(title="New Title")
+        assert update.title == "New Title"
+
+    def test_bookmark_update_url(self):
+        """Test updating bookmark URL."""
+        from app.models.bookmark import BookmarkUpdate
+        update = BookmarkUpdate(url="https://example.com")
+        assert update.url == "https://example.com"
+
+    def test_bookmark_update_category(self):
+        """Test updating bookmark category."""
+        from app.models.bookmark import BookmarkUpdate
+        update = BookmarkUpdate(category="Work")
+        assert update.category == "Work"
+
+    def test_bookmark_update_partial(self):
+        """Test partial bookmark update."""
+        from app.models.bookmark import BookmarkUpdate
+        update = BookmarkUpdate(title="New Title")
+        assert update.title == "New Title"
+        assert update.url is None
+        assert update.category is None
+
+
+class TestAdminWidgetUpdate:
+    """Test admin widget update functionality."""
+
+    def test_widget_update_schema_import(self):
+        """Test that WidgetUpdate schema can be imported."""
+        from app.models.widget import WidgetUpdate
+        assert WidgetUpdate is not None
+
+    def test_widget_update_enabled(self):
+        """Test updating widget enabled status."""
+        from app.models.widget import WidgetUpdate
+        update = WidgetUpdate(enabled=False)
+        assert update.enabled is False
+
+    def test_widget_update_refresh_interval(self):
+        """Test updating widget refresh interval."""
+        from app.models.widget import WidgetUpdate
+        update = WidgetUpdate(refresh_interval=3600)
+        assert update.refresh_interval == 3600
+
+    def test_widget_update_position(self):
+        """Test updating widget position."""
+        from app.models.widget import WidgetUpdate, WidgetPosition
+        position = WidgetPosition(row=1, col=2, width=3, height=2)
+        update = WidgetUpdate(position=position)
+        assert update.position.row == 1
+        assert update.position.col == 2
+        assert update.position.width == 3
+        assert update.position.height == 2
+
+    def test_widget_update_partial(self):
+        """Test partial widget update."""
+        from app.models.widget import WidgetUpdate
+        update = WidgetUpdate(enabled=True)
+        assert update.enabled is True
+        assert update.refresh_interval is None
+        assert update.position is None
