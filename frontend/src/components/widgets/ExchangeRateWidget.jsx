@@ -1,17 +1,17 @@
-import { useWidget } from '../../hooks/useWidget'
-import { DollarSign, Loader, AlertCircle, ExternalLink } from 'lucide-react'
+import { useWidget } from '../../hooks/useWidget';
+import { DollarSign, Loader, AlertCircle, ExternalLink } from 'lucide-react';
 
 const ExchangeRateWidget = ({ widgetId, config }) => {
   const { data, isLoading, error } = useWidget(widgetId, {
     refetchInterval: (config?.refresh_interval || 3600) * 1000,
-  })
+  });
 
   if (isLoading) {
     return (
       <div className="widget-card flex items-center justify-center">
         <Loader className="animate-spin" size={32} />
       </div>
-    )
+    );
   }
 
   if (error || data?.error) {
@@ -24,16 +24,16 @@ const ExchangeRateWidget = ({ widgetId, config }) => {
           </span>
         </div>
       </div>
-    )
+    );
   }
 
-  const rateData = data?.data
+  const rateData = data?.data;
   if (!rateData || !rateData.rates) {
     return (
       <div className="widget-card">
         <p className="text-[var(--text-secondary)]">No exchange rate data available</p>
       </div>
-    )
+    );
   }
 
   return (
@@ -42,26 +42,22 @@ const ExchangeRateWidget = ({ widgetId, config }) => {
         {/* Header */}
         <div className="flex items-center gap-2 mb-4">
           <DollarSign size={24} className="text-[var(--accent-color)]" />
-          <h3 className="text-lg font-semibold text-[var(--text-primary)]">
-            Exchange Rates
-          </h3>
+          <h3 className="text-lg font-semibold text-[var(--text-primary)]">Exchange Rates</h3>
         </div>
 
         {/* Base Currency */}
-        <p className="text-sm text-[var(--text-secondary)] mb-3">
-          Base: {rateData.base_currency}
-        </p>
+        <p className="text-sm text-[var(--text-secondary)] mb-3">Base: {rateData.base_currency}</p>
 
         {/* Rates */}
         <div className="space-y-3 flex-1">
-          {rateData.rates.map((rate) => {
+          {rateData.rates.map(rate => {
             // Defensive checks to prevent crashes
-            if (!rate || !rate.currency) return null
-            const rateValue = rate.rate ?? 0
-            const reverseRateValue = rate.reverse_rate ?? 0
-            const baseCurrency = encodeURIComponent(rateData.base_currency)
-            const targetCurrency = encodeURIComponent(rate.currency)
-            const yahooFinanceUrl = `https://finance.yahoo.com/quote/${baseCurrency}${targetCurrency}=X/`
+            if (!rate || !rate.currency) return null;
+            const rateValue = rate.rate ?? 0;
+            const reverseRateValue = rate.reverse_rate ?? 0;
+            const baseCurrency = encodeURIComponent(rateData.base_currency);
+            const targetCurrency = encodeURIComponent(rate.currency);
+            const yahooFinanceUrl = `https://finance.yahoo.com/quote/${baseCurrency}${targetCurrency}=X/`;
 
             return (
               <a
@@ -76,7 +72,10 @@ const ExchangeRateWidget = ({ widgetId, config }) => {
                   <span className="font-semibold text-[var(--text-primary)] group-hover:text-[var(--accent-color)]">
                     {rate.currency}
                   </span>
-                  <ExternalLink size={14} className="opacity-0 group-hover:opacity-100 text-[var(--accent-color)] transition-opacity" />
+                  <ExternalLink
+                    size={14}
+                    className="opacity-0 group-hover:opacity-100 text-[var(--accent-color)] transition-opacity"
+                  />
                 </div>
                 <div className="text-right">
                   <div className="font-mono text-[var(--text-primary)]">
@@ -84,7 +83,7 @@ const ExchangeRateWidget = ({ widgetId, config }) => {
                   </div>
                 </div>
               </a>
-            )
+            );
           })}
         </div>
 
@@ -98,7 +97,7 @@ const ExchangeRateWidget = ({ widgetId, config }) => {
         )}
       </div>
     </div>
-  )
-}
+  );
+};
 
-export default ExchangeRateWidget
+export default ExchangeRateWidget;

@@ -1,47 +1,49 @@
-import React, { useState, useEffect } from 'react'
-import { widgetsApi } from '../services/api'
-import { useMutation, useQueryClient, useQuery } from '@tanstack/react-query'
+import React, { useState, useEffect } from 'react';
+import { widgetsApi } from '../services/api';
+import { useMutation, useQueryClient, useQuery } from '@tanstack/react-query';
 
 // Helper function to format error messages from API responses
-const formatErrorMessage = (error) => {
-  const detail = error.response?.data?.detail
+const formatErrorMessage = error => {
+  const detail = error.response?.data?.detail;
 
   // If detail is an array of validation errors (Pydantic format)
   if (Array.isArray(detail)) {
-    return detail.map(err => {
-      const field = err.loc?.join('.') || 'field'
-      return `${field}: ${err.msg || 'Validation error'}`
-    }).join('; ')
+    return detail
+      .map(err => {
+        const field = err.loc?.join('.') || 'field';
+        return `${field}: ${err.msg || 'Validation error'}`;
+      })
+      .join('; ');
   }
 
   // If detail is a string, return it directly
   if (typeof detail === 'string') {
-    return detail
+    return detail;
   }
 
   // If detail is an object, try to stringify it
   if (detail && typeof detail === 'object') {
-    return JSON.stringify(detail)
+    return JSON.stringify(detail);
   }
 
   // Default fallback message
-  return 'An error occurred'
-}
+  return 'An error occurred';
+};
 
 const WidgetForm = ({ widget, onSuccess, onCancel }) => {
-  const queryClient = useQueryClient()
-  const isEditMode = !!widget
+  const queryClient = useQueryClient();
+  const isEditMode = !!widget;
 
   // Fetch available widget types
   const { data: typesData } = useQuery({
     queryKey: ['widgetTypes'],
     queryFn: async () => {
-      const response = await widgetsApi.getTypes()
-      return response.data
+      const response = await widgetsApi.getTypes();
+      return response.data;
     },
-  })
+  });
 
-  const widgetTypes = typesData?.widget_types || []
+  const widgetTypes = typesData?.widget_types || [];
 
   // Form state
   const [formData, setFormData] = useState({
@@ -55,91 +57,92 @@ const WidgetForm = ({ widget, onSuccess, onCancel }) => {
     },
     refresh_interval: widget?.refresh_interval || 1800,
     config: widget?.config || {},
-  })
+  });
 
   // Widget-specific config state
   const [widgetConfig, setWidgetConfig] = useState(() => {
-    if (widget?.config) return widget.config
-    return getDefaultConfigForType(formData.type)
-  })
+    if (widget?.config) return widget.config;
+    return getDefaultConfigForType(formData.type);
+  });
 
   // Update config when type changes
   useEffect(() => {
     if (!isEditMode) {
-      setWidgetConfig(getDefaultConfigForType(formData.type))
+      setWidgetConfig(getDefaultConfigForType(formData.type));
     }
-  }, [formData.type, isEditMode])
+  }, [formData.type, isEditMode]);
 
-  const [errors, setErrors] = useState({})
+  const [errors, setErrors] = useState({});
 
   // Create mutation
   const createMutation = useMutation({
-    mutationFn: (data) => widgetsApi.create(data),
+    mutationFn: data => widgetsApi.create(data),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['widgets'] })
-      onSuccess?.()
+      queryClient.invalidateQueries({ queryKey: ['widgets'] });
+      onSuccess?.();
     },
-    onError: (error) => {
-      const errorMessage = formatErrorMessage(error) || 'Failed to create widget'
-      setErrors({ submit: errorMessage })
+    onError: error => {
+      const errorMessage = formatErrorMessage(error) || 'Failed to create widget';
+      setErrors({ submit: errorMessage });
     },
-  })
+  });
 
   // Update mutation
   const updateMutation = useMutation({
     mutationFn: ({ id, data }) => widgetsApi.update(id, data),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['widgets'] })
+      queryClient.invalidateQueries({ queryKey: ['widgets'] });
       // Also invalidate the specific widget's data query to refresh the display
-      queryClient.invalidateQueries({ queryKey: ['widget', widget.id] })
-      onSuccess?.()
+      queryClient.invalidateQueries({ queryKey: ['widget', widget.id] });
+      onSuccess?.();
     },
-    onError: (error) => {
-      const errorMessage = formatErrorMessage(error) || 'Failed to update widget'
-      setErrors({ submit: errorMessage })
+    onError: error => {
+      const errorMessage = formatErrorMessage(error) || 'Failed to update widget';
+      setErrors({ submit: errorMessage });
     },
-  })
+  });
 
-  const handleSubmit = (e) => {
-    e.preventDefault()
-    setErrors({})
+  const handleSubmit = e => {
+    e.preventDefault();
+    setErrors({});
 
     // Validate form
-    const newErrors = {}
-    if (!formData.type) newErrors.type = 'Widget type is required'
-    if (formData.refresh_interval < 60) newErrors.refresh_interval = 'Refresh interval must be at least 60 seconds'
+    const newErrors = {};
+    if (!formData.type) newErrors.type = 'Widget type is required';
+    if (formData.refresh_interval < 60)
+      newErrors.refresh_interval = 'Refresh interval must be at least 60 seconds';
 
     if (Object.keys(newErrors).length > 0) {
-      setErrors(newErrors)
-      return
+      setErrors(newErrors);
+      return;
     }
 
     const data = {
       ...formData,
       config: widgetConfig,
-    }
+    };
 
     if (isEditMode) {
-      updateMutation.mutate({ id: widget.id, data })
+      updateMutation.mutate({ id: widget.id, data });
     } else {
-      createMutation.mutate(data)
+      createMutation.mutate(data);
     }
-  }
+  };
 
   const handleInputChange = (field, value) => {
-    setFormData(prev => ({ ...prev, [field]: value }))
-  }
+    setFormData(prev => ({ ...prev, [field]: value }));
+  };
 
   const handlePositionChange = (field, value) => {
     setFormData(prev => ({
       ...prev,
-      position: { ...prev.position, [field]: parseInt(value) || 0 }
-    }))
-  }
+      position: { ...prev.position, [field]: parseInt(value) || 0 },
+    }));
+  };
 
   const handleConfigChange = (field, value) => {
-    setWidgetConfig(prev => ({ ...prev, [field]: value }))
-  }
+    setWidgetConfig(prev => ({ ...prev, [field]: value }));
+  };
 
   return (
     <form onSubmit={handleSubmit} className="p-6 space-y-6">
@@ -157,12 +160,14 @@ const WidgetForm = ({ widget, onSuccess, onCancel }) => {
           </label>
           <select
             value={formData.type}
-            onChange={(e) => handleInputChange('type', e.target.value)}
+            onChange={e => handleInputChange('type', e.target.value)}
             disabled={isEditMode}
             className="w-full px-4 py-2 bg-[var(--bg-primary)] border border-[var(--border-color)] rounded-lg focus:ring-2 focus:ring-[var(--accent-color)] focus:border-transparent disabled:opacity-50"
           >
             {widgetTypes.map(type => (
-              <option key={type} value={type}>{formatTypeName(type)}</option>
+              <option key={type} value={type}>
+                {formatTypeName(type)}
+              </option>
             ))}
           </select>
         </div>
@@ -173,7 +178,7 @@ const WidgetForm = ({ widget, onSuccess, onCancel }) => {
             type="checkbox"
             id="enabled"
             checked={formData.enabled}
-            onChange={(e) => handleInputChange('enabled', e.target.checked)}
+            onChange={e => handleInputChange('enabled', e.target.checked)}
             className="w-4 h-4 text-[var(--accent-color)] border-[var(--border-color)] rounded focus:ring-2 focus:ring-[var(--accent-color)]"
           />
           <label htmlFor="enabled" className="ml-2 text-sm font-medium text-[var(--text-primary)]">
@@ -189,12 +194,14 @@ const WidgetForm = ({ widget, onSuccess, onCancel }) => {
           <input
             type="number"
             value={formData.refresh_interval}
-            onChange={(e) => handleInputChange('refresh_interval', parseInt(e.target.value))}
+            onChange={e => handleInputChange('refresh_interval', parseInt(e.target.value))}
             min="60"
             max="86400"
             className="w-full px-4 py-2 bg-[var(--bg-primary)] border border-[var(--border-color)] rounded-lg focus:ring-2 focus:ring-[var(--accent-color)] focus:border-transparent"
           />
-          {errors.refresh_interval && <p className="text-red-500 text-sm mt-1">{errors.refresh_interval}</p>}
+          {errors.refresh_interval && (
+            <p className="text-red-500 text-sm mt-1">{errors.refresh_interval}</p>
+          )}
         </div>
       </div>
 
@@ -209,7 +216,7 @@ const WidgetForm = ({ widget, onSuccess, onCancel }) => {
             <input
               type="number"
               value={formData.position.row}
-              onChange={(e) => handlePositionChange('row', e.target.value)}
+              onChange={e => handlePositionChange('row', e.target.value)}
               min="0"
               className="w-full px-3 py-2 bg-[var(--bg-primary)] border border-[var(--border-color)] rounded-lg"
             />
@@ -219,7 +226,7 @@ const WidgetForm = ({ widget, onSuccess, onCancel }) => {
             <input
               type="number"
               value={formData.position.col}
-              onChange={(e) => handlePositionChange('col', e.target.value)}
+              onChange={e => handlePositionChange('col', e.target.value)}
               min="0"
               className="w-full px-3 py-2 bg-[var(--bg-primary)] border border-[var(--border-color)] rounded-lg"
             />
@@ -229,7 +236,7 @@ const WidgetForm = ({ widget, onSuccess, onCancel }) => {
             <input
               type="number"
               value={formData.position.width}
-              onChange={(e) => handlePositionChange('width', e.target.value)}
+              onChange={e => handlePositionChange('width', e.target.value)}
               min="1"
               max="12"
               className="w-full px-3 py-2 bg-[var(--bg-primary)] border border-[var(--border-color)] rounded-lg"
@@ -240,7 +247,7 @@ const WidgetForm = ({ widget, onSuccess, onCancel }) => {
             <input
               type="number"
               value={formData.position.height}
-              onChange={(e) => handlePositionChange('height', e.target.value)}
+              onChange={e => handlePositionChange('height', e.target.value)}
               min="1"
               max="12"
               className="w-full px-3 py-2 bg-[var(--bg-primary)] border border-[var(--border-color)] rounded-lg"
@@ -276,20 +283,20 @@ const WidgetForm = ({ widget, onSuccess, onCancel }) => {
           {createMutation.isPending || updateMutation.isPending
             ? 'Saving...'
             : isEditMode
-            ? 'Update Widget'
-            : 'Create Widget'}
+              ? 'Update Widget'
+              : 'Create Widget'}
         </button>
       </div>
     </form>
-  )
-}
+  );
+};
 
 // Helper functions
 function formatTypeName(type) {
   return type
     .split('_')
     .map(word => word.charAt(0).toUpperCase() + word.slice(1))
-    .join(' ')
+    .join(' ');
 }
 
 function getDefaultConfigForType(type) {
@@ -299,26 +306,26 @@ function getDefaultConfigForType(type) {
         location: 'New York, US',
         units: 'metric',
         show_forecast: true,
-      }
+      };
     case 'exchange_rate':
       return {
         base_currency: 'USD',
         target_currencies: ['EUR', 'GBP', 'JPY'],
         show_trend: false,
-      }
+      };
     case 'news':
       return {
         rss_feeds: ['https://hnrss.org/frontpage'],
         max_articles: 10,
         description_length: 200,
-      }
+      };
     case 'market':
       return {
         stocks: ['^GSPC', '^DJI'],
         crypto: ['BTC', 'ETH'],
-      }
+      };
     default:
-      return {}
+      return {};
   }
 }
 
@@ -334,7 +341,7 @@ function renderConfigFields(type, config, onChange) {
             <input
               type="text"
               value={config.location || ''}
-              onChange={(e) => onChange('location', e.target.value)}
+              onChange={e => onChange('location', e.target.value)}
               placeholder="e.g., London, UK"
               className="w-full px-3 py-2 bg-[var(--bg-secondary)] border border-[var(--border-color)] rounded-lg"
             />
@@ -343,7 +350,7 @@ function renderConfigFields(type, config, onChange) {
             <label className="block text-sm text-[var(--text-secondary)] mb-1">Units</label>
             <select
               value={config.units || 'metric'}
-              onChange={(e) => onChange('units', e.target.value)}
+              onChange={e => onChange('units', e.target.value)}
               className="w-full px-3 py-2 bg-[var(--bg-secondary)] border border-[var(--border-color)] rounded-lg"
             >
               <option value="metric">Metric (°C)</option>
@@ -356,7 +363,7 @@ function renderConfigFields(type, config, onChange) {
               type="checkbox"
               id="show_forecast"
               checked={config.show_forecast !== false}
-              onChange={(e) => onChange('show_forecast', e.target.checked)}
+              onChange={e => onChange('show_forecast', e.target.checked)}
               className="w-4 h-4"
             />
             <label htmlFor="show_forecast" className="ml-2 text-sm text-[var(--text-secondary)]">
@@ -364,19 +371,17 @@ function renderConfigFields(type, config, onChange) {
             </label>
           </div>
         </>
-      )
+      );
 
     case 'exchange_rate':
       return (
         <>
           <div>
-            <label className="block text-sm text-[var(--text-secondary)] mb-1">
-              Base Currency
-            </label>
+            <label className="block text-sm text-[var(--text-secondary)] mb-1">Base Currency</label>
             <input
               type="text"
               value={config.base_currency || 'USD'}
-              onChange={(e) => onChange('base_currency', e.target.value.toUpperCase())}
+              onChange={e => onChange('base_currency', e.target.value.toUpperCase())}
               placeholder="USD"
               className="w-full px-3 py-2 bg-[var(--bg-secondary)] border border-[var(--border-color)] rounded-lg"
             />
@@ -387,14 +392,21 @@ function renderConfigFields(type, config, onChange) {
             </label>
             <input
               type="text"
-              value={Array.isArray(config.target_currencies) ? config.target_currencies.join(', ') : ''}
-              onChange={(e) => onChange('target_currencies', e.target.value.split(',').map(c => c.trim().toUpperCase()))}
+              value={
+                Array.isArray(config.target_currencies) ? config.target_currencies.join(', ') : ''
+              }
+              onChange={e =>
+                onChange(
+                  'target_currencies',
+                  e.target.value.split(',').map(c => c.trim().toUpperCase())
+                )
+              }
               placeholder="EUR, GBP, JPY"
               className="w-full px-3 py-2 bg-[var(--bg-secondary)] border border-[var(--border-color)] rounded-lg"
             />
           </div>
         </>
-      )
+      );
 
     case 'news':
       return (
@@ -405,27 +417,25 @@ function renderConfigFields(type, config, onChange) {
             </label>
             <textarea
               value={Array.isArray(config.rss_feeds) ? config.rss_feeds.join('\n') : ''}
-              onChange={(e) => onChange('rss_feeds', e.target.value.split('\n').filter(Boolean))}
+              onChange={e => onChange('rss_feeds', e.target.value.split('\n').filter(Boolean))}
               rows="4"
               placeholder="https://hnrss.org/frontpage"
               className="w-full px-3 py-2 bg-[var(--bg-secondary)] border border-[var(--border-color)] rounded-lg"
             />
           </div>
           <div>
-            <label className="block text-sm text-[var(--text-secondary)] mb-1">
-              Max Articles
-            </label>
+            <label className="block text-sm text-[var(--text-secondary)] mb-1">Max Articles</label>
             <input
               type="number"
               value={config.max_articles || 10}
-              onChange={(e) => onChange('max_articles', parseInt(e.target.value))}
+              onChange={e => onChange('max_articles', parseInt(e.target.value))}
               min="1"
               max="50"
               className="w-full px-3 py-2 bg-[var(--bg-secondary)] border border-[var(--border-color)] rounded-lg"
             />
           </div>
         </>
-      )
+      );
 
     case 'market':
       return (
@@ -437,7 +447,15 @@ function renderConfigFields(type, config, onChange) {
             <input
               type="text"
               value={Array.isArray(config.stocks) ? config.stocks.join(', ') : ''}
-              onChange={(e) => onChange('stocks', e.target.value.split(',').map(s => s.trim().toUpperCase()).filter(s => s))}
+              onChange={e =>
+                onChange(
+                  'stocks',
+                  e.target.value
+                    .split(',')
+                    .map(s => s.trim().toUpperCase())
+                    .filter(s => s)
+                )
+              }
               placeholder="AAPL, GOOGL, MSFT"
               className="w-full px-3 py-2 bg-[var(--bg-secondary)] border border-[var(--border-color)] rounded-lg"
             />
@@ -449,21 +467,29 @@ function renderConfigFields(type, config, onChange) {
             <input
               type="text"
               value={Array.isArray(config.crypto) ? config.crypto.join(', ') : ''}
-              onChange={(e) => onChange('crypto', e.target.value.split(',').map(c => c.trim().toUpperCase()).filter(c => c))}
+              onChange={e =>
+                onChange(
+                  'crypto',
+                  e.target.value
+                    .split(',')
+                    .map(c => c.trim().toUpperCase())
+                    .filter(c => c)
+                )
+              }
               placeholder="BTC, ETH, SOL"
               className="w-full px-3 py-2 bg-[var(--bg-secondary)] border border-[var(--border-color)] rounded-lg"
             />
           </div>
         </>
-      )
+      );
 
     default:
       return (
         <p className="text-sm text-[var(--text-secondary)]">
           No additional configuration needed for this widget type.
         </p>
-      )
+      );
   }
 }
 
-export default WidgetForm
+export default WidgetForm;

@@ -12,22 +12,22 @@ const api = axios.create({
 
 // Add request interceptor to include auth token
 api.interceptors.request.use(
-  (config) => {
+  config => {
     const token = localStorage.getItem('auth_token');
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
     }
     return config;
   },
-  (error) => {
+  error => {
     return Promise.reject(error);
   }
 );
 
 // Add response interceptor for better error handling
 api.interceptors.response.use(
-  (response) => response,
-  (error) => {
+  response => response,
+  error => {
     // Handle network errors gracefully
     if (error.code === 'ECONNABORTED') {
       console.error('Request timeout:', error.message);
@@ -59,17 +59,17 @@ export const bookmarksApi = {
     return api.get('/bookmarks/', { params });
   },
 
-  getOne: (id) => api.get(`/bookmarks/${id}`),
+  getOne: id => api.get(`/bookmarks/${id}`),
 
-  create: (data) => api.post('/bookmarks/', data),
+  create: data => api.post('/bookmarks/', data),
 
   update: (id, data) => api.put(`/bookmarks/${id}`, data),
 
-  delete: (id) => api.delete(`/bookmarks/${id}`),
+  delete: id => api.delete(`/bookmarks/${id}`),
 
-  search: (query) => api.get('/bookmarks/search/', { params: { q: query } }),
+  search: query => api.get('/bookmarks/search/', { params: { q: query } }),
 
-  trackClick: (id) => api.post(`/bookmarks/${id}/click`),
+  trackClick: id => api.post(`/bookmarks/${id}/click`),
 };
 
 // Widgets API
@@ -78,18 +78,18 @@ export const widgetsApi = {
 
   getTypes: () => api.get('/widgets/types'),
 
-  getOne: (id) => api.get(`/widgets/${id}`),
+  getOne: id => api.get(`/widgets/${id}`),
 
   getData: (id, forceRefresh = false) =>
     api.get(`/widgets/${id}/data`, { params: { force_refresh: forceRefresh } }),
 
-  create: (data) => api.post('/widgets/', data),
+  create: data => api.post('/widgets/', data),
 
   update: (id, data) => api.put(`/widgets/${id}`, data),
 
-  delete: (id) => api.delete(`/widgets/${id}`),
+  delete: id => api.delete(`/widgets/${id}`),
 
-  refresh: (id) => api.post(`/widgets/${id}/refresh`),
+  refresh: id => api.post(`/widgets/${id}/refresh`),
 
   reloadConfig: () => api.post('/widgets/reload-config'),
 };
@@ -98,22 +98,22 @@ export const widgetsApi = {
 export const sectionsApi = {
   getAll: () => api.get('/sections/'),
 
-  getOne: (id) => api.get(`/sections/${id}`),
+  getOne: id => api.get(`/sections/${id}`),
 
-  create: (data) => api.post('/sections/', data),
+  create: data => api.post('/sections/', data),
 
   update: (id, data) => api.put(`/sections/${id}`, data),
 
-  reorder: (sections) => api.put('/sections/reorder', { sections }),
+  reorder: sections => api.put('/sections/reorder', { sections }),
 
-  delete: (id) => api.delete(`/sections/${id}`),
+  delete: id => api.delete(`/sections/${id}`),
 };
 
 // Preferences API
 export const preferencesApi = {
   getAll: () => api.get('/preferences/'),
 
-  get: (key) => api.get(`/preferences/${key}`),
+  get: key => api.get(`/preferences/${key}`),
 
   set: (key, value) => api.put(`/preferences/${key}`, { value }),
 };
@@ -123,10 +123,10 @@ export const exportImportApi = {
   exportData: (format = 'json') =>
     api.get('/export', {
       params: { format },
-      responseType: 'blob' // Important for file download
+      responseType: 'blob', // Important for file download
     }),
 
-  importData: (data) => api.post('/import', data),
+  importData: data => api.post('/import', data),
 };
 
 // Admin API
@@ -134,7 +134,7 @@ export const adminApi = {
   // Users
   getUsers: () => api.get('/admin/users'),
 
-  getUser: (id) => api.get(`/admin/users/${id}`),
+  getUser: id => api.get(`/admin/users/${id}`),
 
   updateUser: (id, data) => api.put(`/admin/users/${id}`, data),
 
@@ -147,7 +147,7 @@ export const adminApi = {
 
   updateBookmark: (id, data) => api.put(`/admin/bookmarks/${id}`, data),
 
-  deleteBookmark: (id) => api.delete(`/admin/bookmarks/${id}`),
+  deleteBookmark: id => api.delete(`/admin/bookmarks/${id}`),
 
   // Widgets
   getWidgets: (userId = null) => {
@@ -158,7 +158,7 @@ export const adminApi = {
 
   updateWidget: (id, data) => api.put(`/admin/widgets/${id}`, data),
 
-  deleteWidget: (id) => api.delete(`/admin/widgets/${id}`),
+  deleteWidget: id => api.delete(`/admin/widgets/${id}`),
 
   // Preferences
   getPreferences: (userId = null) => {
@@ -167,7 +167,7 @@ export const adminApi = {
     return api.get('/admin/preferences', { params });
   },
 
-  deletePreference: (id) => api.delete(`/admin/preferences/${id}`),
+  deletePreference: id => api.delete(`/admin/preferences/${id}`),
 };
 
 export default api;

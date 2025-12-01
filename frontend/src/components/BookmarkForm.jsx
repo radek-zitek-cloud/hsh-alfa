@@ -1,37 +1,39 @@
-import React, { useState, useEffect } from 'react'
-import { useMutation, useQueryClient } from '@tanstack/react-query'
-import { bookmarksApi } from '../services/api'
-import { Loader } from 'lucide-react'
+import React, { useState, useEffect } from 'react';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { bookmarksApi } from '../services/api';
+import { Loader } from 'lucide-react';
 
 // Helper function to format error messages from API responses
-const formatErrorMessage = (error) => {
-  const detail = error.response?.data?.detail
+const formatErrorMessage = error => {
+  const detail = error.response?.data?.detail;
 
   // If detail is an array of validation errors (Pydantic format)
   if (Array.isArray(detail)) {
-    return detail.map(err => {
-      const field = err.loc?.join('.') || 'field'
-      return `${field}: ${err.msg || 'Validation error'}`
-    }).join('; ')
+    return detail
+      .map(err => {
+        const field = err.loc?.join('.') || 'field';
+        return `${field}: ${err.msg || 'Validation error'}`;
+      })
+      .join('; ');
   }
 
   // If detail is a string, return it directly
   if (typeof detail === 'string') {
-    return detail
+    return detail;
   }
 
   // If detail is an object, try to stringify it
   if (detail && typeof detail === 'object') {
-    return JSON.stringify(detail)
+    return JSON.stringify(detail);
   }
 
   // Default fallback message
-  return 'An error occurred'
-}
+  return 'An error occurred';
+};
 
 const BookmarkForm = ({ bookmark, onSuccess, onCancel }) => {
-  const queryClient = useQueryClient()
-  const isEditing = !!bookmark
+  const queryClient = useQueryClient();
+  const isEditing = !!bookmark;
 
   const [formData, setFormData] = useState({
     title: '',
@@ -40,9 +42,9 @@ const BookmarkForm = ({ bookmark, onSuccess, onCancel }) => {
     category: '',
     tags: '',
     favicon: '',
-  })
+  });
 
-  const [errors, setErrors] = useState({})
+  const [errors, setErrors] = useState({});
 
   useEffect(() => {
     if (bookmark) {
@@ -51,81 +53,84 @@ const BookmarkForm = ({ bookmark, onSuccess, onCancel }) => {
         url: bookmark.url || '',
         description: bookmark.description || '',
         category: bookmark.category || '',
-        tags: Array.isArray(bookmark.tags) ? bookmark.tags.join(', ') : (bookmark.tags || ''),
+        tags: Array.isArray(bookmark.tags) ? bookmark.tags.join(', ') : bookmark.tags || '',
         favicon: bookmark.favicon || '',
-      })
+      });
     }
-  }, [bookmark])
+  }, [bookmark]);
 
   const createMutation = useMutation({
-    mutationFn: (data) => bookmarksApi.create(data),
+    mutationFn: data => bookmarksApi.create(data),
     onSuccess: () => {
-      queryClient.invalidateQueries(['bookmarks'])
-      onSuccess?.()
+      queryClient.invalidateQueries(['bookmarks']);
+      onSuccess?.();
     },
-    onError: (error) => {
-      console.error('Error creating bookmark:', error)
-      setErrors({ submit: formatErrorMessage(error) || 'Failed to create bookmark' })
+    onError: error => {
+      console.error('Error creating bookmark:', error);
+      setErrors({ submit: formatErrorMessage(error) || 'Failed to create bookmark' });
     },
-  })
+  });
 
   const updateMutation = useMutation({
-    mutationFn: (data) => bookmarksApi.update(bookmark.id, data),
+    mutationFn: data => bookmarksApi.update(bookmark.id, data),
     onSuccess: () => {
-      queryClient.invalidateQueries(['bookmarks'])
-      onSuccess?.()
+      queryClient.invalidateQueries(['bookmarks']);
+      onSuccess?.();
     },
-    onError: (error) => {
-      console.error('Error updating bookmark:', error)
-      setErrors({ submit: formatErrorMessage(error) || 'Failed to update bookmark' })
+    onError: error => {
+      console.error('Error updating bookmark:', error);
+      setErrors({ submit: formatErrorMessage(error) || 'Failed to update bookmark' });
     },
-  })
+  });
 
-  const handleChange = (e) => {
-    const { name, value } = e.target
-    setFormData((prev) => ({ ...prev, [name]: value }))
+  const handleChange = e => {
+    const { name, value } = e.target;
+    setFormData(prev => ({ ...prev, [name]: value }));
     // Clear error for this field
     if (errors[name]) {
-      setErrors((prev) => {
-        const newErrors = { ...prev }
-        delete newErrors[name]
-        return newErrors
-      })
+      setErrors(prev => {
+        const newErrors = { ...prev };
+        delete newErrors[name];
+        return newErrors;
+      });
     }
-  }
+  };
 
   const validate = () => {
-    const newErrors = {}
+    const newErrors = {};
 
     if (!formData.title.trim()) {
-      newErrors.title = 'Title is required'
+      newErrors.title = 'Title is required';
     }
 
     if (!formData.url.trim()) {
-      newErrors.url = 'URL is required'
+      newErrors.url = 'URL is required';
     } else {
       try {
-        new URL(formData.url)
+        new URL(formData.url);
       } catch (e) {
-        newErrors.url = 'Invalid URL format'
+        newErrors.url = 'Invalid URL format';
       }
     }
 
-    setErrors(newErrors)
-    return Object.keys(newErrors).length === 0
-  }
+    setErrors(newErrors);
+    return Object.keys(newErrors).length === 0;
+  };
 
-  const handleSubmit = (e) => {
-    e.preventDefault()
+  const handleSubmit = e => {
+    e.preventDefault();
 
     if (!validate()) {
-      return
+      return;
     }
 
     // Convert tags from comma-separated string to array
     const tagsArray = formData.tags.trim()
-      ? formData.tags.split(',').map(tag => tag.trim()).filter(tag => tag.length > 0)
-      : null
+      ? formData.tags
+          .split(',')
+          .map(tag => tag.trim())
+          .filter(tag => tag.length > 0)
+      : null;
 
     const data = {
       title: formData.title.trim(),
@@ -134,22 +139,25 @@ const BookmarkForm = ({ bookmark, onSuccess, onCancel }) => {
       category: formData.category.trim() || null,
       tags: tagsArray,
       favicon: formData.favicon.trim() || null,
-    }
+    };
 
     if (isEditing) {
-      updateMutation.mutate(data)
+      updateMutation.mutate(data);
     } else {
-      createMutation.mutate(data)
+      createMutation.mutate(data);
     }
-  }
+  };
 
-  const isLoading = createMutation.isPending || updateMutation.isPending
+  const isLoading = createMutation.isPending || updateMutation.isPending;
 
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
       {/* Title */}
       <div>
-        <label htmlFor="title" className="block text-sm font-medium text-[var(--text-primary)] mb-1">
+        <label
+          htmlFor="title"
+          className="block text-sm font-medium text-[var(--text-primary)] mb-1"
+        >
           Title *
         </label>
         <input
@@ -189,7 +197,10 @@ const BookmarkForm = ({ bookmark, onSuccess, onCancel }) => {
 
       {/* Description */}
       <div>
-        <label htmlFor="description" className="block text-sm font-medium text-[var(--text-primary)] mb-1">
+        <label
+          htmlFor="description"
+          className="block text-sm font-medium text-[var(--text-primary)] mb-1"
+        >
           Description
         </label>
         <textarea
@@ -206,7 +217,10 @@ const BookmarkForm = ({ bookmark, onSuccess, onCancel }) => {
 
       {/* Category */}
       <div>
-        <label htmlFor="category" className="block text-sm font-medium text-[var(--text-primary)] mb-1">
+        <label
+          htmlFor="category"
+          className="block text-sm font-medium text-[var(--text-primary)] mb-1"
+        >
           Category
         </label>
         <input
@@ -241,7 +255,10 @@ const BookmarkForm = ({ bookmark, onSuccess, onCancel }) => {
 
       {/* Favicon URL (optional) */}
       <div>
-        <label htmlFor="favicon" className="block text-sm font-medium text-[var(--text-primary)] mb-1">
+        <label
+          htmlFor="favicon"
+          className="block text-sm font-medium text-[var(--text-primary)] mb-1"
+        >
           Favicon URL
         </label>
         <input
@@ -254,7 +271,9 @@ const BookmarkForm = ({ bookmark, onSuccess, onCancel }) => {
           placeholder="https://example.com/favicon.ico"
           disabled={isLoading}
         />
-        <p className="text-xs text-[var(--text-secondary)] mt-1">Leave blank to auto-fetch from the URL</p>
+        <p className="text-xs text-[var(--text-secondary)] mt-1">
+          Leave blank to auto-fetch from the URL
+        </p>
       </div>
 
       {/* Submit Error */}
@@ -284,7 +303,7 @@ const BookmarkForm = ({ bookmark, onSuccess, onCancel }) => {
         </button>
       </div>
     </form>
-  )
-}
+  );
+};
 
-export default BookmarkForm
+export default BookmarkForm;

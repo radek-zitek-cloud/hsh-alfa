@@ -74,20 +74,23 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
-  const handleCallback = useCallback(async (code, state) => {
-    try {
-      setLoading(true);
-      setError(null);
-      const response = await authService.handleCallback(code, state);
-      login(response.access_token, response.user);
-      return response;
-    } catch (err) {
-      setError(err?.message || 'Authentication failed');
-      throw err;
-    } finally {
-      setLoading(false);
-    }
-  }, [login]);
+  const handleCallback = useCallback(
+    async (code, state) => {
+      try {
+        setLoading(true);
+        setError(null);
+        const response = await authService.handleCallback(code, state);
+        login(response.access_token, response.user);
+        return response;
+      } catch (err) {
+        setError(err?.message || 'Authentication failed');
+        throw err;
+      } finally {
+        setLoading(false);
+      }
+    },
+    [login]
+  );
 
   const value = {
     user,

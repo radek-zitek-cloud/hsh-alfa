@@ -1,81 +1,78 @@
-import React, { useState, useEffect } from 'react'
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { bookmarksApi, preferencesApi } from '../services/api'
-import { ExternalLink, Loader, Edit2, Trash2 } from 'lucide-react'
-import BookmarkModal from './BookmarkModal'
-import BookmarkForm from './BookmarkForm'
+import React, { useState, useEffect } from 'react';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { bookmarksApi, preferencesApi } from '../services/api';
+import { ExternalLink, Loader, Edit2, Trash2 } from 'lucide-react';
+import BookmarkModal from './BookmarkModal';
+import BookmarkForm from './BookmarkForm';
 
 const BookmarkCard = ({ bookmark }) => {
-  const queryClient = useQueryClient()
-  const [isEditModalOpen, setIsEditModalOpen] = useState(false)
-  const [isDeleting, setIsDeleting] = useState(false)
-  const [faviconError, setFaviconError] = useState(false)
+  const queryClient = useQueryClient();
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [faviconError, setFaviconError] = useState(false);
 
   const trackClickMutation = useMutation({
     mutationFn: () => bookmarksApi.trackClick(bookmark.id),
     onSuccess: () => {
-      queryClient.invalidateQueries(['bookmarks'])
+      queryClient.invalidateQueries(['bookmarks']);
     },
-  })
+  });
 
   const handleClick = () => {
     // Track the click
-    trackClickMutation.mutate()
+    trackClickMutation.mutate();
     // Open the bookmark
-    window.open(bookmark.url, '_blank', 'noopener,noreferrer')
-  }
+    window.open(bookmark.url, '_blank', 'noopener,noreferrer');
+  };
 
   const deleteMutation = useMutation({
     mutationFn: () => bookmarksApi.delete(bookmark.id),
     onSuccess: () => {
-      queryClient.invalidateQueries(['bookmarks'])
+      queryClient.invalidateQueries(['bookmarks']);
     },
-    onError: (error) => {
-      console.error('Error deleting bookmark:', error)
-      alert('Failed to delete bookmark')
+    onError: error => {
+      console.error('Error deleting bookmark:', error);
+      alert('Failed to delete bookmark');
     },
     onSettled: () => {
-      setIsDeleting(false)
+      setIsDeleting(false);
     },
-  })
+  });
 
-  const handleEdit = (e) => {
-    e.stopPropagation()
-    setIsEditModalOpen(true)
-  }
+  const handleEdit = e => {
+    e.stopPropagation();
+    setIsEditModalOpen(true);
+  };
 
-  const handleDelete = (e) => {
-    e.stopPropagation()
+  const handleDelete = e => {
+    e.stopPropagation();
     if (window.confirm(`Are you sure you want to delete "${bookmark.title}"?`)) {
-      setIsDeleting(true)
-      deleteMutation.mutate()
+      setIsDeleting(true);
+      deleteMutation.mutate();
     }
-  }
+  };
 
   // Extract domain from URL for fallback
-  const getDomain = (url) => {
+  const getDomain = url => {
     try {
-      const urlObj = new URL(url)
-      return urlObj.hostname
+      const urlObj = new URL(url);
+      return urlObj.hostname;
     } catch (e) {
-      return ''
+      return '';
     }
-  }
+  };
 
   // Get proxied favicon URL to avoid CORS issues
-  const getFaviconUrl = (faviconUrl) => {
-    if (!faviconUrl) return null
+  const getFaviconUrl = faviconUrl => {
+    if (!faviconUrl) return null;
     // Use proxy endpoint to serve favicons through backend
-    const apiBaseUrl = import.meta.env.VITE_API_BASE_URL || '/api'
-    return `${apiBaseUrl}/bookmarks/favicon/proxy?url=${encodeURIComponent(faviconUrl)}`
-  }
+    const apiBaseUrl = import.meta.env.VITE_API_BASE_URL || '/api';
+    return `${apiBaseUrl}/bookmarks/favicon/proxy?url=${encodeURIComponent(faviconUrl)}`;
+  };
 
   return (
     <>
-      <div
-        onClick={handleClick}
-        className="bookmark-card cursor-pointer relative group"
-      >
+      <div onClick={handleClick} className="bookmark-card cursor-pointer relative group">
         {/* Action Buttons */}
         <div className="absolute top-2 right-2 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
           <button
@@ -110,7 +107,7 @@ const BookmarkCard = ({ bookmark }) => {
                 alt=""
                 className="w-8 h-8 object-contain"
                 onError={() => {
-                  setFaviconError(true)
+                  setFaviconError(true);
                 }}
               />
             ) : (
@@ -122,9 +119,7 @@ const BookmarkCard = ({ bookmark }) => {
 
           {/* Content */}
           <div className="flex-1 min-w-0">
-            <h3 className="font-semibold text-[var(--text-primary)] truncate">
-              {bookmark.title}
-            </h3>
+            <h3 className="font-semibold text-[var(--text-primary)] truncate">{bookmark.title}</h3>
             {bookmark.description && (
               <p className="text-sm text-[var(--text-secondary)] mt-1 line-clamp-2">
                 {bookmark.description}
@@ -138,7 +133,7 @@ const BookmarkCard = ({ bookmark }) => {
             </div>
             {bookmark.tags && bookmark.tags.length > 0 && (
               <div className="flex gap-1 mt-2 flex-wrap">
-                {bookmark.tags.slice(0, 3).map((tag) => (
+                {bookmark.tags.slice(0, 3).map(tag => (
                   <span
                     key={tag}
                     className="text-xs px-2 py-1 bg-[var(--bg-primary)] border border-[var(--border-color)] rounded"
@@ -165,13 +160,13 @@ const BookmarkCard = ({ bookmark }) => {
         />
       </BookmarkModal>
     </>
-  )
-}
+  );
+};
 
 const BookmarkGrid = () => {
-  const [sortBy, setSortBy] = useState('position')
-  const [groupByCategory, setGroupByCategory] = useState(false)
-  const [isLoadingPreference, setIsLoadingPreference] = useState(true)
+  const [sortBy, setSortBy] = useState('position');
+  const [groupByCategory, setGroupByCategory] = useState(false);
+  const [isLoadingPreference, setIsLoadingPreference] = useState(true);
 
   // Load saved preferences on mount
   useEffect(() => {
@@ -179,69 +174,73 @@ const BookmarkGrid = () => {
       try {
         const [sortResponse, groupResponse] = await Promise.all([
           preferencesApi.get('bookmarks_sort_order').catch(() => ({ data: null })),
-          preferencesApi.get('bookmarks_group_by_category').catch(() => ({ data: null }))
-        ])
+          preferencesApi.get('bookmarks_group_by_category').catch(() => ({ data: null })),
+        ]);
 
         if (sortResponse.data && sortResponse.data.value) {
-          setSortBy(sortResponse.data.value)
+          setSortBy(sortResponse.data.value);
         }
 
         if (groupResponse.data && groupResponse.data.value !== undefined) {
-          setGroupByCategory(groupResponse.data.value)
+          setGroupByCategory(groupResponse.data.value);
         }
       } catch (error) {
-        console.debug('Error loading preferences:', error)
+        console.debug('Error loading preferences:', error);
       } finally {
-        setIsLoadingPreference(false)
+        setIsLoadingPreference(false);
       }
-    }
-    loadPreferences()
-  }, [])
+    };
+    loadPreferences();
+  }, []);
 
   // Save sort preference whenever it changes
   useEffect(() => {
     // Skip saving during initial load
-    if (isLoadingPreference) return
+    if (isLoadingPreference) return;
 
     const saveSortPreference = async () => {
       try {
-        await preferencesApi.set('bookmarks_sort_order', sortBy)
+        await preferencesApi.set('bookmarks_sort_order', sortBy);
       } catch (error) {
-        console.error('Failed to save sort preference:', error)
+        console.error('Failed to save sort preference:', error);
       }
-    }
-    saveSortPreference()
-  }, [sortBy, isLoadingPreference])
+    };
+    saveSortPreference();
+  }, [sortBy, isLoadingPreference]);
 
   // Save group by category preference whenever it changes
   useEffect(() => {
     // Skip saving during initial load
-    if (isLoadingPreference) return
+    if (isLoadingPreference) return;
 
     const saveGroupPreference = async () => {
       try {
-        await preferencesApi.set('bookmarks_group_by_category', groupByCategory)
+        await preferencesApi.set('bookmarks_group_by_category', groupByCategory);
       } catch (error) {
-        console.error('Failed to save group preference:', error)
+        console.error('Failed to save group preference:', error);
       }
-    }
-    saveGroupPreference()
-  }, [groupByCategory, isLoadingPreference])
+    };
+    saveGroupPreference();
+  }, [groupByCategory, isLoadingPreference]);
 
-  const { data: bookmarks, isLoading, error } = useQuery({
+  const {
+    data: bookmarks,
+    isLoading,
+    error,
+  } = useQuery({
     queryKey: ['bookmarks', sortBy],
     queryFn: async () => {
-      const response = await bookmarksApi.getAll(null, sortBy === 'position' ? null : sortBy)
-      return response.data
+      const response = await bookmarksApi.getAll(null, sortBy === 'position' ? null : sortBy);
+      return response.data;
     },
-  })
+  });
 
   if (isLoading) {
     return (
       <div className="flex items-center justify-center p-8">
         <Loader className="animate-spin" size={32} />
       </div>
-    )
+    );
   }
 
   if (error) {
@@ -249,7 +248,7 @@ const BookmarkGrid = () => {
       <div className="text-red-500 p-4 bg-red-50 dark:bg-red-900/20 rounded-lg">
         Error loading bookmarks: {error.message}
       </div>
-    )
+    );
   }
 
   if (!bookmarks || bookmarks.length === 0) {
@@ -257,7 +256,7 @@ const BookmarkGrid = () => {
       <div className="text-[var(--text-secondary)] text-center p-8">
         No bookmarks yet. Add your first bookmark!
       </div>
-    )
+    );
   }
 
   return (
@@ -265,9 +264,7 @@ const BookmarkGrid = () => {
       {/* Sorting Controls */}
       <div className="mb-4 flex items-center gap-4 flex-wrap">
         <div className="flex items-center gap-2">
-          <label className="text-sm font-medium text-[var(--text-primary)]">
-            Sort by:
-          </label>
+          <label className="text-sm font-medium text-[var(--text-primary)]">Sort by:</label>
           <div className="flex gap-2">
             <button
               onClick={() => setSortBy('position')}
@@ -308,7 +305,7 @@ const BookmarkGrid = () => {
             type="checkbox"
             id="groupByCategory"
             checked={groupByCategory}
-            onChange={(e) => setGroupByCategory(e.target.checked)}
+            onChange={e => setGroupByCategory(e.target.checked)}
             className="w-4 h-4 rounded border-[var(--border-color)] text-[var(--accent-color)] focus:ring-2 focus:ring-[var(--accent-color)] cursor-pointer"
           />
           <label
@@ -326,24 +323,24 @@ const BookmarkGrid = () => {
         (() => {
           // Group bookmarks by category
           const groupedBookmarks = bookmarks.reduce((groups, bookmark) => {
-            const category = bookmark.category || 'Uncategorized'
+            const category = bookmark.category || 'Uncategorized';
             if (!groups[category]) {
-              groups[category] = []
+              groups[category] = [];
             }
-            groups[category].push(bookmark)
-            return groups
-          }, {})
+            groups[category].push(bookmark);
+            return groups;
+          }, {});
 
           // Sort categories alphabetically, but put Uncategorized last
           const sortedCategories = Object.keys(groupedBookmarks).sort((a, b) => {
-            if (a === 'Uncategorized') return 1
-            if (b === 'Uncategorized') return -1
-            return a.localeCompare(b)
-          })
+            if (a === 'Uncategorized') return 1;
+            if (b === 'Uncategorized') return -1;
+            return a.localeCompare(b);
+          });
 
           return (
             <div className="space-y-6">
-              {sortedCategories.map((category) => (
+              {sortedCategories.map(category => (
                 <div key={category}>
                   {/* Category Header */}
                   <h2 className="text-lg font-semibold text-[var(--text-primary)] mb-3 pb-2 border-b border-[var(--border-color)]">
@@ -351,25 +348,25 @@ const BookmarkGrid = () => {
                   </h2>
                   {/* Category Bookmarks */}
                   <div className="unified-grid">
-                    {groupedBookmarks[category].map((bookmark) => (
+                    {groupedBookmarks[category].map(bookmark => (
                       <BookmarkCard key={bookmark.id} bookmark={bookmark} />
                     ))}
                   </div>
                 </div>
               ))}
             </div>
-          )
+          );
         })()
       ) : (
         // Show all bookmarks without grouping
         <div className="unified-grid">
-          {bookmarks.map((bookmark) => (
+          {bookmarks.map(bookmark => (
             <BookmarkCard key={bookmark.id} bookmark={bookmark} />
           ))}
         </div>
       )}
     </div>
-  )
-}
+  );
+};
 
-export default BookmarkGrid
+export default BookmarkGrid;

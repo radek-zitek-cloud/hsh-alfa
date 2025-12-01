@@ -1,16 +1,27 @@
-import { useState, useMemo } from 'react'
-import { useQuery } from '@tanstack/react-query'
-import { useNavigate } from 'react-router-dom'
-import { Sun, Moon, Plus, LogOut, Database, Cloud, DollarSign, TrendingUp, Newspaper, Shield } from 'lucide-react'
-import { useAuth } from '../contexts/AuthContext'
-import { sectionsApi, widgetsApi } from '../services/api'
-import BookmarkGrid from './BookmarkGrid'
-import WidgetGrid from './WidgetGrid'
-import BookmarkModal from './BookmarkModal'
-import BookmarkForm from './BookmarkForm'
-import WidgetForm from './WidgetForm'
-import ExportImportModal from './ExportImportModal'
-import DateHeader from './DateHeader'
+import { useState, useMemo } from 'react';
+import { useQuery } from '@tanstack/react-query';
+import { useNavigate } from 'react-router-dom';
+import {
+  Sun,
+  Moon,
+  Plus,
+  LogOut,
+  Database,
+  Cloud,
+  DollarSign,
+  TrendingUp,
+  Newspaper,
+  Shield,
+} from 'lucide-react';
+import { useAuth } from '../contexts/AuthContext';
+import { sectionsApi, widgetsApi } from '../services/api';
+import BookmarkGrid from './BookmarkGrid';
+import WidgetGrid from './WidgetGrid';
+import BookmarkModal from './BookmarkModal';
+import BookmarkForm from './BookmarkForm';
+import WidgetForm from './WidgetForm';
+import ExportImportModal from './ExportImportModal';
+import DateHeader from './DateHeader';
 
 // Map section names to icons
 const SECTION_ICONS = {
@@ -18,7 +29,7 @@ const SECTION_ICONS = {
   rates: DollarSign,
   markets: TrendingUp,
   news: Newspaper,
-}
+};
 
 // Map widget types to section names (matching WidgetGrid)
 const WIDGET_TYPE_TO_SECTION = {
@@ -26,66 +37,64 @@ const WIDGET_TYPE_TO_SECTION = {
   exchange_rate: 'rates',
   market: 'markets',
   news: 'news',
-}
+};
 
 const Dashboard = ({ theme, toggleTheme }) => {
-  const { user, logout } = useAuth()
-  const navigate = useNavigate()
-  const [isAddModalOpen, setIsAddModalOpen] = useState(false)
-  const [isAddWidgetModalOpen, setIsAddWidgetModalOpen] = useState(false)
-  const [isExportImportModalOpen, setIsExportImportModalOpen] = useState(false)
+  const { user, logout } = useAuth();
+  const navigate = useNavigate();
+  const [isAddModalOpen, setIsAddModalOpen] = useState(false);
+  const [isAddWidgetModalOpen, setIsAddWidgetModalOpen] = useState(false);
+  const [isExportImportModalOpen, setIsExportImportModalOpen] = useState(false);
 
-  const isAdmin = user?.role === 'admin'
+  const isAdmin = user?.role === 'admin';
 
   // Fetch sections for navigation
   const { data: sectionsData } = useQuery({
     queryKey: ['sections'],
     queryFn: async () => {
-      const response = await sectionsApi.getAll()
-      return response.data
+      const response = await sectionsApi.getAll();
+      return response.data;
     },
-  })
+  });
 
   // Fetch widgets to determine which sections have content
   const { data: widgetsData } = useQuery({
     queryKey: ['widgets'],
     queryFn: async () => {
-      const response = await widgetsApi.getAll()
-      return response.data
+      const response = await widgetsApi.getAll();
+      return response.data;
     },
-  })
+  });
 
   // Determine which sections have widgets
   const visibleSections = useMemo(() => {
-    if (!sectionsData || !widgetsData) return []
+    if (!sectionsData || !widgetsData) return [];
 
-    const widgetsBySection = {}
-    sectionsData.forEach((section) => {
-      widgetsBySection[section.name] = []
-    })
+    const widgetsBySection = {};
+    sectionsData.forEach(section => {
+      widgetsBySection[section.name] = [];
+    });
 
-    widgetsData.forEach((widget) => {
-      const sectionName = WIDGET_TYPE_TO_SECTION[widget.type]
+    widgetsData.forEach(widget => {
+      const sectionName = WIDGET_TYPE_TO_SECTION[widget.type];
       if (sectionName && widgetsBySection[sectionName]) {
-        widgetsBySection[sectionName].push(widget)
+        widgetsBySection[sectionName].push(widget);
       }
-    })
+    });
 
-    return sectionsData.filter(
-      (section) => widgetsBySection[section.name]?.length > 0
-    )
-  }, [sectionsData, widgetsData])
+    return sectionsData.filter(section => widgetsBySection[section.name]?.length > 0);
+  }, [sectionsData, widgetsData]);
 
-  const scrollToSection = (sectionName) => {
-    const element = document.getElementById(`section-${sectionName}`)
+  const scrollToSection = sectionName => {
+    const element = document.getElementById(`section-${sectionName}`);
     if (element) {
-      element.scrollIntoView({ behavior: 'smooth' })
+      element.scrollIntoView({ behavior: 'smooth' });
     }
-  }
+  };
 
   const handleLogout = async () => {
-    await logout()
-  }
+    await logout();
+  };
 
   return (
     <div className="min-h-screen p-4 md:p-6 lg:p-8">
@@ -94,9 +103,9 @@ const Dashboard = ({ theme, toggleTheme }) => {
         <DateHeader />
         <div className="flex items-center gap-4">
           {/* Section Navigation Icons */}
-          {visibleSections.map((section) => {
-            const IconComponent = SECTION_ICONS[section.name]
-            if (!IconComponent) return null
+          {visibleSections.map(section => {
+            const IconComponent = SECTION_ICONS[section.name];
+            if (!IconComponent) return null;
             return (
               <button
                 key={section.id}
@@ -107,14 +116,12 @@ const Dashboard = ({ theme, toggleTheme }) => {
               >
                 <IconComponent size={24} />
               </button>
-            )
+            );
           })}
-          
+
           {/* Divider between navigation and action icons */}
-          {visibleSections.length > 0 && (
-            <div className="h-6 w-px bg-[var(--border-color)]" />
-          )}
-          
+          {visibleSections.length > 0 && <div className="h-6 w-px bg-[var(--border-color)]" />}
+
           <button
             onClick={() => setIsExportImportModalOpen(true)}
             className="p-2 rounded-lg bg-[var(--bg-secondary)] hover:bg-[var(--border-color)] transition-colors"
@@ -169,9 +176,7 @@ const Dashboard = ({ theme, toggleTheme }) => {
       {/* Bookmarks Section */}
       <section className="mb-8">
         <div className="flex justify-between items-center mb-4">
-          <h2 className="text-xl font-semibold text-[var(--text-primary)]">
-            Bookmarks
-          </h2>
+          <h2 className="text-xl font-semibold text-[var(--text-primary)]">Bookmarks</h2>
           <button
             onClick={() => setIsAddModalOpen(true)}
             className="flex items-center gap-2 px-4 py-2 bg-[var(--accent-color)] text-white rounded-lg hover:opacity-90 transition-opacity"
@@ -186,9 +191,7 @@ const Dashboard = ({ theme, toggleTheme }) => {
       {/* Widgets Section */}
       <section>
         <div className="flex justify-between items-center mb-4">
-          <h2 className="text-xl font-semibold text-[var(--text-primary)]">
-            Widgets
-          </h2>
+          <h2 className="text-xl font-semibold text-[var(--text-primary)]">Widgets</h2>
           <button
             onClick={() => setIsAddWidgetModalOpen(true)}
             className="flex items-center gap-2 px-4 py-2 bg-[var(--accent-color)] text-white rounded-lg hover:opacity-90 transition-opacity"
@@ -230,7 +233,7 @@ const Dashboard = ({ theme, toggleTheme }) => {
         onClose={() => setIsExportImportModalOpen(false)}
       />
     </div>
-  )
-}
+  );
+};
 
-export default Dashboard
+export default Dashboard;
