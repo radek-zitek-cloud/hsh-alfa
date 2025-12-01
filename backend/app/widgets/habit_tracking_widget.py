@@ -1,7 +1,7 @@
 """Habit tracking widget implementation."""
 
-from datetime import date, datetime, timedelta
-from typing import Any, Dict, List
+from datetime import date, timedelta
+from typing import Any, Dict
 
 from sqlalchemy import and_, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -64,16 +64,16 @@ class HabitTrackingWidget(BaseWidget):
         db: AsyncSession = await anext(db_gen)
 
         try:
-            # Calculate date range (last 35 days = 5 weeks)
+            # Calculate date range (last 7 days = today + 6 previous days)
             end_date = date.today()
-            start_date = end_date - timedelta(days=34)  # 35 days total including today
+            start_date = end_date - timedelta(days=6)  # 7 days total including today
 
             # Fetch the specific habit for the user
             stmt = select(Habit).where(
                 and_(
                     Habit.user_id == self.user_id,
                     Habit.habit_id == self.habit_id,
-                    Habit.active == True,
+                    Habit.active.is_(True),
                 )
             )
             result = await db.execute(stmt)
@@ -81,7 +81,7 @@ class HabitTrackingWidget(BaseWidget):
 
             if not habit:
                 logger.warning(
-                    f"Habit not found or not active",
+                    "Habit not found or not active",
                     extra={
                         "widget_id": self.widget_id,
                         "user_id": self.user_id,
@@ -112,7 +112,7 @@ class HabitTrackingWidget(BaseWidget):
                 date_str = completion.completion_date.isoformat()
                 completions_map[date_str] = completion.completed
 
-            # Generate date array for the last 35 days
+            # Generate date array for the last 7 days
             dates_data = []
             current_date = start_date
             while current_date <= end_date:
@@ -128,18 +128,16 @@ class HabitTrackingWidget(BaseWidget):
                         "date": date_str,
                         "day_of_week": day_of_week,
                         "completed": completed,
+                        "is_today": current_date == end_date,
                     }
                 )
                 current_date += timedelta(days=1)
-
-            # Organize dates into weeks (starting on Monday)
-            weeks = self._organize_into_weeks(dates_data)
 
             habit_data = {
                 "id": habit.habit_id,
                 "name": habit.name,
                 "description": habit.description,
-                "weeks": weeks,
+                "days": dates_data,
             }
 
             return {
@@ -161,33 +159,3 @@ class HabitTrackingWidget(BaseWidget):
             raise
         finally:
             await db.close()
-
-    def _organize_into_weeks(self, dates_data: List[Dict[str, Any]]) -> List[List[Dict[str, Any]]]:
-        """
-        Organize dates into weeks starting on Monday.
-
-        Args:
-            dates_data: List of date dictionaries with completion status
-
-        Returns:
-            List of weeks, each containing 7 days (Monday-Sunday)
-        """
-        weeks = []
-        current_week = []
-
-        for day_data in dates_data:
-            day_of_week = day_data["day_of_week"]
-
-            # Start a new week on Monday (day_of_week = 0)
-            if day_of_week == 0 and current_week:
-                weeks.append(current_week)
-                current_week = []
-
-            current_week.append(day_data)
-
-        # Add the last week if it has any days
-        if current_week:
-            weeks.append(current_week)
-
-        # Limit to 5 weeks (35 days)
-        return weeks[:5]
