@@ -90,7 +90,7 @@ class WidgetCreate(BaseModel):
     @classmethod
     def validate_type(cls, v: str) -> str:
         """Validate widget type."""
-        allowed_types = ["weather", "exchange_rate", "news", "market"]
+        allowed_types = ["weather", "exchange_rate", "news", "market", "habit_tracking"]
         if v not in allowed_types:
             raise ValueError(f'Widget type must be one of: {", ".join(allowed_types)}')
         return v
@@ -112,7 +112,7 @@ class WidgetUpdate(BaseModel):
     def validate_type(cls, v: Optional[str]) -> Optional[str]:
         """Validate widget type."""
         if v is not None:
-            allowed_types = ["weather", "exchange_rate", "news", "market"]
+            allowed_types = ["weather", "exchange_rate", "news", "market", "habit_tracking"]
             if v not in allowed_types:
                 raise ValueError(f'Widget type must be one of: {", ".join(allowed_types)}')
         return v

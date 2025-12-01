@@ -324,6 +324,8 @@ function getDefaultConfigForType(type) {
         stocks: ['^GSPC', '^DJI'],
         crypto: ['BTC', 'ETH'],
       };
+    case 'habit_tracking':
+      return {};
     default:
       return {};
   }
@@ -481,6 +483,13 @@ function renderConfigFields(type, config, onChange) {
             />
           </div>
         </>
+      );
+
+    case 'habit_tracking':
+      return (
+        <p className="text-sm text-[var(--text-secondary)]">
+          No configuration needed. You can add and manage habits directly in the widget.
+        </p>
       );
 
     default:

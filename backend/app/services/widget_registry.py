@@ -149,6 +149,7 @@ class WidgetRegistry:
                     config = config_dict.copy()
                     config["enabled"] = widget.enabled
                     config["refresh_interval"] = widget.refresh_interval
+                    config["user_id"] = widget.user_id  # Add user_id for widgets that need it
                     config["position"] = widget_config["position"]
 
                     self.create_widget(widget.widget_id, widget.widget_type, config)

@@ -6,6 +6,7 @@ import WeatherWidget from './widgets/WeatherWidget';
 import ExchangeRateWidget from './widgets/ExchangeRateWidget';
 import NewsWidget from './widgets/NewsWidget';
 import MarketWidget from './widgets/MarketWidget';
+import HabitTrackingWidget from './widgets/HabitTrackingWidget';
 import SectionHeader from './SectionHeader';
 import BookmarkModal from './BookmarkModal';
 import WidgetForm from './WidgetForm';
@@ -16,6 +17,7 @@ const WIDGET_COMPONENTS = {
   exchange_rate: ExchangeRateWidget,
   news: NewsWidget,
   market: MarketWidget,
+  habit_tracking: HabitTrackingWidget,
 };
 
 // Map widget types to section names
@@ -24,6 +26,7 @@ const WIDGET_TYPE_TO_SECTION = {
   exchange_rate: 'rates',
   market: 'markets',
   news: 'news',
+  habit_tracking: 'habits',
 };
 
 // Widget Card wrapper with edit/delete buttons
