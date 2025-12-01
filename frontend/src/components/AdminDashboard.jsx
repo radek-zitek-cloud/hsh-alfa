@@ -166,14 +166,6 @@ const AdminDashboard = () => {
   });
 
   // Section mutations
-  const _createSectionMutation = useMutation({
-    mutationFn: data => adminApi.createSection(data),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['admin-sections'] });
-      setSectionEditForm({});
-    },
-  });
-
   const updateSectionMutation = useMutation({
     mutationFn: ({ sectionId, data }) => adminApi.updateSection(sectionId, data),
     onSuccess: () => {
@@ -191,14 +183,6 @@ const AdminDashboard = () => {
   });
 
   // Habit mutations
-  const _createHabitMutation = useMutation({
-    mutationFn: data => adminApi.createHabit(data),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['admin-habits'] });
-      setHabitEditForm({});
-    },
-  });
-
   const updateHabitMutation = useMutation({
     mutationFn: ({ habitId, data }) => adminApi.updateHabit(habitId, data),
     onSuccess: () => {
