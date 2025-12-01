@@ -523,6 +523,7 @@ async def update_widget(
     config["enabled"] = widget_dict["enabled"]
     config["refresh_interval"] = widget_dict["refresh_interval"]
     config["position"] = widget_dict["position"]
+    config["user_id"] = current_user.id  # Add user_id for widgets that need it
     registry.create_widget(widget_id, widget_dict["type"], config)
 
     # Clear cache for this widget
@@ -703,6 +704,7 @@ async def reload_widget_config(
         config["enabled"] = widget_dict["enabled"]
         config["refresh_interval"] = widget_dict["refresh_interval"]
         config["position"] = widget_dict["position"]
+        config["user_id"] = current_user.id  # Add user_id for widgets that need it
         registry.create_widget(widget_dict["id"], widget_dict["type"], config)
 
     logger.info(
