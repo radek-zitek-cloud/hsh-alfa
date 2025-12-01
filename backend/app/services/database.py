@@ -32,10 +32,18 @@ async def get_db() -> AsyncSession:
             await session.commit()
             logger.debug("Database session committed", extra={"operation": "session_commit"})
         except Exception as e:
-            logger.warning(
-                "Database transaction rolled back due to error",
-                extra={"operation": "session_rollback", "error_type": type(e).__name__},
-            )
+            # Log expected HTTP exceptions at debug level
+            error_type = type(e).__name__
+            if error_type in ("HTTPException", "RequestValidationError"):
+                logger.debug(
+                    "Database transaction rolled back due to expected error",
+                    extra={"operation": "session_rollback", "error_type": error_type},
+                )
+            else:
+                logger.warning(
+                    "Database transaction rolled back due to error",
+                    extra={"operation": "session_rollback", "error_type": error_type},
+                )
             await session.rollback()
             raise
         finally:

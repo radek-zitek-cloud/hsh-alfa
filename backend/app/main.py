@@ -82,12 +82,19 @@ class RequestLoggingMiddleware(BaseHTTPMiddleware):
         # Calculate duration
         duration = time.time() - start_time
 
-        # Log response
-        log_level = (
-            "info"
-            if response.status_code < 400
-            else "warning" if response.status_code < 500 else "error"
-        )
+        # Log response - treat 4xx client errors as info unless they indicate potential issues
+        # 404 Not Found is expected for missing resources and should not be a warning
+        # 400 Bad Request is expected for validation failures and should not be a warning
+        # 422 Unprocessable Entity is expected for validation errors and should not be a warning
+        if response.status_code < 400:
+            log_level = "info"
+        elif response.status_code in (400, 404, 422):
+            # Expected client errors (bad request, not found, validation errors)
+            log_level = "info"
+        elif response.status_code < 500:
+            log_level = "warning"
+        else:
+            log_level = "error"
         getattr(logger, log_level)(
             "Request completed",
             extra={
