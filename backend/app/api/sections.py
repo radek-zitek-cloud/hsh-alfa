@@ -5,8 +5,10 @@ from typing import List
 from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.api.dependencies import require_auth
 from app.logging_config import get_logger
 from app.models.section import SectionCreate, SectionOrderUpdate, SectionResponse, SectionUpdate
+from app.models.user import User
 from app.services.database import get_db
 from app.services.rate_limit import limiter
 from app.services.section_service import SectionService, initialize_default_sections
@@ -17,14 +19,16 @@ router = APIRouter(prefix="/api/sections", tags=["sections"])
 
 @router.get("/", response_model=List[SectionResponse])
 @limiter.limit("100/minute")
-async def get_sections(request: Request, db: AsyncSession = Depends(get_db)):
-    """Get all sections ordered by position."""
-    logger.debug("Listing all sections")
+async def get_sections(
+    request: Request, db: AsyncSession = Depends(get_db), current_user: User = Depends(require_auth)
+):
+    """Get all sections for the current user ordered by position."""
+    logger.debug("Listing all sections", extra={"user_id": current_user.id})
 
     service = SectionService(db)
-    sections = await service.list_sections()
+    sections = await service.list_sections(user_id=current_user.id)
 
-    logger.info("Sections retrieved", extra={"count": len(sections)})
+    logger.info("Sections retrieved", extra={"count": len(sections), "user_id": current_user.id})
 
     return [SectionResponse(**section.to_dict()) for section in sections]
 
@@ -61,12 +65,15 @@ async def create_section(
 @router.put("/reorder", response_model=List[SectionResponse])
 @limiter.limit("20/minute")
 async def reorder_sections(
-    request: Request, order_data: SectionOrderUpdate, db: AsyncSession = Depends(get_db)
+    request: Request,
+    order_data: SectionOrderUpdate,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(require_auth),
 ):
-    """Update the order of multiple sections."""
+    """Update the order of multiple sections for the current user."""
     logger.info(
         "Reordering sections",
-        extra={"section_count": len(order_data.sections), "operation": "update"},
+        extra={"section_count": len(order_data.sections), "user_id": current_user.id, "operation": "update"},
     )
 
     # Validate input
@@ -93,8 +100,8 @@ async def reorder_sections(
 
     service = SectionService(db)
 
-    # Verify all sections exist before updating
-    all_sections = await service.list_sections()
+    # Verify all sections exist before updating (for the current user)
+    all_sections = await service.list_sections(user_id=current_user.id)
     section_names = {section.name for section in all_sections}
 
     for section_order in order_data.sections:
@@ -104,11 +111,11 @@ async def reorder_sections(
             raise HTTPException(status_code=404, detail=f"Section '{section_name}' not found")
 
     # Update positions
-    updated_sections = await service.reorder_sections(order_data.sections)
+    updated_sections = await service.reorder_sections(order_data.sections, user_id=current_user.id)
 
     logger.info(
         "Sections reordered successfully",
-        extra={"section_count": len(updated_sections), "operation": "update"},
+        extra={"section_count": len(updated_sections), "user_id": current_user.id, "operation": "update"},
     )
 
     return [SectionResponse(**section.to_dict()) for section in updated_sections]
