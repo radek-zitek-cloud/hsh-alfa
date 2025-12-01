@@ -69,6 +69,13 @@ class WidgetPosition(BaseModel):
     height: int = Field(ge=1, le=12, description="Number of rows to span (1-12)")
 
 
+class HabitCreateData(BaseModel):
+    """Schema for habit data when creating a widget."""
+
+    name: str = Field(min_length=1, max_length=255, description="Habit name")
+    description: str = Field(min_length=1, description="Habit description")
+
+
 class WidgetCreate(BaseModel):
     """Schema for creating a widget."""
 
@@ -84,6 +91,9 @@ class WidgetCreate(BaseModel):
     )
     config: Dict[str, Any] = Field(
         default_factory=dict, description="Widget-specific configuration"
+    )
+    create_habit: Optional[HabitCreateData] = Field(
+        None, description="Optional habit data to create a new habit with this widget"
     )
 
     @field_validator("type")
