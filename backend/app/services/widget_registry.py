@@ -117,7 +117,7 @@ class WidgetRegistry:
             from app.services.database import AsyncSessionLocal
 
             async with AsyncSessionLocal() as session:
-                result = await session.execute(select(Widget).where(Widget.enabled == True))
+                result = await session.execute(select(Widget).where(Widget.enabled.is_(True)))
                 widgets = result.scalars().all()
 
                 self._widget_configs = []

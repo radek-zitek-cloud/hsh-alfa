@@ -7,7 +7,7 @@ from app.models.bookmark import Bookmark, BookmarkCreate, BookmarkUpdate, Bookma
 from app.models.section import Section, SectionCreate, SectionUpdate, SectionResponse
 from app.models.preference import Preference, PreferenceUpdate, PreferenceResponse
 from app.models.user import User, UserCreate, UserResponse
-from app.models.widget import Widget, WidgetCreate, WidgetUpdate, WidgetResponse
+from app.models.widget import Widget, WidgetCreate, WidgetUpdate, WidgetResponse, WidgetPosition
 
 
 class TestBookmarkModel:
@@ -17,8 +17,7 @@ class TestBookmarkModel:
         """Test creating bookmark with minimal fields."""
         bookmark = BookmarkCreate(
             title="Test",
-            url="https://example.com",
-            section_id=1
+            url="https://example.com"
         )
         assert bookmark.title == "Test"
         assert bookmark.url == "https://example.com"
@@ -30,12 +29,11 @@ class TestBookmarkModel:
             url="https://example.com",
             description="Description",
             category="test",
-            section_id=1,
-            favicon_url="https://example.com/favicon.ico"
+            favicon="https://example.com/favicon.ico"
         )
         assert bookmark.description == "Description"
         assert bookmark.category == "test"
-        assert bookmark.favicon_url == "https://example.com/favicon.ico"
+        assert bookmark.favicon == "https://example.com/favicon.ico"
 
     def test_bookmark_update_partial(self):
         """Test updating bookmark with partial fields."""
@@ -60,40 +58,35 @@ class TestSectionModel:
 
     def test_section_create(self):
         """Test creating section."""
-        section = SectionCreate(name="Work", order=0)
+        section = SectionCreate(name="Work", title="Work Section", position=0)
         assert section.name == "Work"
-        assert section.order == 0
+        assert section.title == "Work Section"
+        assert section.position == 0
 
     def test_section_update(self):
         """Test updating section."""
-        update = SectionUpdate(name="Personal")
-        assert update.name == "Personal"
-        assert update.order is None
+        update = SectionUpdate(title="Personal")
+        assert update.title == "Personal"
+        assert update.position is None
 
 
 class TestPreferenceModel:
     """Test Preference model and schemas."""
 
     def test_preference_update_theme(self):
-        """Test updating preference theme."""
-        update = PreferenceUpdate(theme="dark")
-        assert update.theme == "dark"
+        """Test updating preference with a theme value."""
+        update = PreferenceUpdate(value="dark")
+        assert update.value == "dark"
 
     def test_preference_update_language(self):
-        """Test updating preference language."""
-        update = PreferenceUpdate(language="cs")
-        assert update.language == "cs"
+        """Test updating preference with a language value."""
+        update = PreferenceUpdate(value="cs")
+        assert update.value == "cs"
 
     def test_preference_update_full(self):
-        """Test updating all preference fields."""
-        update = PreferenceUpdate(
-            theme="dark",
-            language="en",
-            timezone="Europe/Prague"
-        )
-        assert update.theme == "dark"
-        assert update.language == "en"
-        assert update.timezone == "Europe/Prague"
+        """Test updating preference with a long value."""
+        update = PreferenceUpdate(value="Europe/Prague")
+        assert update.value == "Europe/Prague"
 
 
 class TestUserModel:
@@ -154,16 +147,18 @@ class TestWidgetModel:
         """Test creating widget with minimal fields."""
         widget = WidgetCreate(
             type="weather",
-            section_id=1
+            position=WidgetPosition(row=0, col=0, width=1, height=1),
+            refresh_interval=3600
         )
         assert widget.type == "weather"
-        assert widget.section_id == 1
+        assert widget.position.row == 0
 
     def test_widget_create_with_config(self):
         """Test creating widget with config."""
         widget = WidgetCreate(
             type="weather",
-            section_id=1,
+            position=WidgetPosition(row=0, col=0, width=1, height=1),
+            refresh_interval=3600,
             config={"location": "Prague"}
         )
         assert widget.config == {"location": "Prague"}

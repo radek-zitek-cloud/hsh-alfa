@@ -593,7 +593,7 @@ async def reload_widget_config(
 
     # Load all widgets from database for current user
     result = await db.execute(
-        select(Widget).where(Widget.enabled == True, Widget.user_id == current_user.id)
+        select(Widget).where(Widget.enabled.is_(True), Widget.user_id == current_user.id)
     )
     widgets = result.scalars().all()
 

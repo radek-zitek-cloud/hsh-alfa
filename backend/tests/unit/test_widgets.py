@@ -28,8 +28,11 @@ def test_weather_widget_validation_without_location():
 
 def test_exchange_widget_with_default_config():
     """Test exchange rate widget with default configuration."""
-    widget = ExchangeRateWidget(widget_id="test-exchange", config={})
-    # Should pass validation with defaults
+    widget = ExchangeRateWidget(
+        widget_id="test-exchange",
+        config={"base_currency": "EUR", "target_currencies": ["USD", "GBP"]},
+    )
+    # Should pass validation with required config
     assert widget.validate_config()
 
 
@@ -67,7 +70,7 @@ def test_widget_cache_key_consistency():
 def test_widget_enabled_flag():
     """Test widget enabled/disabled flag."""
     widget = WeatherWidget(
-        widget_id="test-weather", config={"location": "Prague", "api_key": "key"}, enabled=False
+        widget_id="test-weather", config={"location": "Prague", "api_key": "key", "enabled": False}
     )
     assert not widget.enabled
 

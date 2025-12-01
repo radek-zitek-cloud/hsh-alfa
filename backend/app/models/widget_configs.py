@@ -86,7 +86,6 @@ class ExchangeRateWidgetConfig(BaseModel):
         ...,
         min_length=3,
         max_length=3,
-        pattern="^[A-Z]{3}$",
         description="Base currency code (ISO 4217)",
     )
     target_currencies: List[str] = Field(
@@ -97,16 +96,39 @@ class ExchangeRateWidgetConfig(BaseModel):
         None, min_length=10, max_length=255, description="Exchange rate API key (optional)"
     )
 
-    @field_validator("base_currency")
+    @field_validator("base_currency", mode="before")
     @classmethod
     def validate_base_currency(cls, v: str) -> str:
-        """Validate and normalize base currency."""
-        return v.upper().strip()
+        """Validate and normalize base currency to uppercase."""
+        if isinstance(v, str):
+            normalized = v.upper().strip()
+            if len(normalized) != 3 or not normalized.isalpha():
+                raise ValueError(
+                    f"Base currency code must be exactly 3 letters: {v}"
+                )
+            return normalized
+        return v
 
-    @field_validator("target_currencies")
+    @field_validator("target_currencies", mode="before")
     @classmethod
     def validate_target_currencies(cls, v: List[str]) -> List[str]:
-        """Validate target currencies."""
+        """Validate and normalize target currency codes.
+
+        Validates each target currency code to ensure:
+        - At least one valid currency is provided
+        - Each code is exactly 3 letters (ISO 4217 format)
+        - Empty/whitespace-only codes are filtered out
+        - All codes are normalized to uppercase
+
+        Args:
+            v: List of target currency codes to validate
+
+        Returns:
+            List of validated, uppercase currency codes
+
+        Raises:
+            ValueError: If no valid currencies provided or invalid format
+        """
         if not v:
             raise ValueError("At least one target currency must be specified")
 
