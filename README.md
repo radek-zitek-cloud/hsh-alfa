@@ -1,6 +1,6 @@
 # Home Sweet Home 🏠
 
-A self-hosted, customizable browser homepage application that serves as your personal dashboard. Consolidate favorite bookmarks and display dynamic information widgets such as weather, exchange rates, and more.
+A self-hosted, customizable browser home page application that serves as your personal dashboard. Consolidate favorite bookmarks and display dynamic information widgets such as weather, exchange rates, and more.
 
 ## Features
 
