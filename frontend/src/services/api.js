@@ -155,6 +155,8 @@ export const adminApi = {
 
   updateUser: (id, data) => api.put(`/admin/users/${id}`, data),
 
+  deleteUser: id => api.delete(`/admin/users/${id}`),
+
   // Bookmarks
   getBookmarks: (userId = null) => {
     const params = {};
@@ -184,7 +186,47 @@ export const adminApi = {
     return api.get('/admin/preferences', { params });
   },
 
+  updatePreference: (id, data) => api.put(`/admin/preferences/${id}`, data),
+
   deletePreference: id => api.delete(`/admin/preferences/${id}`),
+
+  // Sections
+  getSections: (userId = null) => {
+    const params = {};
+    if (userId) params.user_id = userId;
+    return api.get('/admin/sections', { params });
+  },
+
+  createSection: data => api.post('/admin/sections', data),
+
+  updateSection: (id, data) => api.put(`/admin/sections/${id}`, data),
+
+  deleteSection: id => api.delete(`/admin/sections/${id}`),
+
+  // Habits
+  getHabits: (userId = null) => {
+    const params = {};
+    if (userId) params.user_id = userId;
+    return api.get('/admin/habits', { params });
+  },
+
+  createHabit: data => api.post('/admin/habits', data),
+
+  updateHabit: (id, data) => api.put(`/admin/habits/${id}`, data),
+
+  deleteHabit: id => api.delete(`/admin/habits/${id}`),
+
+  // Habit Completions
+  getHabitCompletions: (userId = null, habitId = null) => {
+    const params = {};
+    if (userId) params.user_id = userId;
+    if (habitId) params.habit_id = habitId;
+    return api.get('/admin/habit-completions', { params });
+  },
+
+  createHabitCompletion: data => api.post('/admin/habit-completions', data),
+
+  deleteHabitCompletion: id => api.delete(`/admin/habit-completions/${id}`),
 };
 
 export default api;
