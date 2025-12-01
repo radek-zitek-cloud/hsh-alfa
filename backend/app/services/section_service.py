@@ -99,8 +99,10 @@ async def initialize_default_sections_for_user(db: AsyncSession, user_id: int):
         if section_data["name"] not in existing_names:
             # Place new sections after existing ones
             max_position += 1
-            section_data["position"] = max_position
-            section = Section(**section_data)
+            # Create a copy to avoid modifying the original dict
+            new_section_data = section_data.copy()
+            new_section_data["position"] = max_position
+            section = Section(**new_section_data)
             db.add(section)
             created_count += 1
             logger.debug(f"Creating missing section '{section_data['name']}' for user {user_id}")
