@@ -11,6 +11,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.models.bookmark import Bookmark
 from app.models.user import User
 from app.models.widget import Widget
+from app.services.section_service import initialize_default_sections_for_user
 
 logger = logging.getLogger(__name__)
 
@@ -23,8 +24,10 @@ class UserInitializationService:
         """Initialize default data for a new user.
 
         Creates:
+        - Default sections (weather, rates, markets, news, habits)
         - One default bookmark: Home Page (https://home.zitek.cloud)
         - One default weather widget: Provodov, CZ
+        - One default habit tracking widget
 
         Args:
             db: Database session
@@ -39,15 +42,21 @@ class UserInitializationService:
 
             if has_bookmarks and has_widgets:
                 logger.info(f"User {user.id} already has data, skipping initialization")
+                # Still ensure sections exist
+                await initialize_default_sections_for_user(db, user.id)
                 return
+
+            # Create default sections for the user
+            await initialize_default_sections_for_user(db, user.id)
 
             # Create default bookmark if user has no bookmarks
             if not has_bookmarks:
                 await UserInitializationService._create_default_bookmark(db, user.id)
 
-            # Create default widget if user has no widgets
+            # Create default widgets if user has no widgets
             if not has_widgets:
-                await UserInitializationService._create_default_widget(db, user.id)
+                await UserInitializationService._create_default_weather_widget(db, user.id)
+                await UserInitializationService._create_default_habit_widget(db, user.id)
 
             await db.commit()
             logger.info(f"Successfully initialized default data for user {user.id}")
@@ -91,7 +100,7 @@ class UserInitializationService:
         logger.info(f"Created default bookmark for user {user_id}")
 
     @staticmethod
-    async def _create_default_widget(db: AsyncSession, user_id: int) -> None:
+    async def _create_default_weather_widget(db: AsyncSession, user_id: int) -> None:
         """Create default weather widget for user: Provodov, CZ."""
         logger.info(f"Creating default weather widget for user {user_id}")
 
@@ -119,3 +128,31 @@ class UserInitializationService:
 
         db.add(widget)
         logger.info(f"Created default weather widget for user {user_id}")
+
+    @staticmethod
+    async def _create_default_habit_widget(db: AsyncSession, user_id: int) -> None:
+        """Create default habit tracking widget for user."""
+        logger.info(f"Creating default habit tracking widget for user {user_id}")
+
+        # Habit tracking widget configuration
+        widget_config = {
+            "refresh_interval": 300,  # 5 minutes
+        }
+
+        widget = Widget(
+            user_id=user_id,
+            widget_id=f"habit-tracking-{uuid.uuid4()}",
+            widget_type="habit_tracking",
+            enabled=True,
+            position_row=0,
+            position_col=0,
+            position_width=2,
+            position_height=2,
+            refresh_interval=300,  # 5 minutes
+            config=json.dumps(widget_config),
+            created=datetime.utcnow(),
+            updated=datetime.utcnow(),
+        )
+
+        db.add(widget)
+        logger.info(f"Created default habit tracking widget for user {user_id}")

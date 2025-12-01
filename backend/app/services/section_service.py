@@ -18,7 +18,7 @@ logger = logging.getLogger(__name__)
 
 async def initialize_default_sections(db: AsyncSession):
     """
-    Initialize default sections if none exist.
+    Initialize default sections if none exist (legacy, kept for backwards compatibility).
 
     Args:
         db: Database session
@@ -27,44 +27,74 @@ async def initialize_default_sections(db: AsyncSession):
     existing = result.scalars().all()
 
     if not existing:
-        default_sections = [
-            {
-                "name": "weather",
-                "title": "Weather",
-                "position": 0,
-                "enabled": True,
-                "widget_ids": "",
-            },
-            {
-                "name": "rates",
-                "title": "Exchange Rates",
-                "position": 1,
-                "enabled": True,
-                "widget_ids": "",
-            },
-            {
-                "name": "markets",
-                "title": "Markets",
-                "position": 2,
-                "enabled": True,
-                "widget_ids": "",
-            },
-            {"name": "news", "title": "News", "position": 3, "enabled": True, "widget_ids": ""},
-            {
-                "name": "habits",
-                "title": "Habits",
-                "position": 4,
-                "enabled": True,
-                "widget_ids": "",
-            },
-        ]
+        logger.info("No sections found. Sections should be created per-user.")
 
-        for section_data in default_sections:
-            section = Section(**section_data)
-            db.add(section)
 
-        await db.commit()
-        logger.info("Initialized default sections")
+async def initialize_default_sections_for_user(db: AsyncSession, user_id: int):
+    """
+    Initialize default sections for a specific user.
+
+    Args:
+        db: Database session
+        user_id: User ID to create sections for
+    """
+    # Check if user already has sections
+    result = await db.execute(select(Section).where(Section.user_id == user_id))
+    existing = result.scalars().all()
+
+    if existing:
+        logger.debug(f"User {user_id} already has {len(existing)} sections")
+        return
+
+    default_sections = [
+        {
+            "user_id": user_id,
+            "name": "weather",
+            "title": "Weather",
+            "position": 0,
+            "enabled": True,
+            "widget_ids": "",
+        },
+        {
+            "user_id": user_id,
+            "name": "rates",
+            "title": "Exchange Rates",
+            "position": 1,
+            "enabled": True,
+            "widget_ids": "",
+        },
+        {
+            "user_id": user_id,
+            "name": "markets",
+            "title": "Markets",
+            "position": 2,
+            "enabled": True,
+            "widget_ids": "",
+        },
+        {
+            "user_id": user_id,
+            "name": "news",
+            "title": "News",
+            "position": 3,
+            "enabled": True,
+            "widget_ids": "",
+        },
+        {
+            "user_id": user_id,
+            "name": "habits",
+            "title": "Habits",
+            "position": 4,
+            "enabled": True,
+            "widget_ids": "",
+        },
+    ]
+
+    for section_data in default_sections:
+        section = Section(**section_data)
+        db.add(section)
+
+    await db.commit()
+    logger.info(f"Initialized {len(default_sections)} default sections for user {user_id}")
 
 
 class SectionService:
@@ -79,14 +109,20 @@ class SectionService:
         """
         self.db = db
 
-    async def list_sections(self) -> List[Section]:
+    async def list_sections(self, user_id: Optional[int] = None) -> List[Section]:
         """
         Get all sections ordered by position.
+
+        Args:
+            user_id: Optional user ID to filter sections. If provided, only returns sections for that user.
 
         Returns:
             List of sections ordered by position
         """
-        result = await self.db.execute(select(Section).order_by(Section.position))
+        query = select(Section).order_by(Section.position)
+        if user_id is not None:
+            query = query.where(Section.user_id == user_id)
+        result = await self.db.execute(query)
         return result.scalars().all()
 
     async def get_section(self, section_id: int) -> Optional[Section]:
@@ -194,18 +230,24 @@ class SectionService:
         logger.info(f"Deleted section: {section.name}")
         return True
 
-    async def reorder_sections(self, sections_order: List[Dict[str, Any]]) -> List[Section]:
+    async def reorder_sections(
+        self, sections_order: List[Dict[str, Any]], user_id: Optional[int] = None
+    ) -> List[Section]:
         """
         Update the order of multiple sections.
 
         Args:
             sections_order: List of dictionaries with 'name' and 'position' keys
+            user_id: Optional user ID to filter sections
 
         Returns:
             List of updated sections ordered by position
         """
-        # Get all sections
-        result = await self.db.execute(select(Section))
+        # Get all sections (filtered by user if provided)
+        query = select(Section)
+        if user_id is not None:
+            query = query.where(Section.user_id == user_id)
+        result = await self.db.execute(query)
         sections = {section.name: section for section in result.scalars().all()}
 
         # Update positions
@@ -217,9 +259,12 @@ class SectionService:
 
         await self.db.commit()
 
-        # Return updated sections ordered by position
-        result = await self.db.execute(select(Section).order_by(Section.position))
+        # Return updated sections ordered by position (filtered by user if provided)
+        query = select(Section).order_by(Section.position)
+        if user_id is not None:
+            query = query.where(Section.user_id == user_id)
+        result = await self.db.execute(query)
         updated_sections = result.scalars().all()
 
-        logger.info("Reordered sections")
+        logger.info("Reordered sections", extra={"user_id": user_id})
         return updated_sections
