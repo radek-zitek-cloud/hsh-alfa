@@ -112,7 +112,23 @@ class ExchangeRateWidgetConfig(BaseModel):
     @field_validator("target_currencies", mode="before")
     @classmethod
     def validate_target_currencies(cls, v: List[str]) -> List[str]:
-        """Validate target currencies."""
+        """Validate and normalize target currency codes.
+
+        Validates each target currency code to ensure:
+        - At least one valid currency is provided
+        - Each code is exactly 3 letters (ISO 4217 format)
+        - Empty/whitespace-only codes are filtered out
+        - All codes are normalized to uppercase
+
+        Args:
+            v: List of target currency codes to validate
+
+        Returns:
+            List of validated, uppercase currency codes
+
+        Raises:
+            ValueError: If no valid currencies provided or invalid format
+        """
         if not v:
             raise ValueError("At least one target currency must be specified")
 
