@@ -1,30 +1,79 @@
-import { useState } from 'react';
+import { useState, useCallback } from 'react';
 import { useWidget } from '../../hooks/useWidget';
 import { Loader, AlertCircle } from 'lucide-react';
 import { habitsApi } from '../../services/api';
+import { useQueryClient } from '@tanstack/react-query';
 
 const HabitTrackingWidget = ({ widgetId, config }) => {
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const queryClient = useQueryClient();
 
   const { data, isLoading, error, refetch } = useWidget(widgetId, {
     refetchInterval: (config?.refresh_interval || 300) * 1000,
   });
 
-  const handleToggleToday = async (habitId, todayDate, currentlyCompleted) => {
-    setIsSubmitting(true);
-    try {
-      await habitsApi.toggleCompletion({
-        habit_id: habitId,
-        completion_date: todayDate,
-        completed: !currentlyCompleted,
+  const handleToggleToday = useCallback(
+    async (habitId, todayDate, currentlyCompleted) => {
+      setIsSubmitting(true);
+
+      // Optimistic update: immediately update the UI
+      const newCompleted = !currentlyCompleted;
+      queryClient.setQueryData(['widget', widgetId], oldData => {
+        if (!oldData?.data?.habits?.length) return oldData;
+        return {
+          ...oldData,
+          data: {
+            ...oldData.data,
+            habits: oldData.data.habits.map(habit =>
+              habit.id === habitId
+                ? {
+                    ...habit,
+                    days: habit.days.map(day =>
+                      day.date === todayDate ? { ...day, completed: newCompleted } : day
+                    ),
+                  }
+                : habit
+            ),
+          },
+        };
       });
-      refetch();
-    } catch (err) {
-      console.error('Error toggling habit completion:', err);
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
+
+      try {
+        await habitsApi.toggleCompletion({
+          habit_id: habitId,
+          completion_date: todayDate,
+          completed: newCompleted,
+        });
+        // Refetch to ensure server state is in sync
+        refetch();
+      } catch (err) {
+        // Revert optimistic update on error
+        queryClient.setQueryData(['widget', widgetId], oldData => {
+          if (!oldData?.data?.habits?.length) return oldData;
+          return {
+            ...oldData,
+            data: {
+              ...oldData.data,
+              habits: oldData.data.habits.map(habit =>
+                habit.id === habitId
+                  ? {
+                      ...habit,
+                      days: habit.days.map(day =>
+                        day.date === todayDate ? { ...day, completed: currentlyCompleted } : day
+                      ),
+                    }
+                  : habit
+              ),
+            },
+          };
+        });
+        console.error('Error toggling habit completion:', err);
+      } finally {
+        setIsSubmitting(false);
+      }
+    },
+    [widgetId, queryClient, refetch]
+  );
 
   if (isLoading) {
     return (

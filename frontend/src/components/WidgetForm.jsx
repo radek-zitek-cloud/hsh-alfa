@@ -33,6 +33,8 @@ const formatErrorMessage = error => {
 const WidgetForm = ({ widget, onSuccess, onCancel }) => {
   const queryClient = useQueryClient();
   const isEditMode = !!widget;
+  const isHabitTrackingWidget = widget?.type === 'habit_tracking' || false;
+  const habitIdToEdit = isEditMode && isHabitTrackingWidget ? widget?.config?.habit_id : null;
 
   // Fetch available widget types
   const { data: typesData } = useQuery({
@@ -56,6 +58,16 @@ const WidgetForm = ({ widget, onSuccess, onCancel }) => {
   });
 
   const habits = habitsData || [];
+
+  // Fetch the specific habit data when editing a habit_tracking widget
+  const { data: editingHabitData } = useQuery({
+    queryKey: ['habit', habitIdToEdit],
+    queryFn: async () => {
+      const response = await habitsApi.getOne(habitIdToEdit);
+      return response.data;
+    },
+    enabled: !!habitIdToEdit, // Only fetch when editing a habit_tracking widget with a habit_id
+  });
 
   // Form state
   const [formData, setFormData] = useState({
@@ -86,6 +98,22 @@ const WidgetForm = ({ widget, onSuccess, onCancel }) => {
     name: '',
     description: '',
   });
+
+  // State for editing existing habit data
+  const [editHabitData, setEditHabitData] = useState({
+    name: '',
+    description: '',
+  });
+
+  // Populate edit habit data when editing habit data is loaded
+  useEffect(() => {
+    if (editingHabitData) {
+      setEditHabitData({
+        name: editingHabitData.name || '',
+        description: editingHabitData.description || '',
+      });
+    }
+  }, [editingHabitData]);
 
   // Update config when type changes or habits are loaded
   useEffect(() => {
@@ -131,7 +159,24 @@ const WidgetForm = ({ widget, onSuccess, onCancel }) => {
     },
   });
 
-  const handleSubmit = e => {
+  // Habit update mutation
+  const updateHabitMutation = useMutation({
+    mutationFn: ({ id, data }) => habitsApi.update(id, data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['habits'] });
+      queryClient.invalidateQueries({ queryKey: ['habit', habitIdToEdit] });
+      // Also invalidate the widget data to refresh the display
+      if (widget?.id) {
+        queryClient.invalidateQueries({ queryKey: ['widget', widget.id] });
+      }
+    },
+    onError: error => {
+      const errorMessage = formatErrorMessage(error) || 'Failed to update habit';
+      setErrors({ submit: errorMessage });
+    },
+  });
+
+  const handleSubmit = async e => {
     e.preventDefault();
     setErrors({});
 
@@ -143,13 +188,20 @@ const WidgetForm = ({ widget, onSuccess, onCancel }) => {
 
     // Validate habit_tracking widget has a habit_id or new habit data
     if (formData.type === 'habit_tracking') {
-      if (habitCreationMode === 'existing' && !widgetConfig.habit_id) {
-        newErrors.config = 'Please select a habit to track';
-      } else if (habitCreationMode === 'new') {
-        if (!newHabitData.name.trim()) {
+      if (!isEditMode) {
+        if (habitCreationMode === 'existing' && !widgetConfig.habit_id) {
+          newErrors.config = 'Please select a habit to track';
+        } else if (habitCreationMode === 'new') {
+          if (!newHabitData.name.trim()) {
+            newErrors.config = 'Habit name is required';
+          } else if (!newHabitData.description.trim()) {
+            newErrors.config = 'Habit description is required';
+          }
+        }
+      } else {
+        // Validate edit habit data in edit mode
+        if (!editHabitData.name.trim()) {
           newErrors.config = 'Habit name is required';
-        } else if (!newHabitData.description.trim()) {
-          newErrors.config = 'Habit description is required';
         }
       }
     }
@@ -173,6 +225,21 @@ const WidgetForm = ({ widget, onSuccess, onCancel }) => {
     }
 
     if (isEditMode) {
+      // If editing a habit_tracking widget, also update the habit
+      if (isHabitTrackingWidget && habitIdToEdit) {
+        try {
+          await updateHabitMutation.mutateAsync({
+            id: habitIdToEdit,
+            data: {
+              name: editHabitData.name.trim(),
+              description: editHabitData.description.trim(),
+            },
+          });
+        } catch (_error) {
+          // Error is handled by the mutation's onError callback
+          return;
+        }
+      }
       updateMutation.mutate({ id: widget.id, data });
     } else {
       createMutation.mutate(data);
@@ -321,7 +388,9 @@ const WidgetForm = ({ widget, onSuccess, onCancel }) => {
             habitCreationMode,
             setHabitCreationMode,
             newHabitData,
-            setNewHabitData
+            setNewHabitData,
+            editHabitData,
+            setEditHabitData
           )}
         </div>
         {errors.config && <p className="text-red-500 text-sm mt-2">{errors.config}</p>}
@@ -338,10 +407,10 @@ const WidgetForm = ({ widget, onSuccess, onCancel }) => {
         </button>
         <button
           type="submit"
-          disabled={createMutation.isPending || updateMutation.isPending}
+          disabled={createMutation.isPending || updateMutation.isPending || updateHabitMutation.isPending}
           className="px-6 py-2 bg-[var(--accent-color)] text-white rounded-lg hover:opacity-90 transition-opacity disabled:opacity-50"
         >
-          {createMutation.isPending || updateMutation.isPending
+          {createMutation.isPending || updateMutation.isPending || updateHabitMutation.isPending
             ? 'Saving...'
             : isEditMode
               ? 'Update Widget'
@@ -404,7 +473,9 @@ function renderConfigFields(
   habitCreationMode = 'existing',
   setHabitCreationMode = () => {},
   newHabitData = { name: '', description: '' },
-  setNewHabitData = () => {}
+  setNewHabitData = () => {},
+  editHabitData = { name: '', description: '' },
+  setEditHabitData = () => {}
 ) {
   switch (type) {
     case 'weather':
@@ -563,6 +634,44 @@ function renderConfigFields(
       return (
         <>
           <div className="space-y-4">
+            {/* Show edit habit fields when in edit mode */}
+            {isEditMode && (
+              <div className="space-y-3">
+                <div className="p-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg">
+                  <p className="text-sm text-blue-700 dark:text-blue-300">
+                    Edit the habit information tracked by this widget.
+                  </p>
+                </div>
+                <div>
+                  <label className="block text-sm text-[var(--text-secondary)] mb-1">
+                    Habit Name *
+                  </label>
+                  <input
+                    type="text"
+                    value={editHabitData.name}
+                    onChange={e => setEditHabitData(prev => ({ ...prev, name: e.target.value }))}
+                    placeholder="e.g., Morning Exercise"
+                    className="w-full px-3 py-2 bg-[var(--bg-secondary)] border border-[var(--border-color)] rounded-lg"
+                    required
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm text-[var(--text-secondary)] mb-1">
+                    Habit Description
+                  </label>
+                  <textarea
+                    value={editHabitData.description}
+                    onChange={e =>
+                      setEditHabitData(prev => ({ ...prev, description: e.target.value }))
+                    }
+                    placeholder="e.g., 30 minutes of cardio or strength training"
+                    rows="2"
+                    className="w-full px-3 py-2 bg-[var(--bg-secondary)] border border-[var(--border-color)] rounded-lg"
+                  />
+                </div>
+              </div>
+            )}
+
             {/* Only show mode selection when creating new widget */}
             {!isEditMode && (
               <div className="flex gap-4 mb-4">
@@ -593,16 +702,16 @@ function renderConfigFields(
               </div>
             )}
 
-            {/* Existing habit selection */}
-            {habitCreationMode === 'existing' && (
+            {/* Existing habit selection - only when creating new widget */}
+            {!isEditMode && habitCreationMode === 'existing' && (
               <div>
                 <label className="block text-sm text-[var(--text-secondary)] mb-1">
                   Select Habit to Track *
                 </label>
-                {habits.length === 0 && !isEditMode ? (
+                {habits.length === 0 ? (
                   <div className="p-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg">
                     <p className="text-sm text-blue-700 dark:text-blue-300">
-                      No existing habits found. Switch to "Create new habit" mode to create your first
+                      No existing habits found. Switch to &quot;Create new habit&quot; mode to create your first
                       habit.
                     </p>
                   </div>
