@@ -1,31 +1,31 @@
-import React from 'react'
-import { useWidget } from '../../hooks/useWidget'
-import { Newspaper, ExternalLink, Loader, AlertCircle, Calendar } from 'lucide-react'
+import React from 'react';
+import { useWidget } from '../../hooks/useWidget';
+import { Newspaper, ExternalLink, Loader, AlertCircle, Calendar } from 'lucide-react';
 
 const NewsArticle = ({ article }) => {
-  const formatDate = (dateString) => {
-    if (!dateString) return ''
+  const formatDate = dateString => {
+    if (!dateString) return '';
     try {
-      const date = new Date(dateString)
-      const now = new Date()
-      const diffMs = now - date
-      const diffMins = Math.floor(diffMs / 60000)
-      const diffHours = Math.floor(diffMs / 3600000)
-      const diffDays = Math.floor(diffMs / 86400000)
+      const date = new Date(dateString);
+      const now = new Date();
+      const diffMs = now - date;
+      const diffMins = Math.floor(diffMs / 60000);
+      const diffHours = Math.floor(diffMs / 3600000);
+      const diffDays = Math.floor(diffMs / 86400000);
 
       if (diffMins < 60) {
-        return `${diffMins}m ago`
+        return `${diffMins}m ago`;
       } else if (diffHours < 24) {
-        return `${diffHours}h ago`
+        return `${diffHours}h ago`;
       } else if (diffDays < 7) {
-        return `${diffDays}d ago`
+        return `${diffDays}d ago`;
       } else {
-        return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+        return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
       }
     } catch (e) {
-      return dateString
+      return dateString;
     }
-  }
+  };
 
   return (
     <a
@@ -41,8 +41,8 @@ const NewsArticle = ({ article }) => {
               src={article.image_url}
               alt={article.title}
               className="w-full h-full object-cover"
-              onError={(e) => {
-                e.target.style.display = 'none'
+              onError={e => {
+                e.target.style.display = 'none';
               }}
             />
           </div>
@@ -57,9 +57,7 @@ const NewsArticle = ({ article }) => {
             </p>
           )}
           <div className="flex items-center gap-2 text-xs text-[var(--text-secondary)]">
-            {article.source && (
-              <span className="font-medium">{article.source}</span>
-            )}
+            {article.source && <span className="font-medium">{article.source}</span>}
             {article.published_at && (
               <>
                 <span>•</span>
@@ -74,20 +72,20 @@ const NewsArticle = ({ article }) => {
         </div>
       </div>
     </a>
-  )
-}
+  );
+};
 
 const NewsWidget = ({ widgetId, config }) => {
   const { data, isLoading, error } = useWidget(widgetId, {
     refetchInterval: (config?.refresh_interval || 1800) * 1000,
-  })
+  });
 
   if (isLoading) {
     return (
       <div className="widget-card flex items-center justify-center">
         <Loader className="animate-spin" size={32} />
       </div>
-    )
+    );
   }
 
   if (error || data?.error) {
@@ -100,10 +98,10 @@ const NewsWidget = ({ widgetId, config }) => {
           </span>
         </div>
       </div>
-    )
+    );
   }
 
-  const newsData = data?.data
+  const newsData = data?.data;
   if (!newsData || !newsData.articles || newsData.articles.length === 0) {
     return (
       <div className="widget-card">
@@ -113,7 +111,7 @@ const NewsWidget = ({ widgetId, config }) => {
         </div>
         <p className="text-[var(--text-secondary)]">No news articles available</p>
       </div>
-    )
+    );
   }
 
   return (
@@ -122,9 +120,7 @@ const NewsWidget = ({ widgetId, config }) => {
         {/* Header */}
         <div className="flex items-center gap-2 mb-4">
           <Newspaper size={20} className="text-[var(--text-primary)]" />
-          <h3 className="text-lg font-semibold text-[var(--text-primary)]">
-            News
-          </h3>
+          <h3 className="text-lg font-semibold text-[var(--text-primary)]">News</h3>
           <span className="ml-auto text-xs text-[var(--text-secondary)]">
             {newsData.total} {newsData.total === 1 ? 'article' : 'articles'}
           </span>
@@ -145,7 +141,7 @@ const NewsWidget = ({ widgetId, config }) => {
         )}
       </div>
     </div>
-  )
-}
+  );
+};
 
-export default NewsWidget
+export default NewsWidget;

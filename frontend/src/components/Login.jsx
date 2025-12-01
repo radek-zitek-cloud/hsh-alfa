@@ -28,18 +28,10 @@ const Login = () => {
           <p>Your personal homepage with bookmarks and widgets</p>
         </div>
 
-        {error && (
-          <div className="login-error">
-            {error}
-          </div>
-        )}
+        {error && <div className="login-error">{error}</div>}
 
         <div className="login-actions">
-          <button
-            onClick={handleGoogleLogin}
-            disabled={isLoading}
-            className="google-login-button"
-          >
+          <button onClick={handleGoogleLogin} disabled={isLoading} className="google-login-button">
             {isLoading ? (
               <span>Connecting...</span>
             ) : (
