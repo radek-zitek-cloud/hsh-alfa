@@ -118,6 +118,23 @@ export const preferencesApi = {
   set: (key, value) => api.put(`/preferences/${key}`, { value }),
 };
 
+// Habits API
+export const habitsApi = {
+  getAll: () => api.get('/habits/'),
+
+  getOne: id => api.get(`/habits/${id}`),
+
+  create: data => api.post('/habits/', data),
+
+  update: (id, data) => api.put(`/habits/${id}`, data),
+
+  delete: id => api.delete(`/habits/${id}`),
+
+  getCompletions: id => api.get(`/habits/${id}/completions`),
+
+  toggleCompletion: data => api.post('/habits/completions', data),
+};
+
 // Export/Import API
 export const exportImportApi = {
   exportData: (format = 'json') =>

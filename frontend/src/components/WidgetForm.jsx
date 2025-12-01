@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { widgetsApi } from '../services/api';
+import { widgetsApi, habitsApi } from '../services/api';
 import { useMutation, useQueryClient, useQuery } from '@tanstack/react-query';
 
 // Helper function to format error messages from API responses
@@ -45,6 +45,18 @@ const WidgetForm = ({ widget, onSuccess, onCancel }) => {
 
   const widgetTypes = typesData?.widget_types || [];
 
+  // Fetch available habits
+  const { data: habitsData } = useQuery({
+    queryKey: ['habits'],
+    queryFn: async () => {
+      const response = await habitsApi.getAll();
+      return response.data;
+    },
+    enabled: !isEditMode, // Only fetch when creating new widget
+  });
+
+  const habits = habitsData || [];
+
   // Form state
   const [formData, setFormData] = useState({
     type: widget?.type || 'weather',
@@ -62,15 +74,15 @@ const WidgetForm = ({ widget, onSuccess, onCancel }) => {
   // Widget-specific config state
   const [widgetConfig, setWidgetConfig] = useState(() => {
     if (widget?.config) return widget.config;
-    return getDefaultConfigForType(formData.type);
+    return getDefaultConfigForType(formData.type, habits);
   });
 
-  // Update config when type changes
+  // Update config when type changes or habits are loaded
   useEffect(() => {
     if (!isEditMode) {
-      setWidgetConfig(getDefaultConfigForType(formData.type));
+      setWidgetConfig(getDefaultConfigForType(formData.type, habits));
     }
-  }, [formData.type, isEditMode]);
+  }, [formData.type, habits, isEditMode]);
 
   const [errors, setErrors] = useState({});
 
@@ -111,6 +123,11 @@ const WidgetForm = ({ widget, onSuccess, onCancel }) => {
     if (!formData.type) newErrors.type = 'Widget type is required';
     if (formData.refresh_interval < 60)
       newErrors.refresh_interval = 'Refresh interval must be at least 60 seconds';
+
+    // Validate habit_tracking widget has a habit_id
+    if (formData.type === 'habit_tracking' && !widgetConfig.habit_id) {
+      newErrors.config = 'Please select a habit to track';
+    }
 
     if (Object.keys(newErrors).length > 0) {
       setErrors(newErrors);
@@ -262,8 +279,9 @@ const WidgetForm = ({ widget, onSuccess, onCancel }) => {
           Widget Configuration
         </label>
         <div className="space-y-4 p-4 bg-[var(--bg-primary)] rounded-lg border border-[var(--border-color)]">
-          {renderConfigFields(formData.type, widgetConfig, handleConfigChange)}
+          {renderConfigFields(formData.type, widgetConfig, handleConfigChange, habits)}
         </div>
+        {errors.config && <p className="text-red-500 text-sm mt-2">{errors.config}</p>}
       </div>
 
       {/* Actions */}
@@ -299,7 +317,7 @@ function formatTypeName(type) {
     .join(' ');
 }
 
-function getDefaultConfigForType(type) {
+function getDefaultConfigForType(type, habits = []) {
   switch (type) {
     case 'weather':
       return {
@@ -325,13 +343,16 @@ function getDefaultConfigForType(type) {
         crypto: ['BTC', 'ETH'],
       };
     case 'habit_tracking':
-      return {};
+      // Set the first available habit as default, or empty string if no habits
+      return {
+        habit_id: habits.length > 0 ? habits[0].id : '',
+      };
     default:
       return {};
   }
 }
 
-function renderConfigFields(type, config, onChange) {
+function renderConfigFields(type, config, onChange, habits = []) {
   switch (type) {
     case 'weather':
       return (
@@ -487,9 +508,38 @@ function renderConfigFields(type, config, onChange) {
 
     case 'habit_tracking':
       return (
-        <p className="text-sm text-[var(--text-secondary)]">
-          No configuration needed. You can add and manage habits directly in the widget.
-        </p>
+        <>
+          <div>
+            <label className="block text-sm text-[var(--text-secondary)] mb-1">
+              Select Habit to Track *
+            </label>
+            {habits.length === 0 ? (
+              <div className="p-3 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg">
+                <p className="text-sm text-yellow-700 dark:text-yellow-300">
+                  No habits available. Please create a habit first by adding it in an existing habit
+                  tracking widget or contact support.
+                </p>
+              </div>
+            ) : (
+              <select
+                value={config.habit_id || ''}
+                onChange={e => onChange('habit_id', e.target.value)}
+                className="w-full px-3 py-2 bg-[var(--bg-secondary)] border border-[var(--border-color)] rounded-lg"
+                required
+              >
+                <option value="">-- Select a habit --</option>
+                {habits.map(habit => (
+                  <option key={habit.id} value={habit.id}>
+                    {habit.name} {habit.description ? `- ${habit.description}` : ''}
+                  </option>
+                ))}
+              </select>
+            )}
+            <p className="text-xs text-[var(--text-secondary)] mt-1">
+              Each widget tracks one habit. Create multiple widgets to track multiple habits.
+            </p>
+          </div>
+        </>
       );
 
     default:
