@@ -276,6 +276,15 @@ async def lifespan(app: FastAPI):
             await db.close()
         break
 
+    # Register widget classes (required for widget type validation and data fetching)
+    try:
+        from app.widgets import register_all_widgets
+
+        register_all_widgets()
+        logger.info("Widget classes registered successfully")
+    except Exception as e:
+        logger.error("Failed to register widget classes", extra={"error": str(e)}, exc_info=True)
+
     # Start scheduler if enabled
     if settings.SCHEDULER_ENABLED:
         try:
