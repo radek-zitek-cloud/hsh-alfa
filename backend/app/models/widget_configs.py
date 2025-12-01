@@ -209,7 +209,16 @@ class MarketWidgetConfig(BaseModel):
 class HabitTrackingWidgetConfig(BaseModel):
     """Habit tracking widget configuration schema."""
 
+    habit_id: str = Field(..., min_length=1, description="Habit ID to track in this widget")
     user_id: Optional[int] = Field(None, description="User ID (set by backend)")
+
+    @field_validator("habit_id")
+    @classmethod
+    def validate_habit_id(cls, v: str) -> str:
+        """Validate habit ID is not empty."""
+        if not v or not v.strip():
+            raise ValueError("Habit ID cannot be empty")
+        return v.strip()
 
     class Config:
         """Pydantic config."""

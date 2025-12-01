@@ -25,10 +25,11 @@ class HabitTrackingWidget(BaseWidget):
 
         Args:
             widget_id: Unique identifier for this widget instance
-            config: Widget configuration (must include user_id)
+            config: Widget configuration (must include user_id and habit_id)
         """
         super().__init__(widget_id, config)
         self.user_id = config.get("user_id")
+        self.habit_id = config.get("habit_id")
 
     def validate_config(self) -> bool:
         """
@@ -43,6 +44,12 @@ class HabitTrackingWidget(BaseWidget):
                 extra={"widget_id": self.widget_id},
             )
             return False
+        if not self.habit_id:
+            logger.warning(
+                "Missing habit_id in habit tracking widget config",
+                extra={"widget_id": self.widget_id},
+            )
+            return False
         return True
 
     async def fetch_data(self) -> Dict[str, Any]:
@@ -50,7 +57,7 @@ class HabitTrackingWidget(BaseWidget):
         Fetch habit data from database.
 
         Returns:
-            Dictionary containing habits and their completion history
+            Dictionary containing the single habit and its completion history
         """
         # Get database session
         db_gen = get_db()
@@ -61,26 +68,37 @@ class HabitTrackingWidget(BaseWidget):
             end_date = date.today()
             start_date = end_date - timedelta(days=34)  # 35 days total including today
 
-            # Fetch all active habits for the user
+            # Fetch the specific habit for the user
             stmt = select(Habit).where(
-                and_(Habit.user_id == self.user_id, Habit.active == True)
+                and_(
+                    Habit.user_id == self.user_id,
+                    Habit.habit_id == self.habit_id,
+                    Habit.active == True,
+                )
             )
             result = await db.execute(stmt)
-            habits = result.scalars().all()
+            habit = result.scalar_one_or_none()
 
-            if not habits:
+            if not habit:
+                logger.warning(
+                    f"Habit not found or not active",
+                    extra={
+                        "widget_id": self.widget_id,
+                        "user_id": self.user_id,
+                        "habit_id": self.habit_id,
+                    },
+                )
                 return {
                     "habits": [],
                     "start_date": start_date.isoformat(),
                     "end_date": end_date.isoformat(),
                 }
 
-            # Fetch completions for all habits in the date range
-            habit_ids = [habit.habit_id for habit in habits]
+            # Fetch completions for this habit in the date range
             completions_stmt = select(HabitCompletion).where(
                 and_(
                     HabitCompletion.user_id == self.user_id,
-                    HabitCompletion.habit_id.in_(habit_ids),
+                    HabitCompletion.habit_id == self.habit_id,
                     HabitCompletion.completion_date >= start_date,
                     HabitCompletion.completion_date <= end_date,
                 )
@@ -88,53 +106,44 @@ class HabitTrackingWidget(BaseWidget):
             completions_result = await db.execute(completions_stmt)
             completions = completions_result.scalars().all()
 
-            # Organize completions by habit_id and date
-            completions_map: Dict[str, Dict[str, bool]] = {}
+            # Organize completions by date
+            completions_map: Dict[str, bool] = {}
             for completion in completions:
-                if completion.habit_id not in completions_map:
-                    completions_map[completion.habit_id] = {}
                 date_str = completion.completion_date.isoformat()
-                completions_map[completion.habit_id][date_str] = completion.completed
+                completions_map[date_str] = completion.completed
 
-            # Build response with habit data and completion history
-            habits_data = []
-            for habit in habits:
-                # Generate date array for the last 35 days
-                dates_data = []
-                current_date = start_date
-                while current_date <= end_date:
-                    date_str = current_date.isoformat()
-                    # Get day of week (0 = Monday, 6 = Sunday)
-                    day_of_week = current_date.weekday()
+            # Generate date array for the last 35 days
+            dates_data = []
+            current_date = start_date
+            while current_date <= end_date:
+                date_str = current_date.isoformat()
+                # Get day of week (0 = Monday, 6 = Sunday)
+                day_of_week = current_date.weekday()
 
-                    # Check if habit was completed on this date
-                    completed = False
-                    if habit.habit_id in completions_map:
-                        completed = completions_map[habit.habit_id].get(date_str, False)
+                # Check if habit was completed on this date
+                completed = completions_map.get(date_str, False)
 
-                    dates_data.append(
-                        {
-                            "date": date_str,
-                            "day_of_week": day_of_week,
-                            "completed": completed,
-                        }
-                    )
-                    current_date += timedelta(days=1)
-
-                # Organize dates into weeks (starting on Monday)
-                weeks = self._organize_into_weeks(dates_data)
-
-                habits_data.append(
+                dates_data.append(
                     {
-                        "id": habit.habit_id,
-                        "name": habit.name,
-                        "description": habit.description,
-                        "weeks": weeks,
+                        "date": date_str,
+                        "day_of_week": day_of_week,
+                        "completed": completed,
                     }
                 )
+                current_date += timedelta(days=1)
+
+            # Organize dates into weeks (starting on Monday)
+            weeks = self._organize_into_weeks(dates_data)
+
+            habit_data = {
+                "id": habit.habit_id,
+                "name": habit.name,
+                "description": habit.description,
+                "weeks": weeks,
+            }
 
             return {
-                "habits": habits_data,
+                "habits": [habit_data],
                 "start_date": start_date.isoformat(),
                 "end_date": end_date.isoformat(),
             }
@@ -142,7 +151,11 @@ class HabitTrackingWidget(BaseWidget):
         except Exception as e:
             logger.error(
                 f"Error fetching habit tracking data: {str(e)}",
-                extra={"widget_id": self.widget_id, "user_id": self.user_id},
+                extra={
+                    "widget_id": self.widget_id,
+                    "user_id": self.user_id,
+                    "habit_id": self.habit_id,
+                },
                 exc_info=True,
             )
             raise
