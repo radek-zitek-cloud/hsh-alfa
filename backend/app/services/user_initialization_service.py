@@ -9,6 +9,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.bookmark import Bookmark
+from app.models.habit import Habit
 from app.models.user import User
 from app.models.widget import Widget
 from app.services.section_service import initialize_default_sections_for_user
@@ -131,11 +132,26 @@ class UserInitializationService:
 
     @staticmethod
     async def _create_default_habit_widget(db: AsyncSession, user_id: int) -> None:
-        """Create default habit tracking widget for user."""
+        """Create default habit tracking widget for user with a default habit."""
         logger.info(f"Creating default habit tracking widget for user {user_id}")
 
-        # Habit tracking widget configuration
+        # First, create a default habit
+        habit_id = str(uuid.uuid4())
+        habit = Habit(
+            habit_id=habit_id,
+            user_id=user_id,
+            name="Example Habit",
+            description="Track your daily progress with this example habit",
+            active=True,
+            created=datetime.utcnow(),
+            updated=datetime.utcnow(),
+        )
+        db.add(habit)
+        logger.info(f"Created default habit {habit_id} for user {user_id}")
+
+        # Habit tracking widget configuration with habit_id
         widget_config = {
+            "habit_id": habit_id,
             "refresh_interval": 300,  # 5 minutes
         }
 

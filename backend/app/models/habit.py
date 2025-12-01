@@ -72,7 +72,7 @@ class HabitCreate(BaseModel):
     """Schema for creating a habit."""
 
     name: str = Field(min_length=1, max_length=255, description="Habit name")
-    description: Optional[str] = Field(None, description="Habit description")
+    description: str = Field(min_length=1, description="Habit description")
     active: bool = Field(default=True, description="Whether the habit is active")
 
     @field_validator("name")
@@ -81,6 +81,14 @@ class HabitCreate(BaseModel):
         """Validate habit name."""
         if not v or not v.strip():
             raise ValueError("Habit name cannot be empty")
+        return v.strip()
+
+    @field_validator("description")
+    @classmethod
+    def validate_description(cls, v: str) -> str:
+        """Validate habit description."""
+        if not v or not v.strip():
+            raise ValueError("Habit description cannot be empty")
         return v.strip()
 
 
