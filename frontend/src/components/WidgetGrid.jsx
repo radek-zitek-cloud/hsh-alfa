@@ -159,9 +159,14 @@ const WidgetGrid = () => {
         const response = await preferencesApi.get('widget_sections_collapsed');
         if (response.data && response.data.value) {
           // Parse the JSON string back to object
-          const parsed = JSON.parse(response.data.value);
-          if (typeof parsed === 'object' && parsed !== null) {
-            setCollapsedSections(parsed);
+          try {
+            const parsed = JSON.parse(response.data.value);
+            // Ensure parsed value is a plain object (not null, not array)
+            if (typeof parsed === 'object' && parsed !== null && !Array.isArray(parsed)) {
+              setCollapsedSections(parsed);
+            }
+          } catch (parseError) {
+            console.debug('Failed to parse collapsed sections preference:', parseError);
           }
         }
       } catch (error) {
