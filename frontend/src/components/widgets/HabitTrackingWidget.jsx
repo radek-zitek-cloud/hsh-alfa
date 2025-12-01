@@ -19,17 +19,21 @@ const HabitTrackingWidget = ({ widgetId, config }) => {
       // Optimistic update: immediately update the UI
       const newCompleted = !currentlyCompleted;
       queryClient.setQueryData(['widget', widgetId], oldData => {
-        if (!oldData?.data?.habits?.[0]?.days) return oldData;
+        if (!oldData?.data?.habits?.length) return oldData;
         return {
           ...oldData,
           data: {
             ...oldData.data,
-            habits: oldData.data.habits.map(habit => ({
-              ...habit,
-              days: habit.days.map(day =>
-                day.date === todayDate ? { ...day, completed: newCompleted } : day
-              ),
-            })),
+            habits: oldData.data.habits.map(habit =>
+              habit.id === habitId
+                ? {
+                    ...habit,
+                    days: habit.days.map(day =>
+                      day.date === todayDate ? { ...day, completed: newCompleted } : day
+                    ),
+                  }
+                : habit
+            ),
           },
         };
       });
@@ -45,17 +49,21 @@ const HabitTrackingWidget = ({ widgetId, config }) => {
       } catch (err) {
         // Revert optimistic update on error
         queryClient.setQueryData(['widget', widgetId], oldData => {
-          if (!oldData?.data?.habits?.[0]?.days) return oldData;
+          if (!oldData?.data?.habits?.length) return oldData;
           return {
             ...oldData,
             data: {
               ...oldData.data,
-              habits: oldData.data.habits.map(habit => ({
-                ...habit,
-                days: habit.days.map(day =>
-                  day.date === todayDate ? { ...day, completed: currentlyCompleted } : day
-                ),
-              })),
+              habits: oldData.data.habits.map(habit =>
+                habit.id === habitId
+                  ? {
+                      ...habit,
+                      days: habit.days.map(day =>
+                        day.date === todayDate ? { ...day, completed: currentlyCompleted } : day
+                      ),
+                    }
+                  : habit
+              ),
             },
           };
         });
