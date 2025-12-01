@@ -20,8 +20,9 @@ const DateHeader = () => {
     try {
       const event = await getRandomOnThisDayEvent(date);
       setHistoryFact(event);
-    } catch {
-      // If the API fails, use a fallback fact
+    } catch (error) {
+      // Log the error for debugging and use a fallback fact
+      console.warn('Failed to fetch historical event:', error.message);
       setHistoryFact(getRandomFallbackFact());
     } finally {
       setIsLoading(false);
