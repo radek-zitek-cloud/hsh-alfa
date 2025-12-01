@@ -85,7 +85,7 @@ async def get_preference(
     preference = await preference_service.get_preference(db, key, current_user.id)
 
     if not preference:
-        logger.warning(
+        logger.debug(
             "Preference not found", extra={"preference_key": key, "user_id": current_user.id}
         )
         raise HTTPException(

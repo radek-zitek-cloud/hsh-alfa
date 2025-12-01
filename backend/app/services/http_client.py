@@ -101,7 +101,7 @@ class SafeTCPConnector(aiohttp.TCPConnector):
             try:
                 ip = ipaddress.ip_address(ip_str)
                 if is_blocked_ip(ip):
-                    logger.warning(
+                    logger.debug(
                         "Blocked connection to private/internal IP",
                         extra={
                             "operation": "ssrf_validation",
@@ -116,7 +116,7 @@ class SafeTCPConnector(aiohttp.TCPConnector):
                 raise
             except ValueError:
                 # If IP parsing fails, block it
-                logger.warning(
+                logger.debug(
                     "Could not parse resolved IP",
                     extra={"operation": "ssrf_validation", "hostname": host, "ip_str": ip_str},
                 )
@@ -143,7 +143,7 @@ def is_safe_url(url: str) -> bool:
 
         # Only allow http/https schemes
         if parsed.scheme not in ["http", "https"]:
-            logger.warning(
+            logger.debug(
                 "Blocked non-http(s) URL",
                 extra={
                     "operation": "ssrf_validation",
@@ -155,7 +155,7 @@ def is_safe_url(url: str) -> bool:
 
         # Block localhost
         if parsed.hostname in ["localhost", "0.0.0.0"]:
-            logger.warning(
+            logger.debug(
                 "Blocked localhost URL",
                 extra={
                     "operation": "ssrf_validation",
@@ -173,7 +173,7 @@ def is_safe_url(url: str) -> bool:
                 for addr in addr_info:
                     ip = ipaddress.ip_address(addr[4][0])
                     if is_blocked_ip(ip):
-                        logger.warning(
+                        logger.debug(
                             "Blocked private/internal IP URL",
                             extra={
                                 "operation": "ssrf_validation",

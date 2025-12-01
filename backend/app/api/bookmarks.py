@@ -357,7 +357,7 @@ async def proxy_favicon(
 
     # Validate URL for security
     if not is_safe_url(str(url)):
-        logger.warning(
+        logger.debug(
             "Unsafe favicon URL rejected",
             extra={
                 "url": str(url),
