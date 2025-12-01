@@ -158,10 +158,17 @@ const WidgetGrid = () => {
       try {
         const response = await preferencesApi.get('widget_sections_collapsed');
         if (response.data && response.data.value) {
-          setCollapsedSections(response.data.value);
+          // Parse the JSON string back to object
+          const parsed = JSON.parse(response.data.value);
+          if (typeof parsed === 'object' && parsed !== null) {
+            setCollapsedSections(parsed);
+          }
         }
       } catch (error) {
-        console.error('Failed to load collapsed sections preference:', error);
+        // Preference may not exist yet (404), which is expected for new users
+        if (error.response?.status !== 404) {
+          console.debug('Failed to load collapsed sections preference:', error);
+        }
       } finally {
         setIsLoadingPreference(false);
       }
@@ -175,9 +182,10 @@ const WidgetGrid = () => {
 
     const savePreference = async () => {
       try {
-        await preferencesApi.set('widget_sections_collapsed', collapsedSections);
+        // Serialize object to JSON string for storage
+        await preferencesApi.set('widget_sections_collapsed', JSON.stringify(collapsedSections));
       } catch (error) {
-        console.error('Failed to save collapsed sections preference:', error);
+        console.debug('Failed to save collapsed sections preference:', error);
       }
     };
     savePreference();

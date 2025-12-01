@@ -182,7 +182,9 @@ const BookmarkGrid = () => {
         }
 
         if (groupResponse.data && groupResponse.data.value !== undefined) {
-          setGroupByCategory(groupResponse.data.value);
+          // Parse the string value back to boolean
+          const groupValue = groupResponse.data.value;
+          setGroupByCategory(groupValue === 'true' || groupValue === true);
         }
       } catch (error) {
         console.debug('Error loading preferences:', error);
@@ -202,7 +204,7 @@ const BookmarkGrid = () => {
       try {
         await preferencesApi.set('bookmarks_sort_order', sortBy);
       } catch (error) {
-        console.error('Failed to save sort preference:', error);
+        console.debug('Failed to save sort preference:', error);
       }
     };
     saveSortPreference();
@@ -215,9 +217,10 @@ const BookmarkGrid = () => {
 
     const saveGroupPreference = async () => {
       try {
-        await preferencesApi.set('bookmarks_group_by_category', groupByCategory);
+        // Convert boolean to string for storage
+        await preferencesApi.set('bookmarks_group_by_category', String(groupByCategory));
       } catch (error) {
-        console.error('Failed to save group preference:', error);
+        console.debug('Failed to save group preference:', error);
       }
     };
     saveGroupPreference();
