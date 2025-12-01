@@ -22,7 +22,9 @@ from app.models.habit import (
     HabitUpdate,
 )
 from app.models.user import User
+from app.services.cache import CacheService, get_cache_service
 from app.services.database import get_db
+from app.services.widget_registry import WidgetRegistry, get_widget_registry
 
 router = APIRouter(prefix="/habits", tags=["habits"])
 limiter = Limiter(key_func=get_remote_address)
@@ -261,6 +263,38 @@ async def delete_habit(
         raise HTTPException(status_code=500, detail="Failed to delete habit")
 
 
+async def _clear_habit_widget_cache(
+    habit_id: str, registry: WidgetRegistry, cache: CacheService, user_id: str
+) -> None:
+    """
+    Clear cache for all widgets using the specified habit.
+
+    Args:
+        habit_id: Habit ID to clear cache for
+        registry: Widget registry instance
+        cache: Cache service instance
+        user_id: User ID for logging
+    """
+    # Find all widgets in the registry
+    for widget_id, widget in registry._widget_instances.items():
+        # Check if this is a habit_tracking widget using this habit
+        if (
+            widget.widget_type == "habit_tracking"
+            and widget.config.get("habit_id") == habit_id
+        ):
+            cache_key = widget.get_cache_key()
+            await cache.delete(cache_key)
+            logger.debug(
+                "Cleared widget cache after habit completion update",
+                extra={
+                    "widget_id": widget_id,
+                    "habit_id": habit_id,
+                    "cache_key": cache_key,
+                    "user_id": user_id,
+                },
+            )
+
+
 @router.post("/completions", response_model=HabitCompletionResponse, status_code=201)
 @limiter.limit("60/minute")
 async def toggle_habit_completion(
@@ -268,6 +302,8 @@ async def toggle_habit_completion(
     completion_data: HabitCompletionCreate,
     current_user: User = Depends(require_auth),
     db: AsyncSession = Depends(get_db),
+    cache: CacheService = Depends(get_cache_service),
+    registry: WidgetRegistry = Depends(get_widget_registry),
 ) -> HabitCompletionResponse:
     """
     Toggle habit completion for a specific date.
@@ -323,6 +359,11 @@ async def toggle_habit_completion(
                 },
             )
 
+            # Clear widget cache for all widgets using this habit
+            await _clear_habit_widget_cache(
+                completion_data.habit_id, registry, cache, current_user.id
+            )
+
             return HabitCompletionResponse(
                 habit_id=existing_completion.habit_id,
                 completion_date=existing_completion.completion_date.isoformat(),
@@ -350,6 +391,11 @@ async def toggle_habit_completion(
                     "habit_id": completion_data.habit_id,
                     "completed": completion_data.completed,
                 },
+            )
+
+            # Clear widget cache for all widgets using this habit
+            await _clear_habit_widget_cache(
+                completion_data.habit_id, registry, cache, current_user.id
             )
 
             return HabitCompletionResponse(
