@@ -359,6 +359,7 @@ async def create_widget(
     config = validated_config.copy()
     config["enabled"] = widget_data.enabled
     config["refresh_interval"] = widget_data.refresh_interval
+    config["user_id"] = current_user.id  # Add user_id for widgets that need it
     config["position"] = {
         "row": widget_data.position.row,
         "col": widget_data.position.col,

@@ -11,7 +11,7 @@ from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 from starlette.middleware.base import BaseHTTPMiddleware
 
-from app.api import admin, auth, bookmarks, export_import, preferences, sections, widgets
+from app.api import admin, auth, bookmarks, export_import, habits, preferences, sections, widgets
 from app.config import settings
 from app.exceptions import AppException
 from app.logging_config import get_logger, setup_logging
@@ -230,6 +230,7 @@ async def lifespan(app: FastAPI):
         from app.migrations.add_clicks_to_bookmarks import run_migration as run_clicks_migration
         from app.migrations.add_role_to_users import run_migration as run_role_migration
         from app.migrations.add_user_id_to_tables import run_migration as run_user_id_migration
+        from app.migrations.create_habits_tables import run_migration as run_habits_migration
         from app.migrations.create_preferences_table import (
             run_migration as run_preferences_migration,
         )
@@ -242,6 +243,7 @@ async def lifespan(app: FastAPI):
         await run_users_migration(engine)
         await run_user_id_migration(engine)
         await run_role_migration(engine)
+        await run_habits_migration(engine)
         logger.info("Database migrations completed successfully")
     except Exception as e:
         logger.error(
@@ -360,6 +362,7 @@ app.add_middleware(
 app.include_router(auth.router, prefix="/api")
 app.include_router(bookmarks.router, prefix="/api/bookmarks", tags=["bookmarks"])
 app.include_router(widgets.router, prefix="/api/widgets", tags=["widgets"])
+app.include_router(habits.router, prefix="/api", tags=["habits"])
 app.include_router(sections.router)
 app.include_router(preferences.router, prefix="/api/preferences", tags=["preferences"])
 app.include_router(export_import.router, prefix="/api", tags=["export-import"])

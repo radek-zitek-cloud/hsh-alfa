@@ -206,12 +206,24 @@ class MarketWidgetConfig(BaseModel):
             raise ValueError("At least one of stocks or crypto must be configured")
 
 
+class HabitTrackingWidgetConfig(BaseModel):
+    """Habit tracking widget configuration schema."""
+
+    user_id: Optional[int] = Field(None, description="User ID (set by backend)")
+
+    class Config:
+        """Pydantic config."""
+
+        extra = "allow"  # Allow extra fields for future expansion
+
+
 # Map widget types to their configuration schemas
 WIDGET_CONFIG_SCHEMAS = {
     "weather": WeatherWidgetConfig,
     "news": NewsWidgetConfig,
     "exchange_rate": ExchangeRateWidgetConfig,
     "market": MarketWidgetConfig,
+    "habit_tracking": HabitTrackingWidgetConfig,
 }
 
 
