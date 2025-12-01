@@ -235,8 +235,8 @@ const WidgetForm = ({ widget, onSuccess, onCancel }) => {
               description: editHabitData.description.trim(),
             },
           });
-        } catch {
-          // Error is handled by the mutation's onError
+        } catch (_error) {
+          // Error is handled by the mutation's onError callback
           return;
         }
       }
