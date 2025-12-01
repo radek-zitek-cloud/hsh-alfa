@@ -12,6 +12,7 @@ import {
   TrendingUp,
   Newspaper,
   Shield,
+  CheckSquare,
 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { sectionsApi, widgetsApi } from '../services/api';
@@ -29,6 +30,7 @@ const SECTION_ICONS = {
   rates: DollarSign,
   markets: TrendingUp,
   news: Newspaper,
+  habits: CheckSquare,
 };
 
 // Map widget types to section names (matching WidgetGrid)
@@ -37,6 +39,7 @@ const WIDGET_TYPE_TO_SECTION = {
   exchange_rate: 'rates',
   market: 'markets',
   news: 'news',
+  habit_tracking: 'habits',
 };
 
 const Dashboard = ({ theme, toggleTheme }) => {

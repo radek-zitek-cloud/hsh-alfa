@@ -50,6 +50,13 @@ async def initialize_default_sections(db: AsyncSession):
                 "widget_ids": "",
             },
             {"name": "news", "title": "News", "position": 3, "enabled": True, "widget_ids": ""},
+            {
+                "name": "habits",
+                "title": "Habits",
+                "position": 4,
+                "enabled": True,
+                "widget_ids": "",
+            },
         ]
 
         for section_data in default_sections:
