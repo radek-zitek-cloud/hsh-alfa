@@ -34,17 +34,21 @@ async def initialize_default_sections_for_user(db: AsyncSession, user_id: int):
     """
     Initialize default sections for a specific user.
 
+    Creates any missing default sections for the user. This ensures that
+    users who were created before new sections were added will still get
+    those sections.
+
     Args:
         db: Database session
         user_id: User ID to create sections for
     """
-    # Check if user already has sections
+    # Get user's existing sections
     result = await db.execute(select(Section).where(Section.user_id == user_id))
     existing = result.scalars().all()
+    existing_names = {section.name for section in existing}
 
-    if existing:
-        logger.debug(f"User {user_id} already has {len(existing)} sections")
-        return
+    # Get the max position to place new sections after existing ones
+    max_position = max((section.position for section in existing), default=-1)
 
     default_sections = [
         {
@@ -89,12 +93,25 @@ async def initialize_default_sections_for_user(db: AsyncSession, user_id: int):
         },
     ]
 
+    # Create only missing sections
+    created_count = 0
     for section_data in default_sections:
-        section = Section(**section_data)
-        db.add(section)
+        if section_data["name"] not in existing_names:
+            # Place new sections after existing ones
+            max_position += 1
+            # Create a copy to avoid modifying the original dict
+            new_section_data = section_data.copy()
+            new_section_data["position"] = max_position
+            section = Section(**new_section_data)
+            db.add(section)
+            created_count += 1
+            logger.debug(f"Creating missing section '{section_data['name']}' for user {user_id}")
 
-    await db.commit()
-    logger.info(f"Initialized {len(default_sections)} default sections for user {user_id}")
+    if created_count > 0:
+        await db.commit()
+        logger.info(f"Created {created_count} missing sections for user {user_id}")
+    else:
+        logger.debug(f"User {user_id} already has all {len(default_sections)} default sections")
 
 
 class SectionService:
