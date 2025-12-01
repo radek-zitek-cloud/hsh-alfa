@@ -4,7 +4,7 @@ import uuid
 from datetime import date, datetime
 from typing import List
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 from slowapi import Limiter
 from slowapi.util import get_remote_address
 from sqlalchemy import and_, delete, select
@@ -32,6 +32,7 @@ logger = get_logger(__name__)
 @router.get("/", response_model=List[HabitResponse])
 @limiter.limit("60/minute")
 async def list_habits(
+    request: Request,
     current_user: User = Depends(require_auth),
     db: AsyncSession = Depends(get_db),
 ) -> List[HabitResponse]:
@@ -65,6 +66,7 @@ async def list_habits(
 @router.post("/", response_model=HabitResponse, status_code=201)
 @limiter.limit("20/minute")
 async def create_habit(
+    request: Request,
     habit_data: HabitCreate,
     current_user: User = Depends(require_auth),
     db: AsyncSession = Depends(get_db),
@@ -117,6 +119,7 @@ async def create_habit(
 @router.get("/{habit_id}", response_model=HabitResponse)
 @limiter.limit("60/minute")
 async def get_habit(
+    request: Request,
     habit_id: str,
     current_user: User = Depends(require_auth),
     db: AsyncSession = Depends(get_db),
@@ -158,6 +161,7 @@ async def get_habit(
 @router.put("/{habit_id}", response_model=HabitResponse)
 @limiter.limit("30/minute")
 async def update_habit(
+    request: Request,
     habit_id: str,
     habit_data: HabitUpdate,
     current_user: User = Depends(require_auth),
@@ -220,6 +224,7 @@ async def update_habit(
 @router.delete("/{habit_id}", status_code=204)
 @limiter.limit("20/minute")
 async def delete_habit(
+    request: Request,
     habit_id: str,
     current_user: User = Depends(require_auth),
     db: AsyncSession = Depends(get_db),
@@ -259,6 +264,7 @@ async def delete_habit(
 @router.post("/completions", response_model=HabitCompletionResponse, status_code=201)
 @limiter.limit("60/minute")
 async def toggle_habit_completion(
+    request: Request,
     completion_data: HabitCompletionCreate,
     current_user: User = Depends(require_auth),
     db: AsyncSession = Depends(get_db),
@@ -363,6 +369,7 @@ async def toggle_habit_completion(
 @router.get("/{habit_id}/completions", response_model=List[HabitCompletionResponse])
 @limiter.limit("60/minute")
 async def get_habit_completions(
+    request: Request,
     habit_id: str,
     current_user: User = Depends(require_auth),
     db: AsyncSession = Depends(get_db),
