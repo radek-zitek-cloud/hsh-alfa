@@ -6,7 +6,7 @@ from typing import Any, Dict, List
 
 from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import ValidationError
-from sqlalchemy import select
+from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.dependencies import require_auth
@@ -285,8 +285,45 @@ async def create_widget(
             "widget_type": widget_data.type,
             "enabled": widget_data.enabled,
             "user_id": current_user.id,
+            "creating_habit": widget_data.create_habit is not None,
         },
     )
+
+    # If creating a habit with the widget, create the habit first
+    if widget_data.create_habit and widget_data.type == "habit_tracking":
+        from app.models.habit import Habit
+
+        # Generate habit ID
+        habit_id = str(uuid.uuid4())
+
+        logger.info(
+            "Creating new habit for widget",
+            extra={
+                "habit_name": widget_data.create_habit.name,
+                "user_id": current_user.id,
+            },
+        )
+
+        # Create the habit
+        new_habit = Habit(
+            user_id=current_user.id,
+            habit_id=habit_id,
+            name=widget_data.create_habit.name,
+            description=widget_data.create_habit.description,
+            active=True,
+        )
+
+        db.add(new_habit)
+        await db.commit()
+        await db.refresh(new_habit)
+
+        # Set the habit_id in the widget config
+        widget_data.config["habit_id"] = habit_id
+
+        logger.info(
+            "Habit created successfully for widget",
+            extra={"habit_id": habit_id, "user_id": current_user.id},
+        )
 
     # Generate a unique widget ID
     widget_id = str(uuid.uuid4())
@@ -554,6 +591,68 @@ async def delete_widget(
     # Remove from registry
     if widget_id in registry._widget_instances:
         del registry._widget_instances[widget_id]
+
+    # If this is a habit_tracking widget, check if we should delete the habit
+    if widget.widget_type == "habit_tracking":
+        try:
+            config = json.loads(widget.config)
+            habit_id_to_check = config.get("habit_id")
+
+            if habit_id_to_check:
+                # Check if any other widgets are using this habit
+                result = await db.execute(
+                    select(Widget).where(
+                        Widget.user_id == current_user.id,
+                        Widget.widget_type == "habit_tracking",
+                        Widget.widget_id != widget_id,  # Exclude the widget being deleted
+                    )
+                )
+                other_widgets = result.scalars().all()
+
+                # Check if any other widget uses the same habit
+                habit_is_used = False
+                for other_widget in other_widgets:
+                    try:
+                        other_config = json.loads(other_widget.config)
+                        if other_config.get("habit_id") == habit_id_to_check:
+                            habit_is_used = True
+                            break
+                    except json.JSONDecodeError:
+                        continue
+
+                # If no other widget uses this habit, delete it
+                if not habit_is_used:
+                    from app.models.habit import Habit, HabitCompletion
+
+                    # Delete habit completions first (foreign key constraint)
+                    await db.execute(
+                        delete(HabitCompletion).where(
+                            HabitCompletion.user_id == current_user.id,
+                            HabitCompletion.habit_id == habit_id_to_check,
+                        )
+                    )
+
+                    # Delete the habit
+                    await db.execute(
+                        delete(Habit).where(
+                            Habit.user_id == current_user.id, Habit.habit_id == habit_id_to_check
+                        )
+                    )
+
+                    logger.info(
+                        "Deleted orphaned habit with widget",
+                        extra={
+                            "habit_id": habit_id_to_check,
+                            "widget_id": widget_id,
+                            "user_id": current_user.id,
+                        },
+                    )
+        except (json.JSONDecodeError, KeyError) as e:
+            # If we can't parse the config, just continue with widget deletion
+            logger.warning(
+                "Could not check for orphaned habit during widget deletion",
+                extra={"widget_id": widget_id, "error": str(e), "user_id": current_user.id},
+            )
 
     # Delete from database
     await db.delete(widget)

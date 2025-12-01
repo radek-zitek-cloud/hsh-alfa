@@ -77,12 +77,29 @@ const WidgetForm = ({ widget, onSuccess, onCancel }) => {
     return getDefaultConfigForType(formData.type, habits);
   });
 
+  // State for creating new habit when creating habit_tracking widget
+  // Default to 'new' if no habits exist, otherwise 'existing'
+  const [habitCreationMode, setHabitCreationMode] = useState(() => {
+    return habits.length === 0 ? 'new' : 'existing';
+  });
+  const [newHabitData, setNewHabitData] = useState({
+    name: '',
+    description: '',
+  });
+
   // Update config when type changes or habits are loaded
   useEffect(() => {
     if (!isEditMode) {
       setWidgetConfig(getDefaultConfigForType(formData.type, habits));
     }
   }, [formData.type, habits, isEditMode]);
+
+  // Update habitCreationMode when habits change (e.g., when loaded)
+  useEffect(() => {
+    if (!isEditMode && habits.length === 0 && habitCreationMode === 'existing') {
+      setHabitCreationMode('new');
+    }
+  }, [habits.length, isEditMode, habitCreationMode]);
 
   const [errors, setErrors] = useState({});
 
@@ -124,9 +141,17 @@ const WidgetForm = ({ widget, onSuccess, onCancel }) => {
     if (formData.refresh_interval < 60)
       newErrors.refresh_interval = 'Refresh interval must be at least 60 seconds';
 
-    // Validate habit_tracking widget has a habit_id
-    if (formData.type === 'habit_tracking' && !widgetConfig.habit_id) {
-      newErrors.config = 'Please select a habit to track';
+    // Validate habit_tracking widget has a habit_id or new habit data
+    if (formData.type === 'habit_tracking') {
+      if (habitCreationMode === 'existing' && !widgetConfig.habit_id) {
+        newErrors.config = 'Please select a habit to track';
+      } else if (habitCreationMode === 'new') {
+        if (!newHabitData.name.trim()) {
+          newErrors.config = 'Habit name is required';
+        } else if (!newHabitData.description.trim()) {
+          newErrors.config = 'Habit description is required';
+        }
+      }
     }
 
     if (Object.keys(newErrors).length > 0) {
@@ -138,6 +163,14 @@ const WidgetForm = ({ widget, onSuccess, onCancel }) => {
       ...formData,
       config: widgetConfig,
     };
+
+    // If creating a new habit with the widget, include the habit data
+    if (!isEditMode && formData.type === 'habit_tracking' && habitCreationMode === 'new') {
+      data.create_habit = {
+        name: newHabitData.name.trim(),
+        description: newHabitData.description.trim(),
+      };
+    }
 
     if (isEditMode) {
       updateMutation.mutate({ id: widget.id, data });
@@ -279,7 +312,17 @@ const WidgetForm = ({ widget, onSuccess, onCancel }) => {
           Widget Configuration
         </label>
         <div className="space-y-4 p-4 bg-[var(--bg-primary)] rounded-lg border border-[var(--border-color)]">
-          {renderConfigFields(formData.type, widgetConfig, handleConfigChange, habits)}
+          {renderConfigFields(
+            formData.type,
+            widgetConfig,
+            handleConfigChange,
+            habits,
+            isEditMode,
+            habitCreationMode,
+            setHabitCreationMode,
+            newHabitData,
+            setNewHabitData
+          )}
         </div>
         {errors.config && <p className="text-red-500 text-sm mt-2">{errors.config}</p>}
       </div>
@@ -352,7 +395,17 @@ function getDefaultConfigForType(type, habits = []) {
   }
 }
 
-function renderConfigFields(type, config, onChange, habits = []) {
+function renderConfigFields(
+  type,
+  config,
+  onChange,
+  habits = [],
+  isEditMode = false,
+  habitCreationMode = 'existing',
+  setHabitCreationMode = () => {},
+  newHabitData = { name: '', description: '' },
+  setNewHabitData = () => {}
+) {
   switch (type) {
     case 'weather':
       return (
@@ -509,33 +562,108 @@ function renderConfigFields(type, config, onChange, habits = []) {
     case 'habit_tracking':
       return (
         <>
-          <div>
-            <label className="block text-sm text-[var(--text-secondary)] mb-1">
-              Select Habit to Track *
-            </label>
-            {habits.length === 0 ? (
-              <div className="p-3 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg">
-                <p className="text-sm text-yellow-700 dark:text-yellow-300">
-                  No habits available. Please create a habit first by adding it in an existing habit
-                  tracking widget or contact support.
-                </p>
+          <div className="space-y-4">
+            {/* Only show mode selection when creating new widget */}
+            {!isEditMode && (
+              <div className="flex gap-4 mb-4">
+                <label className="flex items-center cursor-pointer">
+                  <input
+                    type="radio"
+                    name="habitMode"
+                    value="existing"
+                    checked={habitCreationMode === 'existing'}
+                    onChange={e => setHabitCreationMode(e.target.value)}
+                    className="w-4 h-4 text-[var(--accent-color)] border-[var(--border-color)] focus:ring-2 focus:ring-[var(--accent-color)]"
+                  />
+                  <span className="ml-2 text-sm text-[var(--text-primary)]">
+                    Select existing habit
+                  </span>
+                </label>
+                <label className="flex items-center cursor-pointer">
+                  <input
+                    type="radio"
+                    name="habitMode"
+                    value="new"
+                    checked={habitCreationMode === 'new'}
+                    onChange={e => setHabitCreationMode(e.target.value)}
+                    className="w-4 h-4 text-[var(--accent-color)] border-[var(--border-color)] focus:ring-2 focus:ring-[var(--accent-color)]"
+                  />
+                  <span className="ml-2 text-sm text-[var(--text-primary)]">Create new habit</span>
+                </label>
               </div>
-            ) : (
-              <select
-                value={config.habit_id || ''}
-                onChange={e => onChange('habit_id', e.target.value)}
-                className="w-full px-3 py-2 bg-[var(--bg-secondary)] border border-[var(--border-color)] rounded-lg"
-                required
-              >
-                <option value="">-- Select a habit --</option>
-                {habits.map(habit => (
-                  <option key={habit.id} value={habit.id}>
-                    {habit.name} {habit.description ? `- ${habit.description}` : ''}
-                  </option>
-                ))}
-              </select>
             )}
-            <p className="text-xs text-[var(--text-secondary)] mt-1">
+
+            {/* Existing habit selection */}
+            {habitCreationMode === 'existing' && (
+              <div>
+                <label className="block text-sm text-[var(--text-secondary)] mb-1">
+                  Select Habit to Track *
+                </label>
+                {habits.length === 0 && !isEditMode ? (
+                  <div className="p-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg">
+                    <p className="text-sm text-blue-700 dark:text-blue-300">
+                      No existing habits found. Switch to "Create new habit" mode to create your first
+                      habit.
+                    </p>
+                  </div>
+                ) : (
+                  <select
+                    value={config.habit_id || ''}
+                    onChange={e => onChange('habit_id', e.target.value)}
+                    className="w-full px-3 py-2 bg-[var(--bg-secondary)] border border-[var(--border-color)] rounded-lg"
+                    required
+                  >
+                    <option value="">-- Select a habit --</option>
+                    {habits.map(habit => (
+                      <option key={habit.id} value={habit.id}>
+                        {habit.name} {habit.description ? `- ${habit.description}` : ''}
+                      </option>
+                    ))}
+                  </select>
+                )}
+              </div>
+            )}
+
+            {/* New habit creation */}
+            {habitCreationMode === 'new' && !isEditMode && (
+              <div className="space-y-3">
+                <div className="p-3 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg">
+                  <p className="text-sm text-green-700 dark:text-green-300">
+                    A new habit will be created and tracked by this widget.
+                  </p>
+                </div>
+                <div>
+                  <label className="block text-sm text-[var(--text-secondary)] mb-1">
+                    Habit Name *
+                  </label>
+                  <input
+                    type="text"
+                    value={newHabitData.name}
+                    onChange={e => setNewHabitData(prev => ({ ...prev, name: e.target.value }))}
+                    placeholder="e.g., Morning Exercise"
+                    className="w-full px-3 py-2 bg-[var(--bg-secondary)] border border-[var(--border-color)] rounded-lg"
+                    required
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm text-[var(--text-secondary)] mb-1">
+                    Habit Description *
+                  </label>
+                  <textarea
+                    value={newHabitData.description}
+                    onChange={e =>
+                      setNewHabitData(prev => ({ ...prev, description: e.target.value }))
+                    }
+                    placeholder="e.g., 30 minutes of cardio or strength training"
+                    rows="2"
+                    className="w-full px-3 py-2 bg-[var(--bg-secondary)] border border-[var(--border-color)] rounded-lg"
+                    required
+                  />
+                </div>
+              </div>
+            )}
+
+            <p className="text-xs text-[var(--text-secondary)] mt-2">
               Each widget tracks one habit. Create multiple widgets to track multiple habits.
             </p>
           </div>
