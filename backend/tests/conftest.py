@@ -4,13 +4,14 @@ import asyncio
 import os
 import sys
 from unittest.mock import MagicMock, Mock, patch
+from datetime import datetime, timezone
 
 import pytest
 from httpx import AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
 # Set test environment variables
-os.environ["SECRET_KEY"] = "test-secret-key-for-testing-only"
+os.environ["SECRET_KEY"] = "test-secret-key-for-testing-only-1234567890"
 os.environ["DATABASE_URL"] = "sqlite+aiosqlite:///:memory:"
 os.environ["REDIS_ENABLED"] = "false"
 
@@ -35,6 +36,8 @@ aiohttp.TCPConnector = MockConnector
 try:
     from app.main import app
     from app.services.database import Base, get_db
+    from app.models.user import User
+    from app.api.dependencies import require_auth, get_current_user
 finally:
     # Restore original connector
     aiohttp.TCPConnector = original_connector
@@ -73,8 +76,51 @@ async def test_db():
 
 
 @pytest.fixture
-async def client(test_db):
-    """Create test client with database."""
+async def test_user(test_db):
+    """Create a test user in the database."""
+    TestSessionLocal = async_sessionmaker(test_db, class_=AsyncSession, expire_on_commit=False)
+
+    async with TestSessionLocal() as session:
+        user = User(
+            email="test@example.com",
+            google_id="test_google_id",
+            name="Test User",
+            role="user",
+            is_active=True,
+            created_at=datetime.now(timezone.utc),
+        )
+        session.add(user)
+        await session.commit()
+        await session.refresh(user)
+        yield user
+
+
+@pytest.fixture
+async def client(test_db, test_user):
+    """Create test client with database and authenticated user."""
+    # Create a dependency override to bypass authentication
+    async def override_require_auth():
+        return test_user
+
+    async def override_get_current_user():
+        return test_user
+
+    app.dependency_overrides[require_auth] = override_require_auth
+    app.dependency_overrides[get_current_user] = override_get_current_user
+
+    async with AsyncClient(app=app, base_url="http://test") as ac:
+        yield ac
+
+    # Cleanup auth overrides
+    if require_auth in app.dependency_overrides:
+        del app.dependency_overrides[require_auth]
+    if get_current_user in app.dependency_overrides:
+        del app.dependency_overrides[get_current_user]
+
+
+@pytest.fixture
+async def unauthenticated_client(test_db):
+    """Create test client without authentication."""
     async with AsyncClient(app=app, base_url="http://test") as ac:
         yield ac
 

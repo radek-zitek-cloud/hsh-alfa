@@ -1,6 +1,7 @@
 """Security regression tests for the favicon proxy endpoint."""
 
 from typing import List
+from unittest.mock import patch
 
 import pytest
 from httpx import AsyncClient
@@ -83,9 +84,12 @@ async def test_proxy_blocks_unsafe_redirect(monkeypatch, client: AsyncClient):
         history=unsafe_history,
     )
 
+    # Mock is_safe_url to return True for initial URL check, but the redirect chain validation should fail
     monkeypatch.setattr(
         bookmarks.aiohttp, "ClientSession", lambda *_, **__: MockSession(unsafe_response)
     )
+    # Mock is_safe_url to pass initial validation
+    monkeypatch.setattr(bookmarks, "is_safe_url", lambda url: "169.254" not in url)
 
     response = await client.get(
         "/api/bookmarks/favicon/proxy", params={"url": "http://example.com/favicon.ico"}
@@ -108,6 +112,8 @@ async def test_proxy_enforces_size_limit(monkeypatch, client: AsyncClient):
     monkeypatch.setattr(
         bookmarks.aiohttp, "ClientSession", lambda *_, **__: MockSession(oversized_response)
     )
+    # Mock is_safe_url to return True
+    monkeypatch.setattr(bookmarks, "is_safe_url", lambda url: True)
 
     response = await client.get(
         "/api/bookmarks/favicon/proxy", params={"url": "http://example.com/favicon.ico"}
@@ -127,6 +133,8 @@ async def test_proxy_allows_valid_image(monkeypatch, client: AsyncClient):
     monkeypatch.setattr(
         bookmarks.aiohttp, "ClientSession", lambda *_, **__: MockSession(valid_response)
     )
+    # Mock is_safe_url to return True
+    monkeypatch.setattr(bookmarks, "is_safe_url", lambda url: True)
 
     response = await client.get(
         "/api/bookmarks/favicon/proxy", params={"url": "http://example.com/favicon.ico"}
