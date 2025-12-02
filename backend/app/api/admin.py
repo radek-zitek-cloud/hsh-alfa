@@ -1,16 +1,18 @@
 """Admin API endpoints for managing users, bookmarks, widgets, sections, and habits."""
 
 import json
+import time
 import uuid
 from datetime import datetime
 from typing import Generic, List, Optional, TypeVar
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from pydantic import BaseModel, Field
-from sqlalchemy import func, select
+from sqlalchemy import func, select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.dependencies import require_admin
+from app.config import settings
 from app.logging_config import get_logger
 from app.models.bookmark import Bookmark, BookmarkResponse, BookmarkUpdate
 from app.models.habit import (
@@ -1601,3 +1603,139 @@ async def delete_habit_completion(
     )
 
     return {"message": "Habit completion deleted successfully"}
+
+
+# System Status Endpoint
+
+
+class ServiceStatus(BaseModel):
+    """Status information for a service."""
+
+    status: str = Field(description="Service status: 'healthy', 'degraded', or 'unhealthy'")
+    message: Optional[str] = Field(default=None, description="Additional status message")
+    response_time_ms: Optional[float] = Field(
+        default=None, description="Response time in milliseconds"
+    )
+
+
+class SystemStatusResponse(BaseModel):
+    """System status response with all service statuses."""
+
+    backend: ServiceStatus = Field(description="Backend service status")
+    database: ServiceStatus = Field(description="Database connection status")
+    redis: ServiceStatus = Field(description="Redis cache status")
+    uptime_seconds: float = Field(description="Backend uptime in seconds")
+    version: str = Field(description="Application version")
+    timestamp: str = Field(description="Status check timestamp")
+
+
+# Store startup time for uptime calculation
+_startup_time: Optional[float] = None
+
+
+def get_startup_time() -> float:
+    """Get the application startup time."""
+    global _startup_time
+    if _startup_time is None:
+        _startup_time = time.time()
+    return _startup_time
+
+
+# Initialize startup time on module load
+get_startup_time()
+
+
+@router.get("/system-status", response_model=SystemStatusResponse)
+@limiter.limit("30/minute")
+async def get_system_status(
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(require_admin),
+):
+    """Get system runtime information including service statuses (admin only).
+
+    Returns status information for:
+    - Backend: Always healthy if responding
+    - Database: Checks database connectivity
+    - Redis: Checks Redis cache connectivity
+
+    Args:
+        request: HTTP request
+        db: Database session
+        current_user: Current authenticated admin user
+
+    Returns:
+        System status information
+    """
+    logger.info(
+        "Admin checking system status",
+        extra={
+            "admin_id": current_user.id,
+            "admin_email": current_user.email,
+        },
+    )
+
+    # Check backend status (always healthy if we get here)
+    backend_status = ServiceStatus(
+        status="healthy",
+        message="Backend is running",
+    )
+
+    # Check database status
+    db_start = time.time()
+    try:
+        # Execute a simple query to test database connectivity
+        await db.execute(text("SELECT 1"))
+        db_response_time = (time.time() - db_start) * 1000
+        database_status = ServiceStatus(
+            status="healthy",
+            message="Database connection is active",
+            response_time_ms=round(db_response_time, 2),
+        )
+    except Exception as e:
+        db_response_time = (time.time() - db_start) * 1000
+        logger.error(
+            "Database health check failed",
+            extra={"error_type": type(e).__name__, "error": str(e)},
+        )
+        database_status = ServiceStatus(
+            status="unhealthy",
+            message=f"Database connection failed: {type(e).__name__}",
+            response_time_ms=round(db_response_time, 2),
+        )
+
+    # Check Redis status using the public health_check method
+    redis_start = time.time()
+    try:
+        from app.services.cache import cache_service
+
+        health_result = await cache_service.health_check()
+        redis_response_time = (time.time() - redis_start) * 1000
+        redis_status = ServiceStatus(
+            status=health_result["status"],
+            message=health_result["message"],
+            response_time_ms=round(redis_response_time, 2) if health_result["connected"] else None,
+        )
+    except Exception as e:
+        redis_response_time = (time.time() - redis_start) * 1000
+        logger.warning(
+            "Redis health check failed",
+            extra={"error_type": type(e).__name__, "error": str(e)},
+        )
+        redis_status = ServiceStatus(
+            status="unhealthy",
+            message=f"Redis connection failed: {type(e).__name__}",
+            response_time_ms=round(redis_response_time, 2),
+        )
+
+    # Calculate uptime
+    uptime_seconds = time.time() - get_startup_time()
+
+    return SystemStatusResponse(
+        backend=backend_status,
+        database=database_status,
+        redis=redis_status,
+        uptime_seconds=round(uptime_seconds, 2),
+        version=settings.APP_VERSION,
+        timestamp=datetime.utcnow().isoformat(),
+    )

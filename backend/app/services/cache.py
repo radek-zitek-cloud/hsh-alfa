@@ -181,6 +181,50 @@ class CacheService:
                 exc_info=True,
             )
 
+    async def health_check(self) -> dict:
+        """Check the health of the Redis connection.
+
+        Returns:
+            dict: Health status with keys:
+                - status: 'healthy', 'degraded', or 'unhealthy'
+                - message: Human-readable status message
+                - connected: Whether Redis connection is established
+        """
+        if not self._enabled:
+            return {
+                "status": "degraded",
+                "message": "Redis is disabled in configuration",
+                "connected": False,
+            }
+
+        if not self._redis:
+            # Try to connect if not connected
+            await self.connect()
+            if not self._redis:
+                return {
+                    "status": "unhealthy",
+                    "message": "Redis connection not established",
+                    "connected": False,
+                }
+
+        try:
+            await self._redis.ping()
+            return {
+                "status": "healthy",
+                "message": "Redis connection is active",
+                "connected": True,
+            }
+        except Exception as e:
+            logger.warning(
+                "Redis health check ping failed",
+                extra={"error_type": type(e).__name__, "error": str(e)},
+            )
+            return {
+                "status": "unhealthy",
+                "message": f"Redis connection failed: {type(e).__name__}",
+                "connected": False,
+            }
+
 
 # Global cache service instance
 cache_service = CacheService()

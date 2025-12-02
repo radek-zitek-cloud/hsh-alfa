@@ -326,3 +326,107 @@ class TestAdminPreferenceResponse:
         assert response.key == "theme"
         assert response.value == "dark"
         assert response.user_id == 42
+
+
+class TestSystemStatusModels:
+    """Test system status response models."""
+
+    def test_service_status_healthy(self):
+        """Test ServiceStatus with healthy status."""
+        from app.api.admin import ServiceStatus
+        status = ServiceStatus(
+            status="healthy",
+            message="Service is running",
+            response_time_ms=5.2,
+        )
+        assert status.status == "healthy"
+        assert status.message == "Service is running"
+        assert status.response_time_ms == 5.2
+
+    def test_service_status_unhealthy(self):
+        """Test ServiceStatus with unhealthy status."""
+        from app.api.admin import ServiceStatus
+        status = ServiceStatus(
+            status="unhealthy",
+            message="Connection failed",
+        )
+        assert status.status == "unhealthy"
+        assert status.message == "Connection failed"
+        assert status.response_time_ms is None
+
+    def test_service_status_degraded(self):
+        """Test ServiceStatus with degraded status."""
+        from app.api.admin import ServiceStatus
+        status = ServiceStatus(
+            status="degraded",
+            message="Redis disabled",
+        )
+        assert status.status == "degraded"
+        assert status.message == "Redis disabled"
+
+    def test_system_status_response(self):
+        """Test SystemStatusResponse model."""
+        from app.api.admin import ServiceStatus, SystemStatusResponse
+
+        backend = ServiceStatus(status="healthy", message="Backend running")
+        database = ServiceStatus(status="healthy", message="DB connected", response_time_ms=1.5)
+        redis = ServiceStatus(status="degraded", message="Redis disabled")
+
+        response = SystemStatusResponse(
+            backend=backend,
+            database=database,
+            redis=redis,
+            uptime_seconds=3600.5,
+            version="1.0.0",
+            timestamp="2024-01-01T00:00:00",
+        )
+
+        assert response.backend.status == "healthy"
+        assert response.database.status == "healthy"
+        assert response.database.response_time_ms == 1.5
+        assert response.redis.status == "degraded"
+        assert response.uptime_seconds == 3600.5
+        assert response.version == "1.0.0"
+        assert response.timestamp == "2024-01-01T00:00:00"
+
+    def test_get_startup_time(self):
+        """Test get_startup_time returns consistent value."""
+        from app.api.admin import get_startup_time
+        time1 = get_startup_time()
+        time2 = get_startup_time()
+        assert time1 == time2
+        assert isinstance(time1, float)
+        assert time1 > 0
+
+
+class TestCacheServiceHealthCheck:
+    """Test CacheService health_check method."""
+
+    @pytest.mark.asyncio
+    async def test_health_check_when_disabled(self):
+        """Test health_check returns degraded when Redis is disabled."""
+        from app.services.cache import CacheService
+
+        cache = CacheService()
+        cache._enabled = False
+
+        result = await cache.health_check()
+
+        assert result["status"] == "degraded"
+        assert result["message"] == "Redis is disabled in configuration"
+        assert result["connected"] is False
+
+    @pytest.mark.asyncio
+    async def test_health_check_when_not_connected(self):
+        """Test health_check returns unhealthy when Redis is not connected."""
+        from app.services.cache import CacheService
+
+        cache = CacheService()
+        cache._enabled = True
+        cache._redis = None
+
+        result = await cache.health_check()
+
+        # Will be unhealthy since we can't connect without a real Redis server
+        assert result["status"] in ["unhealthy", "degraded"]
+        assert result["connected"] is False
