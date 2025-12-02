@@ -9,6 +9,8 @@ const OAuthCallback = () => {
   const hasProcessed = useRef(false);
 
   useEffect(() => {
+    let timeoutId;
+
     const processCallback = async () => {
       // Prevent processing the callback multiple times
       if (hasProcessed.current) {
@@ -24,19 +26,19 @@ const OAuthCallback = () => {
 
         if (errorParam) {
           setError(`Authentication failed: ${errorParam}`);
-          setTimeout(() => navigate('/'), 3000);
+          timeoutId = setTimeout(() => navigate('/'), 3000);
           return;
         }
 
         if (!code) {
           setError('No authorization code received');
-          setTimeout(() => navigate('/'), 3000);
+          timeoutId = setTimeout(() => navigate('/'), 3000);
           return;
         }
 
         if (!state) {
           setError('No state parameter received - possible security issue');
-          setTimeout(() => navigate('/'), 3000);
+          timeoutId = setTimeout(() => navigate('/'), 3000);
           return;
         }
 
@@ -48,11 +50,18 @@ const OAuthCallback = () => {
       } catch (err) {
         console.error('OAuth callback error:', err);
         setError(err?.message || 'Authentication failed. Please try again.');
-        setTimeout(() => navigate('/'), 3000);
+        timeoutId = setTimeout(() => navigate('/'), 3000);
       }
     };
 
     processCallback();
+
+    // Cleanup timeout on unmount
+    return () => {
+      if (timeoutId) {
+        clearTimeout(timeoutId);
+      }
+    };
   }, [handleCallback, navigate]);
 
   return (

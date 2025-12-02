@@ -71,9 +71,12 @@ const ExportImportModal = ({ isOpen, onClose }) => {
       link.href = url;
       link.download = filename;
       document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-      window.URL.revokeObjectURL(url);
+      try {
+        link.click();
+      } finally {
+        document.body.removeChild(link);
+        window.URL.revokeObjectURL(url);
+      }
 
       setSuccess(`Data exported successfully as ${selectedFormat.toUpperCase()}!`);
 

@@ -37,7 +37,7 @@ async def get_current_user(
     token = credentials.credentials
 
     # Verify token
-    payload = auth_service.verify_token(token)
+    payload = await auth_service.verify_token(token)
     if not payload:
         logger.warning("Failed token verification - invalid or blacklisted token")
         raise HTTPException(

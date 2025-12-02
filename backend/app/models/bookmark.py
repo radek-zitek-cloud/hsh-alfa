@@ -1,6 +1,6 @@
 """Bookmark database model."""
 
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import List, Optional
 
 from pydantic import BaseModel, field_validator, model_validator
@@ -27,7 +27,7 @@ class Bookmark(Base):
     tags: Mapped[Optional[str]] = mapped_column(Text, nullable=True)  # JSON string
     position: Mapped[int] = mapped_column(Integer, default=0)
     clicks: Mapped[int] = mapped_column(Integer, default=0)
-    created: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    created: Mapped[datetime] = mapped_column(DateTime, default=lambda: datetime.now(timezone.utc))
     last_accessed: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
 
     def to_dict(self) -> dict:

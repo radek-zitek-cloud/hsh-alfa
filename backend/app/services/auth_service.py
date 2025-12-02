@@ -1,8 +1,8 @@
 """Authentication service for OAuth2 and JWT handling."""
 
+import asyncio
 import hashlib
 import secrets
-import threading
 from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, Optional
 
@@ -41,12 +41,12 @@ class AuthService:
     # In-memory store for OAuth state tokens (in production, use Redis)
     # Format: {state_token: expiration_timestamp}
     _state_store: Dict[str, float] = {}
-    _state_lock = threading.Lock()
+    _state_lock = asyncio.Lock()
 
     # In-memory store for blacklisted tokens (in production, use Redis)
     # Format: {token_jti: expiration_timestamp}
     _token_blacklist: Dict[str, float] = {}
-    _blacklist_lock = threading.Lock()
+    _blacklist_lock = asyncio.Lock()
 
     def __init__(self):
         """Initialize auth service."""
@@ -75,7 +75,7 @@ class AuthService:
             },
         )
 
-    def generate_state_token(self) -> str:
+    async def generate_state_token(self) -> str:
         """Generate a secure random state token for CSRF protection.
 
         Returns:
@@ -84,7 +84,7 @@ class AuthService:
         state = secrets.token_urlsafe(32)
         # Store with 10-minute expiration
         expiration = datetime.now(timezone.utc).timestamp() + 600
-        with self._state_lock:
+        async with self._state_lock:
             self._state_store[state] = expiration
         logger.debug(
             "OAuth state token generated",
@@ -96,7 +96,7 @@ class AuthService:
         )
         return state
 
-    def validate_state_token(self, state: str) -> bool:
+    async def validate_state_token(self, state: str) -> bool:
         """Validate OAuth state token to prevent CSRF attacks.
 
         Args:
@@ -105,7 +105,7 @@ class AuthService:
         Returns:
             True if valid, False otherwise
         """
-        with self._state_lock:
+        async with self._state_lock:
             if not state or state not in self._state_store:
                 logger.warning(
                     "Invalid or missing OAuth state token",
@@ -136,10 +136,10 @@ class AuthService:
             )
             return True
 
-    def _cleanup_expired_states(self):
+    async def _cleanup_expired_states(self):
         """Clean up expired state tokens from store."""
         now = datetime.now(timezone.utc).timestamp()
-        with self._state_lock:
+        async with self._state_lock:
             expired_states = [state for state, exp in self._state_store.items() if now > exp]
             for state in expired_states:
                 del self._state_store[state]
@@ -180,7 +180,7 @@ class AuthService:
         )
         return encoded_jwt
 
-    def verify_token(self, token: str) -> Optional[Dict[str, Any]]:
+    async def verify_token(self, token: str) -> Optional[Dict[str, Any]]:
         """Verify and decode JWT token, checking blacklist.
 
         Args:
@@ -194,7 +194,7 @@ class AuthService:
 
             # Check if token is blacklisted
             jti = payload.get("jti")
-            if jti and self.is_token_blacklisted(jti):
+            if jti and await self.is_token_blacklisted(jti):
                 logger.warning(
                     "Attempted use of blacklisted token",
                     extra={
@@ -226,7 +226,7 @@ class AuthService:
             )
             return None
 
-    def blacklist_token(self, token: str) -> bool:
+    async def blacklist_token(self, token: str) -> bool:
         """Blacklist a JWT token to prevent its use after logout.
 
         Args:
@@ -258,7 +258,7 @@ class AuthService:
                 return False
 
             # Store until token expiration
-            with self._blacklist_lock:
+            async with self._blacklist_lock:
                 self._token_blacklist[jti] = float(exp)
             logger.info(
                 "Token blacklisted for logout",
@@ -277,7 +277,7 @@ class AuthService:
             )
             return False
 
-    def is_token_blacklisted(self, jti: str) -> bool:
+    async def is_token_blacklisted(self, jti: str) -> bool:
         """Check if a token JTI is blacklisted.
 
         Args:
@@ -286,7 +286,7 @@ class AuthService:
         Returns:
             True if blacklisted, False otherwise
         """
-        with self._blacklist_lock:
+        async with self._blacklist_lock:
             if jti not in self._token_blacklist:
                 return False
 
@@ -301,10 +301,10 @@ class AuthService:
 
             return True
 
-    def _cleanup_expired_blacklist(self):
+    async def _cleanup_expired_blacklist(self):
         """Clean up expired tokens from blacklist."""
         now = datetime.now(timezone.utc).timestamp()
-        with self._blacklist_lock:
+        async with self._blacklist_lock:
             expired_tokens = [jti for jti, exp in self._token_blacklist.items() if now > exp]
             for jti in expired_tokens:
                 del self._token_blacklist[jti]
