@@ -70,9 +70,23 @@ const BookmarkCard = ({ bookmark }) => {
     return `${apiBaseUrl}/bookmarks/favicon/proxy?url=${encodeURIComponent(faviconUrl)}`;
   };
 
+  const handleKeyDown = e => {
+    if (e.key === 'Enter' || e.key === ' ') {
+      e.preventDefault();
+      handleClick();
+    }
+  };
+
   return (
     <>
-      <div onClick={handleClick} className="bookmark-card cursor-pointer relative group">
+      <div
+        onClick={handleClick}
+        onKeyDown={handleKeyDown}
+        role="button"
+        tabIndex={0}
+        className="bookmark-card cursor-pointer relative group"
+        aria-label={`Open ${bookmark.title} at ${getDomain(bookmark.url)}`}
+      >
         {/* Action Buttons */}
         <div className="absolute top-2 right-2 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
           <button

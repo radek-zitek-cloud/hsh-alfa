@@ -3,11 +3,11 @@
 import json
 import uuid
 from datetime import datetime
-from typing import List, Optional
+from typing import Generic, List, Optional, TypeVar
 
-from fastapi import APIRouter, Depends, HTTPException, Request, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from pydantic import BaseModel, Field
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.dependencies import require_admin
@@ -31,36 +31,75 @@ from app.services.rate_limit import limiter
 logger = get_logger(__name__)
 router = APIRouter(prefix="/admin", tags=["admin"])
 
+# Pagination configuration
+DEFAULT_PAGE_SIZE = 50
+MAX_PAGE_SIZE = 100
+
+T = TypeVar("T")
+
+
+class PaginatedResponse(BaseModel, Generic[T]):
+    """Generic paginated response model."""
+
+    items: List[T]
+    total: int
+    page: int
+    page_size: int
+    total_pages: int
+
 
 # User Management Endpoints
 
 
-@router.get("/users", response_model=List[UserResponse])
+@router.get("/users", response_model=PaginatedResponse[UserResponse])
 @limiter.limit("30/minute")
 async def list_all_users(
     request: Request,
+    page: int = Query(1, ge=1, description="Page number (1-indexed)"),
+    page_size: int = Query(DEFAULT_PAGE_SIZE, ge=1, le=MAX_PAGE_SIZE, description="Items per page"),
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(require_admin),
 ):
-    """List all users in the system (admin only).
+    """List all users in the system with pagination (admin only).
 
     Args:
         request: HTTP request
+        page: Page number (1-indexed)
+        page_size: Number of items per page
         db: Database session
         current_user: Current authenticated admin user
 
     Returns:
-        List of all users
+        Paginated list of users
     """
     logger.info(
         "Admin listing all users",
-        extra={"admin_id": current_user.id, "admin_email": current_user.email},
+        extra={
+            "admin_id": current_user.id,
+            "admin_email": current_user.email,
+            "page": page,
+            "page_size": page_size,
+        },
     )
 
-    result = await db.execute(select(User).order_by(User.created_at.desc()))
+    # Get total count
+    count_result = await db.execute(select(func.count()).select_from(User))
+    total = count_result.scalar() or 0
+
+    # Calculate pagination
+    offset = (page - 1) * page_size
+    total_pages = (total + page_size - 1) // page_size if total > 0 else 1
+
+    # Get paginated results
+    result = await db.execute(
+        select(User)
+        .order_by(User.created_at.desc())
+        .offset(offset)
+        .limit(page_size)
+    )
     users = result.scalars().all()
 
-    return [
+    items = [
         UserResponse(
             id=user.id,
             email=user.email,
@@ -73,6 +112,14 @@ async def list_all_users(
         )
         for user in users
     ]
+
+    return PaginatedResponse(
+        items=items,
+        total=total,
+        page=page,
+        page_size=page_size,
+        total_pages=total_pages,
+    )
 
 
 @router.get("/users/{user_id}", response_model=UserResponse)
@@ -240,38 +287,59 @@ async def delete_user(
 # Bookmark Management Endpoints
 
 
-@router.get("/bookmarks", response_model=List[BookmarkResponse])
+@router.get("/bookmarks", response_model=PaginatedResponse[BookmarkResponse])
 @limiter.limit("30/minute")
 async def list_all_bookmarks(
     request: Request,
     user_id: Optional[int] = None,
+    page: int = Query(1, ge=1, description="Page number (1-indexed)"),
+    page_size: int = Query(DEFAULT_PAGE_SIZE, ge=1, le=MAX_PAGE_SIZE, description="Items per page"),
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(require_admin),
 ):
-    """List all bookmarks in the system (admin only).
+    """List all bookmarks in the system with pagination (admin only).
 
     Args:
         request: HTTP request
         user_id: Optional filter by user ID
+        page: Page number (1-indexed)
+        page_size: Number of items per page
         db: Database session
         current_user: Current authenticated admin user
 
     Returns:
-        List of all bookmarks
+        Paginated list of bookmarks
     """
     logger.info(
         "Admin listing bookmarks",
-        extra={"admin_id": current_user.id, "filter_user_id": user_id},
+        extra={
+            "admin_id": current_user.id,
+            "filter_user_id": user_id,
+            "page": page,
+            "page_size": page_size,
+        },
     )
 
+    # Get total count with direct count query (more efficient than subquery)
+    count_query = select(func.count(Bookmark.id))
+    if user_id is not None:
+        count_query = count_query.where(Bookmark.user_id == user_id)
+    count_result = await db.execute(count_query)
+    total = count_result.scalar() or 0
+
+    # Calculate pagination
+    offset = (page - 1) * page_size
+    total_pages = (total + page_size - 1) // page_size if total > 0 else 1
+
+    # Get paginated results
     query = select(Bookmark).order_by(Bookmark.created.desc())
     if user_id is not None:
         query = query.where(Bookmark.user_id == user_id)
-
+    query = query.offset(offset).limit(page_size)
     result = await db.execute(query)
     bookmarks = result.scalars().all()
 
-    return [
+    items = [
         BookmarkResponse(
             id=bookmark.id,
             user_id=bookmark.user_id,
@@ -288,6 +356,14 @@ async def list_all_bookmarks(
         )
         for bookmark in bookmarks
     ]
+
+    return PaginatedResponse(
+        items=items,
+        total=total,
+        page=page,
+        page_size=page_size,
+        total_pages=total_pages,
+    )
 
 
 @router.delete("/bookmarks/{bookmark_id}")
@@ -412,38 +488,67 @@ async def update_bookmark(
 # Widget Management Endpoints
 
 
-@router.get("/widgets", response_model=List[WidgetResponse])
+@router.get("/widgets", response_model=PaginatedResponse[WidgetResponse])
 @limiter.limit("30/minute")
 async def list_all_widgets(
     request: Request,
     user_id: Optional[int] = None,
+    page: int = Query(1, ge=1, description="Page number (1-indexed)"),
+    page_size: int = Query(DEFAULT_PAGE_SIZE, ge=1, le=MAX_PAGE_SIZE, description="Items per page"),
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(require_admin),
 ):
-    """List all widgets in the system (admin only).
+    """List all widgets in the system with pagination (admin only).
 
     Args:
         request: HTTP request
         user_id: Optional filter by user ID
+        page: Page number (1-indexed)
+        page_size: Number of items per page
         db: Database session
         current_user: Current authenticated admin user
 
     Returns:
-        List of all widgets
+        Paginated list of widgets
     """
     logger.info(
         "Admin listing widgets",
-        extra={"admin_id": current_user.id, "filter_user_id": user_id},
+        extra={
+            "admin_id": current_user.id,
+            "filter_user_id": user_id,
+            "page": page,
+            "page_size": page_size,
+        },
     )
 
+    # Get total count with direct count query (more efficient than subquery)
+    count_query = select(func.count(Widget.id))
+    if user_id is not None:
+        count_query = count_query.where(Widget.user_id == user_id)
+    count_result = await db.execute(count_query)
+    total = count_result.scalar() or 0
+
+    # Calculate pagination
+    offset = (page - 1) * page_size
+    total_pages = (total + page_size - 1) // page_size if total > 0 else 1
+
+    # Get paginated results
     query = select(Widget).order_by(Widget.created.desc())
     if user_id is not None:
         query = query.where(Widget.user_id == user_id)
-
+    query = query.offset(offset).limit(page_size)
     result = await db.execute(query)
     widgets = result.scalars().all()
 
-    return [widget.to_dict() for widget in widgets]
+    items = [widget.to_dict() for widget in widgets]
+
+    return PaginatedResponse(
+        items=items,
+        total=total,
+        page=page,
+        page_size=page_size,
+        total_pages=total_pages,
+    )
 
 
 @router.delete("/widgets/{widget_id}")
@@ -559,38 +664,59 @@ class AdminPreferenceResponse(PreferenceResponse):
     user_id: int
 
 
-@router.get("/preferences", response_model=List[AdminPreferenceResponse])
+@router.get("/preferences", response_model=PaginatedResponse[AdminPreferenceResponse])
 @limiter.limit("30/minute")
 async def list_all_preferences(
     request: Request,
     user_id: Optional[int] = None,
+    page: int = Query(1, ge=1, description="Page number (1-indexed)"),
+    page_size: int = Query(DEFAULT_PAGE_SIZE, ge=1, le=MAX_PAGE_SIZE, description="Items per page"),
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(require_admin),
 ):
-    """List all preferences in the system (admin only).
+    """List all preferences in the system with pagination (admin only).
 
     Args:
         request: HTTP request
         user_id: Optional filter by user ID
+        page: Page number (1-indexed)
+        page_size: Number of items per page
         db: Database session
         current_user: Current authenticated admin user
 
     Returns:
-        List of all preferences
+        Paginated list of preferences
     """
     logger.info(
         "Admin listing preferences",
-        extra={"admin_id": current_user.id, "filter_user_id": user_id},
+        extra={
+            "admin_id": current_user.id,
+            "filter_user_id": user_id,
+            "page": page,
+            "page_size": page_size,
+        },
     )
 
+    # Get total count with direct count query (more efficient than subquery)
+    count_query = select(func.count(Preference.id))
+    if user_id is not None:
+        count_query = count_query.where(Preference.user_id == user_id)
+    count_result = await db.execute(count_query)
+    total = count_result.scalar() or 0
+
+    # Calculate pagination
+    offset = (page - 1) * page_size
+    total_pages = (total + page_size - 1) // page_size if total > 0 else 1
+
+    # Get paginated results
     query = select(Preference).order_by(Preference.user_id, Preference.key)
     if user_id is not None:
         query = query.where(Preference.user_id == user_id)
-
+    query = query.offset(offset).limit(page_size)
     result = await db.execute(query)
     preferences = result.scalars().all()
 
-    return [
+    items = [
         AdminPreferenceResponse(
             id=pref.id,
             key=pref.key,
@@ -599,6 +725,14 @@ async def list_all_preferences(
         )
         for pref in preferences
     ]
+
+    return PaginatedResponse(
+        items=items,
+        total=total,
+        page=page,
+        page_size=page_size,
+        total_pages=total_pages,
+    )
 
 
 @router.delete("/preferences/{preference_id}")
@@ -713,38 +847,59 @@ class AdminSectionCreate(SectionCreate):
     user_id: int
 
 
-@router.get("/sections", response_model=List[AdminSectionResponse])
+@router.get("/sections", response_model=PaginatedResponse[AdminSectionResponse])
 @limiter.limit("30/minute")
 async def list_all_sections(
     request: Request,
     user_id: Optional[int] = None,
+    page: int = Query(1, ge=1, description="Page number (1-indexed)"),
+    page_size: int = Query(DEFAULT_PAGE_SIZE, ge=1, le=MAX_PAGE_SIZE, description="Items per page"),
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(require_admin),
 ):
-    """List all sections in the system (admin only).
+    """List all sections in the system with pagination (admin only).
 
     Args:
         request: HTTP request
         user_id: Optional filter by user ID
+        page: Page number (1-indexed)
+        page_size: Number of items per page
         db: Database session
         current_user: Current authenticated admin user
 
     Returns:
-        List of all sections
+        Paginated list of sections
     """
     logger.info(
         "Admin listing sections",
-        extra={"admin_id": current_user.id, "filter_user_id": user_id},
+        extra={
+            "admin_id": current_user.id,
+            "filter_user_id": user_id,
+            "page": page,
+            "page_size": page_size,
+        },
     )
 
+    # Get total count with direct count query (more efficient than subquery)
+    count_query = select(func.count(Section.id))
+    if user_id is not None:
+        count_query = count_query.where(Section.user_id == user_id)
+    count_result = await db.execute(count_query)
+    total = count_result.scalar() or 0
+
+    # Calculate pagination
+    offset = (page - 1) * page_size
+    total_pages = (total + page_size - 1) // page_size if total > 0 else 1
+
+    # Get paginated results
     query = select(Section).order_by(Section.user_id, Section.position)
     if user_id is not None:
         query = query.where(Section.user_id == user_id)
-
+    query = query.offset(offset).limit(page_size)
     result = await db.execute(query)
     sections = result.scalars().all()
 
-    return [
+    items = [
         AdminSectionResponse(
             id=section.id,
             name=section.name,
@@ -758,6 +913,14 @@ async def list_all_sections(
         )
         for section in sections
     ]
+
+    return PaginatedResponse(
+        items=items,
+        total=total,
+        page=page,
+        page_size=page_size,
+        total_pages=total_pages,
+    )
 
 
 @router.post("/sections", response_model=AdminSectionResponse)
@@ -960,38 +1123,59 @@ class AdminHabitCreate(HabitCreate):
     user_id: int
 
 
-@router.get("/habits", response_model=List[AdminHabitResponse])
+@router.get("/habits", response_model=PaginatedResponse[AdminHabitResponse])
 @limiter.limit("30/minute")
 async def list_all_habits(
     request: Request,
     user_id: Optional[int] = None,
+    page: int = Query(1, ge=1, description="Page number (1-indexed)"),
+    page_size: int = Query(DEFAULT_PAGE_SIZE, ge=1, le=MAX_PAGE_SIZE, description="Items per page"),
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(require_admin),
 ):
-    """List all habits in the system (admin only).
+    """List all habits in the system with pagination (admin only).
 
     Args:
         request: HTTP request
         user_id: Optional filter by user ID
+        page: Page number (1-indexed)
+        page_size: Number of items per page
         db: Database session
         current_user: Current authenticated admin user
 
     Returns:
-        List of all habits
+        Paginated list of habits
     """
     logger.info(
         "Admin listing habits",
-        extra={"admin_id": current_user.id, "filter_user_id": user_id},
+        extra={
+            "admin_id": current_user.id,
+            "filter_user_id": user_id,
+            "page": page,
+            "page_size": page_size,
+        },
     )
 
+    # Get total count with direct count query (more efficient than subquery)
+    count_query = select(func.count(Habit.id))
+    if user_id is not None:
+        count_query = count_query.where(Habit.user_id == user_id)
+    count_result = await db.execute(count_query)
+    total = count_result.scalar() or 0
+
+    # Calculate pagination
+    offset = (page - 1) * page_size
+    total_pages = (total + page_size - 1) // page_size if total > 0 else 1
+
+    # Get paginated results
     query = select(Habit).order_by(Habit.created.desc())
     if user_id is not None:
         query = query.where(Habit.user_id == user_id)
-
+    query = query.offset(offset).limit(page_size)
     result = await db.execute(query)
     habits = result.scalars().all()
 
-    return [
+    items = [
         AdminHabitResponse(
             id=habit.habit_id,
             name=habit.name,
@@ -1003,6 +1187,14 @@ async def list_all_habits(
         )
         for habit in habits
     ]
+
+    return PaginatedResponse(
+        items=items,
+        total=total,
+        page=page,
+        page_size=page_size,
+        total_pages=total_pages,
+    )
 
 
 @router.post("/habits", response_model=AdminHabitResponse)
@@ -1196,42 +1388,66 @@ class AdminHabitCompletionCreate(BaseModel):
     completed: bool = Field(default=True, description="Whether the habit was completed")
 
 
-@router.get("/habit-completions", response_model=List[AdminHabitCompletionResponse])
+@router.get("/habit-completions", response_model=PaginatedResponse[AdminHabitCompletionResponse])
 @limiter.limit("30/minute")
 async def list_all_habit_completions(
     request: Request,
     user_id: Optional[int] = None,
     habit_id: Optional[str] = None,
+    page: int = Query(1, ge=1, description="Page number (1-indexed)"),
+    page_size: int = Query(DEFAULT_PAGE_SIZE, ge=1, le=MAX_PAGE_SIZE, description="Items per page"),
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(require_admin),
 ):
-    """List all habit completions in the system (admin only).
+    """List all habit completions in the system with pagination (admin only).
 
     Args:
         request: HTTP request
         user_id: Optional filter by user ID
         habit_id: Optional filter by habit ID
+        page: Page number (1-indexed)
+        page_size: Number of items per page
         db: Database session
         current_user: Current authenticated admin user
 
     Returns:
-        List of all habit completions
+        Paginated list of habit completions
     """
     logger.info(
         "Admin listing habit completions",
-        extra={"admin_id": current_user.id, "filter_user_id": user_id, "filter_habit_id": habit_id},
+        extra={
+            "admin_id": current_user.id,
+            "filter_user_id": user_id,
+            "filter_habit_id": habit_id,
+            "page": page,
+            "page_size": page_size,
+        },
     )
 
+    # Get total count with direct count query (more efficient than subquery)
+    count_query = select(func.count(HabitCompletion.id))
+    if user_id is not None:
+        count_query = count_query.where(HabitCompletion.user_id == user_id)
+    if habit_id is not None:
+        count_query = count_query.where(HabitCompletion.habit_id == habit_id)
+    count_result = await db.execute(count_query)
+    total = count_result.scalar() or 0
+
+    # Calculate pagination
+    offset = (page - 1) * page_size
+    total_pages = (total + page_size - 1) // page_size if total > 0 else 1
+
+    # Get paginated results
     query = select(HabitCompletion).order_by(HabitCompletion.completion_date.desc())
     if user_id is not None:
         query = query.where(HabitCompletion.user_id == user_id)
     if habit_id is not None:
         query = query.where(HabitCompletion.habit_id == habit_id)
-
+    query = query.offset(offset).limit(page_size)
     result = await db.execute(query)
     completions = result.scalars().all()
 
-    return [
+    items = [
         AdminHabitCompletionResponse(
             id=completion.id,
             habit_id=completion.habit_id,
@@ -1242,6 +1458,14 @@ async def list_all_habit_completions(
         )
         for completion in completions
     ]
+
+    return PaginatedResponse(
+        items=items,
+        total=total,
+        page=page,
+        page_size=page_size,
+        total_pages=total_pages,
+    )
 
 
 @router.post("/habit-completions", response_model=AdminHabitCompletionResponse)
