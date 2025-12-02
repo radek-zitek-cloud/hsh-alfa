@@ -603,12 +603,15 @@ async def delete_widget(
                 # Use a single database query with JSON extraction to check if any other widget
                 # uses the same habit. This avoids the N+1 query problem where we would fetch
                 # all widgets and then iterate through them in Python.
+                #
+                # Note: This uses SQLite's json_extract function. If migrating to PostgreSQL,
+                # replace with: config::jsonb->>'habit_id' = :habit_id
+                # or use SQLAlchemy's JSON type casting for database portability.
                 result = await db.execute(
                     select(func.count()).select_from(Widget).where(
                         Widget.user_id == current_user.id,
                         Widget.widget_type == "habit_tracking",
                         Widget.widget_id != widget_id,
-                        # Use SQLite's json_extract to check the habit_id in the config JSON
                         text("json_extract(config, '$.habit_id') = :habit_id")
                     ).params(habit_id=habit_id_to_check)
                 )
