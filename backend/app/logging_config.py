@@ -44,7 +44,13 @@ class CustomJsonFormatter(jsonlogger.JsonFormatter):
             log_record["exception"] = self.formatException(record.exc_info)
 
 
-def setup_logging(log_level: str = "INFO") -> None:
+def setup_logging(
+    log_level: str = "INFO",
+    uvicorn_access_log_level: str = "WARNING",
+    uvicorn_error_log_level: str = "INFO",
+    sqlalchemy_engine_log_level: str = "WARNING",
+    apscheduler_log_level: str = "INFO",
+) -> None:
     """Configure structured logging for the application.
 
     Sets up JSON-formatted logging to stdout, suitable for container
@@ -52,6 +58,10 @@ def setup_logging(log_level: str = "INFO") -> None:
 
     Args:
         log_level: Logging level (DEBUG, INFO, WARNING, ERROR, CRITICAL)
+        uvicorn_access_log_level: Log level for uvicorn.access logger
+        uvicorn_error_log_level: Log level for uvicorn.error logger
+        sqlalchemy_engine_log_level: Log level for sqlalchemy.engine logger
+        apscheduler_log_level: Log level for apscheduler logger
     """
     # Convert string log level to logging constant
     numeric_level = getattr(logging, log_level.upper(), logging.INFO)
@@ -75,11 +85,19 @@ def setup_logging(log_level: str = "INFO") -> None:
     handler.setFormatter(formatter)
     root_logger.addHandler(handler)
 
-    # Set levels for noisy third-party libraries
-    logging.getLogger("uvicorn.access").setLevel(logging.WARNING)
-    logging.getLogger("uvicorn.error").setLevel(logging.INFO)
-    logging.getLogger("sqlalchemy.engine").setLevel(logging.WARNING)
-    logging.getLogger("apscheduler").setLevel(logging.INFO)
+    # Set levels for noisy third-party libraries (configurable via env vars)
+    logging.getLogger("uvicorn.access").setLevel(
+        getattr(logging, uvicorn_access_log_level.upper(), logging.WARNING)
+    )
+    logging.getLogger("uvicorn.error").setLevel(
+        getattr(logging, uvicorn_error_log_level.upper(), logging.INFO)
+    )
+    logging.getLogger("sqlalchemy.engine").setLevel(
+        getattr(logging, sqlalchemy_engine_log_level.upper(), logging.WARNING)
+    )
+    logging.getLogger("apscheduler").setLevel(
+        getattr(logging, apscheduler_log_level.upper(), logging.INFO)
+    )
 
     # Log configuration completion
     root_logger.info(

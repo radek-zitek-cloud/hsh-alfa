@@ -20,7 +20,13 @@ from app.services.rate_limit import limiter
 from app.services.scheduler import scheduler_service
 
 # Configure structured logging
-setup_logging(settings.LOG_LEVEL)
+setup_logging(
+    log_level=settings.LOG_LEVEL,
+    uvicorn_access_log_level=settings.UVICORN_ACCESS_LOG_LEVEL,
+    uvicorn_error_log_level=settings.UVICORN_ERROR_LOG_LEVEL,
+    sqlalchemy_engine_log_level=settings.SQLALCHEMY_ENGINE_LOG_LEVEL,
+    apscheduler_log_level=settings.APSCHEDULER_LOG_LEVEL,
+)
 logger = get_logger(__name__)
 
 # Validate critical configuration on startup
@@ -235,9 +241,7 @@ async def lifespan(app: FastAPI):
     # Run migrations
     try:
         from app.migrations.add_clicks_to_bookmarks import run_migration as run_clicks_migration
-        from app.migrations.add_performance_indexes import (
-            run_migration as run_indexes_migration,
-        )
+        from app.migrations.add_performance_indexes import run_migration as run_indexes_migration
         from app.migrations.add_role_to_users import run_migration as run_role_migration
         from app.migrations.add_user_id_to_tables import run_migration as run_user_id_migration
         from app.migrations.create_habits_tables import run_migration as run_habits_migration

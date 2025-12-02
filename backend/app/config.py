@@ -20,6 +20,13 @@ class Settings(BaseSettings):
     DEBUG: bool = False
     LOG_LEVEL: str = "INFO"  # DEBUG, INFO, WARNING, ERROR, CRITICAL
 
+    # Third-party library log levels (to reduce noise)
+    # Supported levels: DEBUG, INFO, WARNING, ERROR, CRITICAL
+    UVICORN_ACCESS_LOG_LEVEL: str = "WARNING"
+    UVICORN_ERROR_LOG_LEVEL: str = "INFO"
+    SQLALCHEMY_ENGINE_LOG_LEVEL: str = "WARNING"
+    APSCHEDULER_LOG_LEVEL: str = "INFO"
+
     # Database
     DATABASE_URL: str = "sqlite+aiosqlite:////data/home.db"
 
