@@ -47,14 +47,6 @@ const BookmarkModal = ({ isOpen, onClose, title, children }) => {
     }
   };
 
-  // Handle backdrop keyboard activation
-  const handleBackdropKeyDown = e => {
-    if (e.key === 'Enter' || e.key === ' ') {
-      e.preventDefault();
-      onClose();
-    }
-  };
-
   if (!isOpen) return null;
 
   return (
@@ -64,14 +56,11 @@ const BookmarkModal = ({ isOpen, onClose, title, children }) => {
       aria-modal="true"
       aria-labelledby="modal-title"
     >
-      {/* Backdrop */}
+      {/* Backdrop - click only, keyboard users should use Escape key */}
       <div
         className="absolute inset-0 bg-black/50"
         onClick={handleBackdropClick}
-        onKeyDown={handleBackdropKeyDown}
-        role="button"
-        tabIndex={0}
-        aria-label="Close modal"
+        aria-hidden="true"
       />
 
       {/* Modal */}

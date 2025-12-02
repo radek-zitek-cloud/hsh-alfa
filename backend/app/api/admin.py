@@ -320,13 +320,10 @@ async def list_all_bookmarks(
         },
     )
 
-    # Build base query
-    base_query = select(Bookmark)
+    # Get total count with direct count query (more efficient than subquery)
+    count_query = select(func.count(Bookmark.id))
     if user_id is not None:
-        base_query = base_query.where(Bookmark.user_id == user_id)
-
-    # Get total count
-    count_query = select(func.count()).select_from(base_query.subquery())
+        count_query = count_query.where(Bookmark.user_id == user_id)
     count_result = await db.execute(count_query)
     total = count_result.scalar() or 0
 
@@ -335,7 +332,10 @@ async def list_all_bookmarks(
     total_pages = (total + page_size - 1) // page_size if total > 0 else 1
 
     # Get paginated results
-    query = base_query.order_by(Bookmark.created.desc()).offset(offset).limit(page_size)
+    query = select(Bookmark).order_by(Bookmark.created.desc())
+    if user_id is not None:
+        query = query.where(Bookmark.user_id == user_id)
+    query = query.offset(offset).limit(page_size)
     result = await db.execute(query)
     bookmarks = result.scalars().all()
 
@@ -521,13 +521,10 @@ async def list_all_widgets(
         },
     )
 
-    # Build base query
-    base_query = select(Widget)
+    # Get total count with direct count query (more efficient than subquery)
+    count_query = select(func.count(Widget.id))
     if user_id is not None:
-        base_query = base_query.where(Widget.user_id == user_id)
-
-    # Get total count
-    count_query = select(func.count()).select_from(base_query.subquery())
+        count_query = count_query.where(Widget.user_id == user_id)
     count_result = await db.execute(count_query)
     total = count_result.scalar() or 0
 
@@ -536,7 +533,10 @@ async def list_all_widgets(
     total_pages = (total + page_size - 1) // page_size if total > 0 else 1
 
     # Get paginated results
-    query = base_query.order_by(Widget.created.desc()).offset(offset).limit(page_size)
+    query = select(Widget).order_by(Widget.created.desc())
+    if user_id is not None:
+        query = query.where(Widget.user_id == user_id)
+    query = query.offset(offset).limit(page_size)
     result = await db.execute(query)
     widgets = result.scalars().all()
 
@@ -697,13 +697,10 @@ async def list_all_preferences(
         },
     )
 
-    # Build base query
-    base_query = select(Preference)
+    # Get total count with direct count query (more efficient than subquery)
+    count_query = select(func.count(Preference.id))
     if user_id is not None:
-        base_query = base_query.where(Preference.user_id == user_id)
-
-    # Get total count
-    count_query = select(func.count()).select_from(base_query.subquery())
+        count_query = count_query.where(Preference.user_id == user_id)
     count_result = await db.execute(count_query)
     total = count_result.scalar() or 0
 
@@ -712,7 +709,10 @@ async def list_all_preferences(
     total_pages = (total + page_size - 1) // page_size if total > 0 else 1
 
     # Get paginated results
-    query = base_query.order_by(Preference.user_id, Preference.key).offset(offset).limit(page_size)
+    query = select(Preference).order_by(Preference.user_id, Preference.key)
+    if user_id is not None:
+        query = query.where(Preference.user_id == user_id)
+    query = query.offset(offset).limit(page_size)
     result = await db.execute(query)
     preferences = result.scalars().all()
 
@@ -880,13 +880,10 @@ async def list_all_sections(
         },
     )
 
-    # Build base query
-    base_query = select(Section)
+    # Get total count with direct count query (more efficient than subquery)
+    count_query = select(func.count(Section.id))
     if user_id is not None:
-        base_query = base_query.where(Section.user_id == user_id)
-
-    # Get total count
-    count_query = select(func.count()).select_from(base_query.subquery())
+        count_query = count_query.where(Section.user_id == user_id)
     count_result = await db.execute(count_query)
     total = count_result.scalar() or 0
 
@@ -895,7 +892,10 @@ async def list_all_sections(
     total_pages = (total + page_size - 1) // page_size if total > 0 else 1
 
     # Get paginated results
-    query = base_query.order_by(Section.user_id, Section.position).offset(offset).limit(page_size)
+    query = select(Section).order_by(Section.user_id, Section.position)
+    if user_id is not None:
+        query = query.where(Section.user_id == user_id)
+    query = query.offset(offset).limit(page_size)
     result = await db.execute(query)
     sections = result.scalars().all()
 
@@ -1156,13 +1156,10 @@ async def list_all_habits(
         },
     )
 
-    # Build base query
-    base_query = select(Habit)
+    # Get total count with direct count query (more efficient than subquery)
+    count_query = select(func.count(Habit.id))
     if user_id is not None:
-        base_query = base_query.where(Habit.user_id == user_id)
-
-    # Get total count
-    count_query = select(func.count()).select_from(base_query.subquery())
+        count_query = count_query.where(Habit.user_id == user_id)
     count_result = await db.execute(count_query)
     total = count_result.scalar() or 0
 
@@ -1171,7 +1168,10 @@ async def list_all_habits(
     total_pages = (total + page_size - 1) // page_size if total > 0 else 1
 
     # Get paginated results
-    query = base_query.order_by(Habit.created.desc()).offset(offset).limit(page_size)
+    query = select(Habit).order_by(Habit.created.desc())
+    if user_id is not None:
+        query = query.where(Habit.user_id == user_id)
+    query = query.offset(offset).limit(page_size)
     result = await db.execute(query)
     habits = result.scalars().all()
 
@@ -1424,15 +1424,12 @@ async def list_all_habit_completions(
         },
     )
 
-    # Build base query
-    base_query = select(HabitCompletion)
+    # Get total count with direct count query (more efficient than subquery)
+    count_query = select(func.count(HabitCompletion.id))
     if user_id is not None:
-        base_query = base_query.where(HabitCompletion.user_id == user_id)
+        count_query = count_query.where(HabitCompletion.user_id == user_id)
     if habit_id is not None:
-        base_query = base_query.where(HabitCompletion.habit_id == habit_id)
-
-    # Get total count
-    count_query = select(func.count()).select_from(base_query.subquery())
+        count_query = count_query.where(HabitCompletion.habit_id == habit_id)
     count_result = await db.execute(count_query)
     total = count_result.scalar() or 0
 
@@ -1441,7 +1438,12 @@ async def list_all_habit_completions(
     total_pages = (total + page_size - 1) // page_size if total > 0 else 1
 
     # Get paginated results
-    query = base_query.order_by(HabitCompletion.completion_date.desc()).offset(offset).limit(page_size)
+    query = select(HabitCompletion).order_by(HabitCompletion.completion_date.desc())
+    if user_id is not None:
+        query = query.where(HabitCompletion.user_id == user_id)
+    if habit_id is not None:
+        query = query.where(HabitCompletion.habit_id == habit_id)
+    query = query.offset(offset).limit(page_size)
     result = await db.execute(query)
     completions = result.scalars().all()
 
