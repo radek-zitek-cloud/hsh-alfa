@@ -1,16 +1,28 @@
-"""Admin API endpoints for managing users, bookmarks, and widgets."""
+"""Admin API endpoints for managing users, bookmarks, widgets, sections, and habits."""
 
 import json
+import uuid
+from datetime import datetime
 from typing import List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
+from pydantic import BaseModel, Field
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.dependencies import require_admin
 from app.logging_config import get_logger
 from app.models.bookmark import Bookmark, BookmarkResponse, BookmarkUpdate
-from app.models.preference import Preference, PreferenceResponse
+from app.models.habit import (
+    Habit,
+    HabitCompletion,
+    HabitCreate,
+    HabitResponse,
+    HabitUpdate,
+    HabitCompletionResponse,
+)
+from app.models.preference import Preference, PreferenceResponse, PreferenceUpdate
+from app.models.section import Section, SectionCreate, SectionResponse, SectionUpdate
 from app.models.user import User, UserResponse, UserRole, UserUpdate
 from app.models.widget import Widget, WidgetResponse, WidgetUpdate
 from app.services.database import get_db
@@ -171,6 +183,58 @@ async def update_user(
         created_at=user.created_at.isoformat() if user.created_at else "",
         last_login=user.last_login.isoformat() if user.last_login else None,
     )
+
+
+@router.delete("/users/{user_id}")
+@limiter.limit("10/minute")
+async def delete_user(
+    request: Request,
+    user_id: int,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(require_admin),
+):
+    """Delete a user (admin only).
+
+    Note: This will cascade delete all user data including bookmarks, widgets, etc.
+
+    Args:
+        request: HTTP request
+        user_id: User ID to delete
+        db: Database session
+        current_user: Current authenticated admin user
+
+    Returns:
+        Success message
+    """
+    # Prevent admin from deleting themselves
+    if user_id == current_user.id:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Cannot delete your own account",
+        )
+
+    result = await db.execute(select(User).where(User.id == user_id))
+    user = result.scalar_one_or_none()
+
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="User not found",
+        )
+
+    await db.delete(user)
+    await db.commit()
+
+    logger.info(
+        "Admin deleted user",
+        extra={
+            "admin_id": current_user.id,
+            "deleted_user_id": user_id,
+            "deleted_user_email": user.email,
+        },
+    )
+
+    return {"message": "User deleted successfully"}
 
 
 # Bookmark Management Endpoints
@@ -579,3 +643,737 @@ async def delete_preference(
     )
 
     return {"message": "Preference deleted successfully"}
+
+
+@router.put("/preferences/{preference_id}", response_model=AdminPreferenceResponse)
+@limiter.limit("30/minute")
+async def update_preference(
+    request: Request,
+    preference_id: int,
+    preference_update: PreferenceUpdate,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(require_admin),
+):
+    """Update a preference (admin only).
+
+    Args:
+        request: HTTP request
+        preference_id: Preference ID to update
+        preference_update: Updated preference data
+        db: Database session
+        current_user: Current authenticated admin user
+
+    Returns:
+        Updated preference details
+    """
+    result = await db.execute(select(Preference).where(Preference.id == preference_id))
+    preference = result.scalar_one_or_none()
+
+    if not preference:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Preference not found",
+        )
+
+    preference.value = preference_update.value
+
+    await db.commit()
+    await db.refresh(preference)
+
+    logger.info(
+        "Admin updated preference",
+        extra={
+            "admin_id": current_user.id,
+            "preference_id": preference_id,
+            "preference_key": preference.key,
+            "preference_user_id": preference.user_id,
+        },
+    )
+
+    return AdminPreferenceResponse(
+        id=preference.id,
+        key=preference.key,
+        value=preference.value,
+        user_id=preference.user_id,
+    )
+
+
+# Section Management Endpoints
+
+
+class AdminSectionResponse(SectionResponse):
+    """Extended section response with user_id for admin."""
+
+    user_id: int
+
+
+class AdminSectionCreate(SectionCreate):
+    """Admin schema for creating a section with user_id."""
+
+    user_id: int
+
+
+@router.get("/sections", response_model=List[AdminSectionResponse])
+@limiter.limit("30/minute")
+async def list_all_sections(
+    request: Request,
+    user_id: Optional[int] = None,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(require_admin),
+):
+    """List all sections in the system (admin only).
+
+    Args:
+        request: HTTP request
+        user_id: Optional filter by user ID
+        db: Database session
+        current_user: Current authenticated admin user
+
+    Returns:
+        List of all sections
+    """
+    logger.info(
+        "Admin listing sections",
+        extra={"admin_id": current_user.id, "filter_user_id": user_id},
+    )
+
+    query = select(Section).order_by(Section.user_id, Section.position)
+    if user_id is not None:
+        query = query.where(Section.user_id == user_id)
+
+    result = await db.execute(query)
+    sections = result.scalars().all()
+
+    return [
+        AdminSectionResponse(
+            id=section.id,
+            name=section.name,
+            title=section.title,
+            position=section.position,
+            enabled=section.enabled,
+            widget_ids=section.widget_ids.split(",") if section.widget_ids else [],
+            created=section.created.isoformat() if section.created else None,
+            updated=section.updated.isoformat() if section.updated else None,
+            user_id=section.user_id,
+        )
+        for section in sections
+    ]
+
+
+@router.post("/sections", response_model=AdminSectionResponse)
+@limiter.limit("20/minute")
+async def create_section(
+    request: Request,
+    section_data: AdminSectionCreate,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(require_admin),
+):
+    """Create a new section (admin only).
+
+    Args:
+        request: HTTP request
+        section_data: Section creation data including user_id
+        db: Database session
+        current_user: Current authenticated admin user
+
+    Returns:
+        Created section details
+    """
+    # Verify user exists
+    user_result = await db.execute(select(User).where(User.id == section_data.user_id))
+    user = user_result.scalar_one_or_none()
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="User not found",
+        )
+
+    # Check for duplicate section name for this user
+    existing = await db.execute(
+        select(Section).where(
+            Section.user_id == section_data.user_id,
+            Section.name == section_data.name,
+        )
+    )
+    if existing.scalar_one_or_none():
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Section with name '{section_data.name}' already exists for this user",
+        )
+
+    section = Section(
+        user_id=section_data.user_id,
+        name=section_data.name,
+        title=section_data.title,
+        position=section_data.position,
+        enabled=section_data.enabled,
+        widget_ids=",".join(section_data.widget_ids) if section_data.widget_ids else None,
+    )
+
+    db.add(section)
+    await db.commit()
+    await db.refresh(section)
+
+    logger.info(
+        "Admin created section",
+        extra={
+            "admin_id": current_user.id,
+            "section_id": section.id,
+            "section_user_id": section.user_id,
+        },
+    )
+
+    return AdminSectionResponse(
+        id=section.id,
+        name=section.name,
+        title=section.title,
+        position=section.position,
+        enabled=section.enabled,
+        widget_ids=section.widget_ids.split(",") if section.widget_ids else [],
+        created=section.created.isoformat() if section.created else None,
+        updated=section.updated.isoformat() if section.updated else None,
+        user_id=section.user_id,
+    )
+
+
+@router.put("/sections/{section_id}", response_model=AdminSectionResponse)
+@limiter.limit("30/minute")
+async def update_section(
+    request: Request,
+    section_id: int,
+    section_update: SectionUpdate,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(require_admin),
+):
+    """Update a section (admin only).
+
+    Args:
+        request: HTTP request
+        section_id: Section ID to update
+        section_update: Updated section data
+        db: Database session
+        current_user: Current authenticated admin user
+
+    Returns:
+        Updated section details
+    """
+    result = await db.execute(select(Section).where(Section.id == section_id))
+    section = result.scalar_one_or_none()
+
+    if not section:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Section not found",
+        )
+
+    # Update fields if provided
+    if section_update.title is not None:
+        section.title = section_update.title
+    if section_update.position is not None:
+        section.position = section_update.position
+    if section_update.enabled is not None:
+        section.enabled = section_update.enabled
+    if section_update.widget_ids is not None:
+        section.widget_ids = ",".join(section_update.widget_ids) if section_update.widget_ids else None
+
+    await db.commit()
+    await db.refresh(section)
+
+    logger.info(
+        "Admin updated section",
+        extra={
+            "admin_id": current_user.id,
+            "section_id": section_id,
+            "section_user_id": section.user_id,
+            "updated_fields": section_update.model_dump(exclude_unset=True),
+        },
+    )
+
+    return AdminSectionResponse(
+        id=section.id,
+        name=section.name,
+        title=section.title,
+        position=section.position,
+        enabled=section.enabled,
+        widget_ids=section.widget_ids.split(",") if section.widget_ids else [],
+        created=section.created.isoformat() if section.created else None,
+        updated=section.updated.isoformat() if section.updated else None,
+        user_id=section.user_id,
+    )
+
+
+@router.delete("/sections/{section_id}")
+@limiter.limit("30/minute")
+async def delete_section(
+    request: Request,
+    section_id: int,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(require_admin),
+):
+    """Delete a section (admin only).
+
+    Args:
+        request: HTTP request
+        section_id: Section ID to delete
+        db: Database session
+        current_user: Current authenticated admin user
+
+    Returns:
+        Success message
+    """
+    result = await db.execute(select(Section).where(Section.id == section_id))
+    section = result.scalar_one_or_none()
+
+    if not section:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Section not found",
+        )
+
+    await db.delete(section)
+    await db.commit()
+
+    logger.info(
+        "Admin deleted section",
+        extra={
+            "admin_id": current_user.id,
+            "section_id": section_id,
+            "section_user_id": section.user_id,
+        },
+    )
+
+    return {"message": "Section deleted successfully"}
+
+
+# Habit Management Endpoints
+
+
+class AdminHabitResponse(HabitResponse):
+    """Extended habit response with user_id for admin."""
+
+    user_id: int
+
+
+class AdminHabitCreate(HabitCreate):
+    """Admin schema for creating a habit with user_id."""
+
+    user_id: int
+
+
+@router.get("/habits", response_model=List[AdminHabitResponse])
+@limiter.limit("30/minute")
+async def list_all_habits(
+    request: Request,
+    user_id: Optional[int] = None,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(require_admin),
+):
+    """List all habits in the system (admin only).
+
+    Args:
+        request: HTTP request
+        user_id: Optional filter by user ID
+        db: Database session
+        current_user: Current authenticated admin user
+
+    Returns:
+        List of all habits
+    """
+    logger.info(
+        "Admin listing habits",
+        extra={"admin_id": current_user.id, "filter_user_id": user_id},
+    )
+
+    query = select(Habit).order_by(Habit.created.desc())
+    if user_id is not None:
+        query = query.where(Habit.user_id == user_id)
+
+    result = await db.execute(query)
+    habits = result.scalars().all()
+
+    return [
+        AdminHabitResponse(
+            id=habit.habit_id,
+            name=habit.name,
+            description=habit.description,
+            active=habit.active,
+            created=habit.created.isoformat() if habit.created else None,
+            updated=habit.updated.isoformat() if habit.updated else None,
+            user_id=habit.user_id,
+        )
+        for habit in habits
+    ]
+
+
+@router.post("/habits", response_model=AdminHabitResponse)
+@limiter.limit("20/minute")
+async def create_habit(
+    request: Request,
+    habit_data: AdminHabitCreate,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(require_admin),
+):
+    """Create a new habit (admin only).
+
+    Args:
+        request: HTTP request
+        habit_data: Habit creation data including user_id
+        db: Database session
+        current_user: Current authenticated admin user
+
+    Returns:
+        Created habit details
+    """
+    # Verify user exists
+    user_result = await db.execute(select(User).where(User.id == habit_data.user_id))
+    user = user_result.scalar_one_or_none()
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="User not found",
+        )
+
+    # Generate unique habit ID
+    habit_id = str(uuid.uuid4())
+
+    habit = Habit(
+        habit_id=habit_id,
+        user_id=habit_data.user_id,
+        name=habit_data.name,
+        description=habit_data.description,
+        active=habit_data.active,
+    )
+
+    db.add(habit)
+    await db.commit()
+    await db.refresh(habit)
+
+    logger.info(
+        "Admin created habit",
+        extra={
+            "admin_id": current_user.id,
+            "habit_id": habit.habit_id,
+            "habit_user_id": habit.user_id,
+        },
+    )
+
+    return AdminHabitResponse(
+        id=habit.habit_id,
+        name=habit.name,
+        description=habit.description,
+        active=habit.active,
+        created=habit.created.isoformat() if habit.created else None,
+        updated=habit.updated.isoformat() if habit.updated else None,
+        user_id=habit.user_id,
+    )
+
+
+@router.put("/habits/{habit_id}", response_model=AdminHabitResponse)
+@limiter.limit("30/minute")
+async def update_habit(
+    request: Request,
+    habit_id: str,
+    habit_update: HabitUpdate,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(require_admin),
+):
+    """Update a habit (admin only).
+
+    Args:
+        request: HTTP request
+        habit_id: Habit ID (UUID string) to update
+        habit_update: Updated habit data
+        db: Database session
+        current_user: Current authenticated admin user
+
+    Returns:
+        Updated habit details
+    """
+    result = await db.execute(select(Habit).where(Habit.habit_id == habit_id))
+    habit = result.scalar_one_or_none()
+
+    if not habit:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Habit not found",
+        )
+
+    # Update fields if provided
+    if habit_update.name is not None:
+        habit.name = habit_update.name
+    if habit_update.description is not None:
+        habit.description = habit_update.description
+    if habit_update.active is not None:
+        habit.active = habit_update.active
+
+    habit.updated = datetime.utcnow()
+
+    await db.commit()
+    await db.refresh(habit)
+
+    logger.info(
+        "Admin updated habit",
+        extra={
+            "admin_id": current_user.id,
+            "habit_id": habit_id,
+            "habit_user_id": habit.user_id,
+            "updated_fields": habit_update.model_dump(exclude_unset=True),
+        },
+    )
+
+    return AdminHabitResponse(
+        id=habit.habit_id,
+        name=habit.name,
+        description=habit.description,
+        active=habit.active,
+        created=habit.created.isoformat() if habit.created else None,
+        updated=habit.updated.isoformat() if habit.updated else None,
+        user_id=habit.user_id,
+    )
+
+
+@router.delete("/habits/{habit_id}")
+@limiter.limit("30/minute")
+async def delete_habit(
+    request: Request,
+    habit_id: str,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(require_admin),
+):
+    """Delete a habit (admin only).
+
+    Note: This will cascade delete all habit completions.
+
+    Args:
+        request: HTTP request
+        habit_id: Habit ID (UUID string) to delete
+        db: Database session
+        current_user: Current authenticated admin user
+
+    Returns:
+        Success message
+    """
+    result = await db.execute(select(Habit).where(Habit.habit_id == habit_id))
+    habit = result.scalar_one_or_none()
+
+    if not habit:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Habit not found",
+        )
+
+    await db.delete(habit)
+    await db.commit()
+
+    logger.info(
+        "Admin deleted habit",
+        extra={
+            "admin_id": current_user.id,
+            "habit_id": habit_id,
+            "habit_user_id": habit.user_id,
+        },
+    )
+
+    return {"message": "Habit deleted successfully"}
+
+
+# Habit Completion Management Endpoints
+
+
+class AdminHabitCompletionResponse(HabitCompletionResponse):
+    """Extended habit completion response with user_id for admin."""
+
+    user_id: int
+    id: int
+
+
+class AdminHabitCompletionCreate(BaseModel):
+    """Admin schema for creating a habit completion."""
+
+    habit_id: str = Field(description="Habit ID")
+    user_id: int = Field(description="User ID")
+    completion_date: str = Field(description="Completion date (YYYY-MM-DD)")
+    completed: bool = Field(default=True, description="Whether the habit was completed")
+
+
+@router.get("/habit-completions", response_model=List[AdminHabitCompletionResponse])
+@limiter.limit("30/minute")
+async def list_all_habit_completions(
+    request: Request,
+    user_id: Optional[int] = None,
+    habit_id: Optional[str] = None,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(require_admin),
+):
+    """List all habit completions in the system (admin only).
+
+    Args:
+        request: HTTP request
+        user_id: Optional filter by user ID
+        habit_id: Optional filter by habit ID
+        db: Database session
+        current_user: Current authenticated admin user
+
+    Returns:
+        List of all habit completions
+    """
+    logger.info(
+        "Admin listing habit completions",
+        extra={"admin_id": current_user.id, "filter_user_id": user_id, "filter_habit_id": habit_id},
+    )
+
+    query = select(HabitCompletion).order_by(HabitCompletion.completion_date.desc())
+    if user_id is not None:
+        query = query.where(HabitCompletion.user_id == user_id)
+    if habit_id is not None:
+        query = query.where(HabitCompletion.habit_id == habit_id)
+
+    result = await db.execute(query)
+    completions = result.scalars().all()
+
+    return [
+        AdminHabitCompletionResponse(
+            id=completion.id,
+            habit_id=completion.habit_id,
+            completion_date=completion.completion_date.isoformat() if completion.completion_date else None,
+            completed=completion.completed,
+            created=completion.created.isoformat() if completion.created else None,
+            user_id=completion.user_id,
+        )
+        for completion in completions
+    ]
+
+
+@router.post("/habit-completions", response_model=AdminHabitCompletionResponse)
+@limiter.limit("30/minute")
+async def create_habit_completion(
+    request: Request,
+    completion_data: AdminHabitCompletionCreate,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(require_admin),
+):
+    """Create a new habit completion (admin only).
+
+    Args:
+        request: HTTP request
+        completion_data: Habit completion data
+        db: Database session
+        current_user: Current authenticated admin user
+
+    Returns:
+        Created habit completion details
+    """
+    # Verify habit exists
+    habit_result = await db.execute(select(Habit).where(Habit.habit_id == completion_data.habit_id))
+    habit = habit_result.scalar_one_or_none()
+    if not habit:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Habit not found",
+        )
+
+    # Verify user exists
+    user_result = await db.execute(select(User).where(User.id == completion_data.user_id))
+    user = user_result.scalar_one_or_none()
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="User not found",
+        )
+
+    # Parse date
+    try:
+        completion_date = datetime.strptime(completion_data.completion_date, "%Y-%m-%d").date()
+    except ValueError:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid date format. Use YYYY-MM-DD",
+        )
+
+    # Check for existing completion
+    existing = await db.execute(
+        select(HabitCompletion).where(
+            HabitCompletion.habit_id == completion_data.habit_id,
+            HabitCompletion.user_id == completion_data.user_id,
+            HabitCompletion.completion_date == completion_date,
+        )
+    )
+    if existing.scalar_one_or_none():
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Habit completion already exists for this date",
+        )
+
+    completion = HabitCompletion(
+        habit_id=completion_data.habit_id,
+        user_id=completion_data.user_id,
+        completion_date=completion_date,
+        completed=completion_data.completed,
+    )
+
+    db.add(completion)
+    await db.commit()
+    await db.refresh(completion)
+
+    logger.info(
+        "Admin created habit completion",
+        extra={
+            "admin_id": current_user.id,
+            "completion_id": completion.id,
+            "habit_id": completion.habit_id,
+            "completion_user_id": completion.user_id,
+        },
+    )
+
+    return AdminHabitCompletionResponse(
+        id=completion.id,
+        habit_id=completion.habit_id,
+        completion_date=completion.completion_date.isoformat() if completion.completion_date else None,
+        completed=completion.completed,
+        created=completion.created.isoformat() if completion.created else None,
+        user_id=completion.user_id,
+    )
+
+
+@router.delete("/habit-completions/{completion_id}")
+@limiter.limit("30/minute")
+async def delete_habit_completion(
+    request: Request,
+    completion_id: int,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(require_admin),
+):
+    """Delete a habit completion (admin only).
+
+    Args:
+        request: HTTP request
+        completion_id: Habit completion ID to delete
+        db: Database session
+        current_user: Current authenticated admin user
+
+    Returns:
+        Success message
+    """
+    result = await db.execute(select(HabitCompletion).where(HabitCompletion.id == completion_id))
+    completion = result.scalar_one_or_none()
+
+    if not completion:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Habit completion not found",
+        )
+
+    await db.delete(completion)
+    await db.commit()
+
+    logger.info(
+        "Admin deleted habit completion",
+        extra={
+            "admin_id": current_user.id,
+            "completion_id": completion_id,
+            "habit_id": completion.habit_id,
+            "completion_user_id": completion.user_id,
+        },
+    )
+
+    return {"message": "Habit completion deleted successfully"}
