@@ -6,7 +6,6 @@ import {
   Moon,
   Plus,
   LogOut,
-  Database,
   Cloud,
   DollarSign,
   TrendingUp,
@@ -21,7 +20,6 @@ import WidgetGrid from './WidgetGrid';
 import BookmarkModal from './BookmarkModal';
 import BookmarkForm from './BookmarkForm';
 import WidgetForm from './WidgetForm';
-import ExportImportModal from './ExportImportModal';
 import DateHeader from './DateHeader';
 
 // Map section names to icons

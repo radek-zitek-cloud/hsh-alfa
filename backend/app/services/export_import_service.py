@@ -7,10 +7,11 @@ from typing import Any, Dict, List
 
 import toml
 import yaml
-from sqlalchemy import select
+from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.bookmark import Bookmark
+from app.models.habit import Habit, HabitCompletion
 from app.models.preference import Preference
 from app.models.section import Section
 from app.models.user import User
@@ -54,9 +55,19 @@ class ExportImportService:
         )
         preferences = preference_result.scalars().all()
 
+        # Fetch all habits for this user
+        habit_result = await db.execute(select(Habit).where(Habit.user_id == user_id))
+        habits = habit_result.scalars().all()
+
+        # Fetch all habit completions for this user
+        habit_completion_result = await db.execute(
+            select(HabitCompletion).where(HabitCompletion.user_id == user_id)
+        )
+        habit_completions = habit_completion_result.scalars().all()
+
         # Convert to dictionaries
         export_data = {
-            "version": "1.1",
+            "version": "1.2",
             "export_info": {
                 "application": "Home Sweet Home",
                 "description": "User-specific application data export",
@@ -67,16 +78,92 @@ class ExportImportService:
                 "widgets": [widget.to_dict() for widget in widgets],
                 "sections": [section.to_dict() for section in sections],
                 "preferences": [preference.to_dict() for preference in preferences],
+                "habits": [habit.to_dict() for habit in habits],
+                "habit_completions": [completion.to_dict() for completion in habit_completions],
             },
             "statistics": {
                 "total_bookmarks": len(bookmarks),
                 "total_widgets": len(widgets),
                 "total_sections": len(sections),
                 "total_preferences": len(preferences),
+                "total_habits": len(habits),
+                "total_habit_completions": len(habit_completions),
             },
         }
 
         return export_data
+
+    @staticmethod
+    async def wipe_user_data(db: AsyncSession, user_id: int) -> Dict[str, int]:
+        """
+        Wipe all data for a specific user from database.
+
+        Args:
+            db: Database session
+            user_id: User ID to wipe data for
+
+        Returns:
+            Dictionary with counts of deleted items
+        """
+        # Delete habit completions first (due to foreign key constraint)
+        habit_completion_result = await db.execute(
+            delete(HabitCompletion).where(HabitCompletion.user_id == user_id)
+        )
+        deleted_habit_completions = habit_completion_result.rowcount
+
+        # Delete habits
+        habit_result = await db.execute(delete(Habit).where(Habit.user_id == user_id))
+        deleted_habits = habit_result.rowcount
+
+        # Delete bookmarks
+        bookmark_result = await db.execute(delete(Bookmark).where(Bookmark.user_id == user_id))
+        deleted_bookmarks = bookmark_result.rowcount
+
+        # Delete widgets
+        widget_result = await db.execute(delete(Widget).where(Widget.user_id == user_id))
+        deleted_widgets = widget_result.rowcount
+
+        # Delete sections
+        section_result = await db.execute(delete(Section).where(Section.user_id == user_id))
+        deleted_sections = section_result.rowcount
+
+        # Delete preferences
+        preference_result = await db.execute(
+            delete(Preference).where(Preference.user_id == user_id)
+        )
+        deleted_preferences = preference_result.rowcount
+
+        await db.commit()
+
+        return {
+            "deleted_bookmarks": deleted_bookmarks,
+            "deleted_widgets": deleted_widgets,
+            "deleted_sections": deleted_sections,
+            "deleted_preferences": deleted_preferences,
+            "deleted_habits": deleted_habits,
+            "deleted_habit_completions": deleted_habit_completions,
+        }
+
+    @staticmethod
+    def parse_import_data(content: str, format: str) -> Dict[str, Any]:
+        """
+        Parse import data from string content.
+
+        Args:
+            content: String content to parse
+            format: Format of the content (json, yaml, toml)
+
+        Returns:
+            Parsed data dictionary
+        """
+        if format == "json":
+            return json.loads(content)
+        elif format == "yaml":
+            return yaml.safe_load(content)
+        elif format == "toml":
+            return toml.loads(content)
+        else:
+            raise ValueError(f"Unsupported format: {format}")
 
     @staticmethod
     def format_as_json(data: Dict[str, Any], pretty: bool = True) -> str:
@@ -251,6 +338,26 @@ class ExportImportService:
                 writer.writerows(preferences)
             output.write("\n\n")
 
+        # Export habits
+        habits = entity_data.get("habits", [])
+        if habits:
+            output.write("# HABITS\n")
+            if habits:
+                writer = csv.DictWriter(output, fieldnames=habits[0].keys())
+                writer.writeheader()
+                writer.writerows(habits)
+            output.write("\n\n")
+
+        # Export habit completions
+        habit_completions = entity_data.get("habit_completions", [])
+        if habit_completions:
+            output.write("# HABIT_COMPLETIONS\n")
+            if habit_completions:
+                writer = csv.DictWriter(output, fieldnames=habit_completions[0].keys())
+                writer.writeheader()
+                writer.writerows(habit_completions)
+            output.write("\n\n")
+
         # Add statistics
         stats = data.get("statistics", {})
         output.write("# STATISTICS\n")
@@ -258,5 +365,7 @@ class ExportImportService:
         output.write(f"Total Widgets,{stats.get('total_widgets', 0)}\n")
         output.write(f"Total Sections,{stats.get('total_sections', 0)}\n")
         output.write(f"Total Preferences,{stats.get('total_preferences', 0)}\n")
+        output.write(f"Total Habits,{stats.get('total_habits', 0)}\n")
+        output.write(f"Total Habit Completions,{stats.get('total_habit_completions', 0)}\n")
 
         return output.getvalue()
