@@ -6,7 +6,6 @@ import {
   Moon,
   Plus,
   LogOut,
-  Database,
   Cloud,
   DollarSign,
   TrendingUp,
@@ -21,7 +20,6 @@ import WidgetGrid from './WidgetGrid';
 import BookmarkModal from './BookmarkModal';
 import BookmarkForm from './BookmarkForm';
 import WidgetForm from './WidgetForm';
-import ExportImportModal from './ExportImportModal';
 import DateHeader from './DateHeader';
 
 // Map section names to icons
@@ -47,7 +45,6 @@ const Dashboard = ({ theme, toggleTheme }) => {
   const navigate = useNavigate();
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [isAddWidgetModalOpen, setIsAddWidgetModalOpen] = useState(false);
-  const [isExportImportModalOpen, setIsExportImportModalOpen] = useState(false);
 
   const isAdmin = user?.role === 'admin';
 
@@ -125,14 +122,6 @@ const Dashboard = ({ theme, toggleTheme }) => {
           {/* Divider between navigation and action icons */}
           {visibleSections.length > 0 && <div className="h-6 w-px bg-[var(--border-color)]" />}
 
-          <button
-            onClick={() => setIsExportImportModalOpen(true)}
-            className="p-2 rounded-lg bg-[var(--bg-secondary)] hover:bg-[var(--border-color)] transition-colors"
-            aria-label="Export/Import Data"
-            title="Export/Import Database"
-          >
-            <Database size={24} />
-          </button>
           <button
             onClick={toggleTheme}
             className="p-2 rounded-lg bg-[var(--bg-secondary)] hover:bg-[var(--border-color)] transition-colors"
@@ -229,12 +218,6 @@ const Dashboard = ({ theme, toggleTheme }) => {
           onCancel={() => setIsAddWidgetModalOpen(false)}
         />
       </BookmarkModal>
-
-      {/* Export/Import Modal */}
-      <ExportImportModal
-        isOpen={isExportImportModalOpen}
-        onClose={() => setIsExportImportModalOpen(false)}
-      />
     </div>
   );
 };
