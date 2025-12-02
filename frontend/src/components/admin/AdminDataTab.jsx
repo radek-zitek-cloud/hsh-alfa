@@ -39,12 +39,12 @@ const AdminDataTab = () => {
       description: 'Human-readable data serialization format',
     },
     { value: 'toml', label: 'TOML', icon: FileText, description: "Tom's Obvious Minimal Language" },
-    { value: 'xml', label: 'XML', icon: FileX2, description: 'Extensible Markup Language' },
+    { value: 'xml', label: 'XML', icon: FileX2, description: 'Extensible Markup Language (export only)' },
     {
       value: 'csv',
       label: 'CSV',
       icon: FileSpreadsheet,
-      description: 'Comma-Separated Values - spreadsheet compatible',
+      description: 'Comma-Separated Values - spreadsheet compatible (export only)',
     },
   ];
 
