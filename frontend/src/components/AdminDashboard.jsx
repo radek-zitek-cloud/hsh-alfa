@@ -9,6 +9,7 @@ import {
   Layers,
   Target,
   Database,
+  Activity,
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { adminApi } from '../services/api';
@@ -20,6 +21,7 @@ import {
   AdminHabitsTab,
   AdminSettingsTab,
   AdminDataTab,
+  AdminSystemTab,
 } from './admin';
 
 const AdminDashboard = () => {
@@ -94,6 +96,7 @@ const AdminDashboard = () => {
     { id: 'habits', label: 'Habits', icon: Target },
     { id: 'settings', label: 'Settings', icon: Settings },
     { id: 'data', label: 'Data', icon: Database },
+    { id: 'system', label: 'System', icon: Activity },
   ];
 
   const renderTabContent = () => {
@@ -136,6 +139,8 @@ const AdminDashboard = () => {
         );
       case 'data':
         return <AdminDataTab />;
+      case 'system':
+        return <AdminSystemTab />;
       default:
         return null;
     }

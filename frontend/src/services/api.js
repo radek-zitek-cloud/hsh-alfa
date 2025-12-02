@@ -234,6 +234,9 @@ export const adminApi = {
   createHabitCompletion: data => api.post('/admin/habit-completions', data),
 
   deleteHabitCompletion: id => api.delete(`/admin/habit-completions/${id}`),
+
+  // System Status
+  getSystemStatus: () => api.get('/admin/system-status'),
 };
 
 export default api;
