@@ -96,7 +96,7 @@ const AdminSystemTab = () => {
       const response = await adminApi.getSystemStatus();
       return response.data;
     },
-    refetchInterval: 30000, // Refresh every 30 seconds
+    refetchInterval: 60000, // Refresh every 60 seconds
   });
 
   const handleRefresh = async () => {

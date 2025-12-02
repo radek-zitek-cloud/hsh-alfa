@@ -397,3 +397,36 @@ class TestSystemStatusModels:
         assert time1 == time2
         assert isinstance(time1, float)
         assert time1 > 0
+
+
+class TestCacheServiceHealthCheck:
+    """Test CacheService health_check method."""
+
+    @pytest.mark.asyncio
+    async def test_health_check_when_disabled(self):
+        """Test health_check returns degraded when Redis is disabled."""
+        from app.services.cache import CacheService
+
+        cache = CacheService()
+        cache._enabled = False
+
+        result = await cache.health_check()
+
+        assert result["status"] == "degraded"
+        assert result["message"] == "Redis is disabled in configuration"
+        assert result["connected"] is False
+
+    @pytest.mark.asyncio
+    async def test_health_check_when_not_connected(self):
+        """Test health_check returns unhealthy when Redis is not connected."""
+        from app.services.cache import CacheService
+
+        cache = CacheService()
+        cache._enabled = True
+        cache._redis = None
+
+        result = await cache.health_check()
+
+        # Will be unhealthy since we can't connect without a real Redis server
+        assert result["status"] in ["unhealthy", "degraded"]
+        assert result["connected"] is False

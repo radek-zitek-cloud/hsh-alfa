@@ -1704,40 +1704,18 @@ async def get_system_status(
             response_time_ms=round(db_response_time, 2),
         )
 
-    # Check Redis status
+    # Check Redis status using the public health_check method
     redis_start = time.time()
     try:
         from app.services.cache import cache_service
 
-        if not settings.REDIS_ENABLED:
-            redis_status = ServiceStatus(
-                status="degraded",
-                message="Redis is disabled in configuration",
-            )
-        elif cache_service._redis is None:
-            # Try to connect if not connected
-            await cache_service.connect()
-            if cache_service._redis is None:
-                redis_status = ServiceStatus(
-                    status="unhealthy",
-                    message="Redis connection not established",
-                )
-            else:
-                await cache_service._redis.ping()
-                redis_response_time = (time.time() - redis_start) * 1000
-                redis_status = ServiceStatus(
-                    status="healthy",
-                    message="Redis connection is active",
-                    response_time_ms=round(redis_response_time, 2),
-                )
-        else:
-            await cache_service._redis.ping()
-            redis_response_time = (time.time() - redis_start) * 1000
-            redis_status = ServiceStatus(
-                status="healthy",
-                message="Redis connection is active",
-                response_time_ms=round(redis_response_time, 2),
-            )
+        health_result = await cache_service.health_check()
+        redis_response_time = (time.time() - redis_start) * 1000
+        redis_status = ServiceStatus(
+            status=health_result["status"],
+            message=health_result["message"],
+            response_time_ms=round(redis_response_time, 2) if health_result["connected"] else None,
+        )
     except Exception as e:
         redis_response_time = (time.time() - redis_start) * 1000
         logger.warning(
