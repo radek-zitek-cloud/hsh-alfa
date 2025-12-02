@@ -91,7 +91,7 @@ async def get_google_auth_url(request: Request):
         )
 
     # Generate state token for CSRF protection
-    state = auth_service.generate_state_token()
+    state = await auth_service.generate_state_token()
     logger.debug("Generated state token for OAuth flow", extra={"state_length": len(state)})
 
     # Build Google OAuth2 authorization URL
@@ -137,7 +137,7 @@ async def oauth_callback(
     )
 
     # Validate state token for CSRF protection
-    if not callback_request.state or not auth_service.validate_state_token(callback_request.state):
+    if not callback_request.state or not await auth_service.validate_state_token(callback_request.state):
         # Log detailed information for security monitoring without revealing to user
         logger.warning(
             "Invalid or missing state token in OAuth callback - possible CSRF attack",
@@ -268,7 +268,7 @@ async def logout(
     """
     if credentials:
         token = credentials.credentials
-        token_blacklisted = auth_service.blacklist_token(token)
+        token_blacklisted = await auth_service.blacklist_token(token)
         if token_blacklisted:
             logger.info(
                 "User logged out and token blacklisted",

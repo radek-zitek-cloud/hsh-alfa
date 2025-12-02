@@ -1,7 +1,7 @@
 """Habit tracking database models."""
 
 import uuid
-from datetime import date, datetime
+from datetime import date, datetime, timezone
 from typing import Optional
 
 from pydantic import BaseModel, Field, field_validator
@@ -24,9 +24,9 @@ class Habit(Base):
     name: Mapped[str] = mapped_column(String(255), nullable=False)
     description: Mapped[str] = mapped_column(Text, nullable=True)
     active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
-    created: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False)
+    created: Mapped[datetime] = mapped_column(DateTime, default=lambda: datetime.now(timezone.utc), nullable=False)
     updated: Mapped[datetime] = mapped_column(
-        DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False
+        DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc), nullable=False
     )
 
     def to_dict(self) -> dict:
@@ -55,7 +55,7 @@ class HabitCompletion(Base):
     )
     completion_date: Mapped[date] = mapped_column(Date, nullable=False)
     completed: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
-    created: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False)
+    created: Mapped[datetime] = mapped_column(DateTime, default=lambda: datetime.now(timezone.utc), nullable=False)
 
     def to_dict(self) -> dict:
         """Convert model to dictionary."""
