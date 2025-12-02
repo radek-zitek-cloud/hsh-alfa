@@ -2,12 +2,8 @@
 
 import json
 import logging
-import os
 from typing import Any, Dict, List, Optional, Type
 
-import yaml
-
-from app.config import settings
 from app.widgets.base_widget import BaseWidget
 
 logger = logging.getLogger(__name__)
@@ -159,52 +155,6 @@ class WidgetRegistry:
         except Exception as e:
             logger.error(f"Failed to load widget config from database: {str(e)}")
             self._widget_configs = []
-
-    def load_config(self, config_path: Optional[str] = None):
-        """
-        Load widget configuration from YAML file (legacy support).
-
-        Args:
-            config_path: Path to configuration file
-        """
-        if config_path is None:
-            config_path = settings.WIDGET_CONFIG_PATH
-
-        if not os.path.exists(config_path):
-            logger.warning(f"Widget config file not found: {config_path}")
-            self._widget_configs = []
-            return
-
-        try:
-            with open(config_path, "r") as f:
-                config_data = yaml.safe_load(f)
-
-            widgets_config = config_data.get("widgets", [])
-            self._widget_configs = widgets_config
-
-            # Create widget instances from config
-            for widget_config in widgets_config:
-                widget_id = widget_config.get("id")
-                widget_type = widget_config.get("type")
-                config = widget_config.get("config", {})
-
-                # Add top-level config items
-                config["enabled"] = widget_config.get("enabled", True)
-                config["refresh_interval"] = widget_config.get("refresh_interval", 3600)
-                config["position"] = widget_config.get("position", {})
-
-                self.create_widget(widget_id, widget_type, config)
-
-            logger.info(f"Loaded {len(widgets_config)} widget configurations from YAML")
-
-        except Exception as e:
-            logger.error(f"Failed to load widget config: {str(e)}")
-            self._widget_configs = []
-
-    def reload_config(self):
-        """Reload widget configuration from file."""
-        self._widget_instances.clear()
-        self.load_config()
 
     def get_all_widgets(self) -> Dict[str, BaseWidget]:
         """

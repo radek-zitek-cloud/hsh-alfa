@@ -122,10 +122,6 @@ class Settings(BaseSettings):
 
         return normalized_value
 
-    # Widget Configuration
-    WIDGET_CONFIG_PATH: str = "/app/config/widgets.yaml"
-    BOOKMARK_CONFIG_PATH: str = "/app/config/bookmarks.json"
-
     # API Keys (optional, can be set per widget)
     WEATHER_API_KEY: Optional[str] = None
     EXCHANGE_RATE_API_KEY: Optional[str] = None
