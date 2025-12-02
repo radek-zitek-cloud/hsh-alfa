@@ -39,7 +39,7 @@ const AdminDashboard = () => {
     queryKey: ['admin-users'],
     queryFn: async () => {
       const response = await adminApi.getUsers();
-      return response.data;
+      return response.data.items;
     },
   });
 
@@ -48,7 +48,7 @@ const AdminDashboard = () => {
     queryKey: ['admin-bookmarks', selectedUserId],
     queryFn: async () => {
       const response = await adminApi.getBookmarks(selectedUserId);
-      return response.data;
+      return response.data.items;
     },
     enabled: activeTab === 'bookmarks',
   });
@@ -58,7 +58,7 @@ const AdminDashboard = () => {
     queryKey: ['admin-widgets', selectedUserId],
     queryFn: async () => {
       const response = await adminApi.getWidgets(selectedUserId);
-      return response.data;
+      return response.data.items;
     },
     enabled: activeTab === 'widgets',
   });
@@ -68,7 +68,7 @@ const AdminDashboard = () => {
     queryKey: ['admin-preferences', selectedUserId],
     queryFn: async () => {
       const response = await adminApi.getPreferences(selectedUserId);
-      return response.data;
+      return response.data.items;
     },
     enabled: activeTab === 'settings',
   });
@@ -78,7 +78,7 @@ const AdminDashboard = () => {
     queryKey: ['admin-sections', selectedUserId],
     queryFn: async () => {
       const response = await adminApi.getSections(selectedUserId);
-      return response.data;
+      return response.data.items;
     },
     enabled: activeTab === 'sections',
   });
@@ -88,7 +88,7 @@ const AdminDashboard = () => {
     queryKey: ['admin-habits', selectedUserId],
     queryFn: async () => {
       const response = await adminApi.getHabits(selectedUserId);
-      return response.data;
+      return response.data.items;
     },
     enabled: activeTab === 'habits',
   });
