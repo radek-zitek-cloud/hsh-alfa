@@ -143,7 +143,14 @@ export const exportImportApi = {
       responseType: 'blob', // Important for file download
     }),
 
-  importData: data => api.post('/import', data),
+  importData: formData =>
+    api.post('/import', formData, {
+      headers: {
+        'Content-Type': 'multipart/form-data',
+      },
+    }),
+
+  wipeData: () => api.delete('/wipe'),
 };
 
 // Admin API

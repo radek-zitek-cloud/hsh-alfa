@@ -3,7 +3,7 @@
 import csv
 import json
 from io import StringIO
-from typing import Any, Dict, List
+from typing import Any, Dict
 
 import toml
 import yaml
