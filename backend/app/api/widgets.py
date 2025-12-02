@@ -6,7 +6,7 @@ from typing import Any, Dict, List
 
 from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import ValidationError
-from sqlalchemy import delete, select
+from sqlalchemy import delete, func, select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.dependencies import require_auth
@@ -600,29 +600,25 @@ async def delete_widget(
             habit_id_to_check = config.get("habit_id")
 
             if habit_id_to_check:
-                # Check if any other widgets are using this habit
+                # Use a single database query with JSON extraction to check if any other widget
+                # uses the same habit. This avoids the N+1 query problem where we would fetch
+                # all widgets and then iterate through them in Python.
+                #
+                # Note: This uses SQLite's json_extract function. If migrating to PostgreSQL,
+                # replace with: config::jsonb->>'habit_id' = :habit_id
+                # or use SQLAlchemy's JSON type casting for database portability.
                 result = await db.execute(
-                    select(Widget).where(
+                    select(func.count()).select_from(Widget).where(
                         Widget.user_id == current_user.id,
                         Widget.widget_type == "habit_tracking",
-                        Widget.widget_id != widget_id,  # Exclude the widget being deleted
-                    )
+                        Widget.widget_id != widget_id,
+                        text("json_extract(config, '$.habit_id') = :habit_id")
+                    ).params(habit_id=habit_id_to_check)
                 )
-                other_widgets = result.scalars().all()
-
-                # Check if any other widget uses the same habit
-                habit_is_used = False
-                for other_widget in other_widgets:
-                    try:
-                        other_config = json.loads(other_widget.config)
-                        if other_config.get("habit_id") == habit_id_to_check:
-                            habit_is_used = True
-                            break
-                    except json.JSONDecodeError:
-                        continue
+                other_widgets_count = result.scalar() or 0
 
                 # If no other widget uses this habit, delete it
-                if not habit_is_used:
+                if other_widgets_count == 0:
                     from app.models.habit import Habit, HabitCompletion
 
                     # Delete habit completions first (foreign key constraint)

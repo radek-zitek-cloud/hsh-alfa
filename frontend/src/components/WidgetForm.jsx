@@ -1,6 +1,13 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { widgetsApi, habitsApi } from '../services/api';
 import { useMutation, useQueryClient, useQuery } from '@tanstack/react-query';
+import {
+  WeatherConfigFields,
+  ExchangeRateConfigFields,
+  NewsConfigFields,
+  MarketConfigFields,
+  HabitTrackingConfigFields,
+} from './widget-config';
 
 // Helper function to format error messages from API responses
 const formatErrorMessage = error => {
@@ -57,7 +64,7 @@ const WidgetForm = ({ widget, onSuccess, onCancel }) => {
     enabled: !isEditMode, // Only fetch when creating new widget
   });
 
-  const habits = habitsData || [];
+  const habits = useMemo(() => habitsData || [], [habitsData]);
 
   // Fetch the specific habit data when editing a habit_tracking widget
   const { data: editingHabitData } = useQuery({
@@ -379,18 +386,36 @@ const WidgetForm = ({ widget, onSuccess, onCancel }) => {
           Widget Configuration
         </label>
         <div className="space-y-4 p-4 bg-[var(--bg-primary)] rounded-lg border border-[var(--border-color)]">
-          {renderConfigFields(
-            formData.type,
-            widgetConfig,
-            handleConfigChange,
-            habits,
-            isEditMode,
-            habitCreationMode,
-            setHabitCreationMode,
-            newHabitData,
-            setNewHabitData,
-            editHabitData,
-            setEditHabitData
+          {formData.type === 'weather' && (
+            <WeatherConfigFields config={widgetConfig} onChange={handleConfigChange} />
+          )}
+          {formData.type === 'exchange_rate' && (
+            <ExchangeRateConfigFields config={widgetConfig} onChange={handleConfigChange} />
+          )}
+          {formData.type === 'news' && (
+            <NewsConfigFields config={widgetConfig} onChange={handleConfigChange} />
+          )}
+          {formData.type === 'market' && (
+            <MarketConfigFields config={widgetConfig} onChange={handleConfigChange} />
+          )}
+          {formData.type === 'habit_tracking' && (
+            <HabitTrackingConfigFields
+              config={widgetConfig}
+              onChange={handleConfigChange}
+              habits={habits}
+              isEditMode={isEditMode}
+              habitCreationMode={habitCreationMode}
+              setHabitCreationMode={setHabitCreationMode}
+              newHabitData={newHabitData}
+              setNewHabitData={setNewHabitData}
+              editHabitData={editHabitData}
+              setEditHabitData={setEditHabitData}
+            />
+          )}
+          {!['weather', 'exchange_rate', 'news', 'market', 'habit_tracking'].includes(formData.type) && (
+            <p className="text-sm text-[var(--text-secondary)]">
+              No additional configuration needed for this widget type.
+            </p>
           )}
         </div>
         {errors.config && <p className="text-red-500 text-sm mt-2">{errors.config}</p>}
@@ -461,330 +486,6 @@ function getDefaultConfigForType(type, habits = []) {
       };
     default:
       return {};
-  }
-}
-
-function renderConfigFields(
-  type,
-  config,
-  onChange,
-  habits = [],
-  isEditMode = false,
-  habitCreationMode = 'existing',
-  setHabitCreationMode = () => {},
-  newHabitData = { name: '', description: '' },
-  setNewHabitData = () => {},
-  editHabitData = { name: '', description: '' },
-  setEditHabitData = () => {}
-) {
-  switch (type) {
-    case 'weather':
-      return (
-        <>
-          <div>
-            <label className="block text-sm text-[var(--text-secondary)] mb-1">
-              Location (City, Country Code)
-            </label>
-            <input
-              type="text"
-              value={config.location || ''}
-              onChange={e => onChange('location', e.target.value)}
-              placeholder="e.g., London, UK"
-              className="w-full px-3 py-2 bg-[var(--bg-secondary)] border border-[var(--border-color)] rounded-lg"
-            />
-          </div>
-          <div>
-            <label className="block text-sm text-[var(--text-secondary)] mb-1">Units</label>
-            <select
-              value={config.units || 'metric'}
-              onChange={e => onChange('units', e.target.value)}
-              className="w-full px-3 py-2 bg-[var(--bg-secondary)] border border-[var(--border-color)] rounded-lg"
-            >
-              <option value="metric">Metric (°C)</option>
-              <option value="imperial">Imperial (°F)</option>
-              <option value="standard">Standard (K)</option>
-            </select>
-          </div>
-          <div className="flex items-center">
-            <input
-              type="checkbox"
-              id="show_forecast"
-              checked={config.show_forecast !== false}
-              onChange={e => onChange('show_forecast', e.target.checked)}
-              className="w-4 h-4"
-            />
-            <label htmlFor="show_forecast" className="ml-2 text-sm text-[var(--text-secondary)]">
-              Show Forecast
-            </label>
-          </div>
-        </>
-      );
-
-    case 'exchange_rate':
-      return (
-        <>
-          <div>
-            <label className="block text-sm text-[var(--text-secondary)] mb-1">Base Currency</label>
-            <input
-              type="text"
-              value={config.base_currency || 'USD'}
-              onChange={e => onChange('base_currency', e.target.value.toUpperCase())}
-              placeholder="USD"
-              className="w-full px-3 py-2 bg-[var(--bg-secondary)] border border-[var(--border-color)] rounded-lg"
-            />
-          </div>
-          <div>
-            <label className="block text-sm text-[var(--text-secondary)] mb-1">
-              Target Currencies (comma-separated)
-            </label>
-            <input
-              type="text"
-              value={
-                Array.isArray(config.target_currencies) ? config.target_currencies.join(', ') : ''
-              }
-              onChange={e =>
-                onChange(
-                  'target_currencies',
-                  e.target.value.split(',').map(c => c.trim().toUpperCase())
-                )
-              }
-              placeholder="EUR, GBP, JPY"
-              className="w-full px-3 py-2 bg-[var(--bg-secondary)] border border-[var(--border-color)] rounded-lg"
-            />
-          </div>
-        </>
-      );
-
-    case 'news':
-      return (
-        <>
-          <div>
-            <label className="block text-sm text-[var(--text-secondary)] mb-1">
-              RSS Feeds (one per line)
-            </label>
-            <textarea
-              value={Array.isArray(config.rss_feeds) ? config.rss_feeds.join('\n') : ''}
-              onChange={e => onChange('rss_feeds', e.target.value.split('\n').filter(Boolean))}
-              rows="4"
-              placeholder="https://hnrss.org/frontpage"
-              className="w-full px-3 py-2 bg-[var(--bg-secondary)] border border-[var(--border-color)] rounded-lg"
-            />
-          </div>
-          <div>
-            <label className="block text-sm text-[var(--text-secondary)] mb-1">Max Articles</label>
-            <input
-              type="number"
-              value={config.max_articles || 10}
-              onChange={e => onChange('max_articles', parseInt(e.target.value))}
-              min="1"
-              max="50"
-              className="w-full px-3 py-2 bg-[var(--bg-secondary)] border border-[var(--border-color)] rounded-lg"
-            />
-          </div>
-        </>
-      );
-
-    case 'market':
-      return (
-        <>
-          <div>
-            <label className="block text-sm text-[var(--text-secondary)] mb-1">
-              Stock Symbols (comma-separated)
-            </label>
-            <input
-              type="text"
-              value={Array.isArray(config.stocks) ? config.stocks.join(', ') : ''}
-              onChange={e =>
-                onChange(
-                  'stocks',
-                  e.target.value
-                    .split(',')
-                    .map(s => s.trim().toUpperCase())
-                    .filter(s => s)
-                )
-              }
-              placeholder="AAPL, GOOGL, MSFT"
-              className="w-full px-3 py-2 bg-[var(--bg-secondary)] border border-[var(--border-color)] rounded-lg"
-            />
-          </div>
-          <div>
-            <label className="block text-sm text-[var(--text-secondary)] mb-1">
-              Crypto Symbols (comma-separated)
-            </label>
-            <input
-              type="text"
-              value={Array.isArray(config.crypto) ? config.crypto.join(', ') : ''}
-              onChange={e =>
-                onChange(
-                  'crypto',
-                  e.target.value
-                    .split(',')
-                    .map(c => c.trim().toUpperCase())
-                    .filter(c => c)
-                )
-              }
-              placeholder="BTC, ETH, SOL"
-              className="w-full px-3 py-2 bg-[var(--bg-secondary)] border border-[var(--border-color)] rounded-lg"
-            />
-          </div>
-        </>
-      );
-
-    case 'habit_tracking':
-      return (
-        <>
-          <div className="space-y-4">
-            {/* Show edit habit fields when in edit mode */}
-            {isEditMode && (
-              <div className="space-y-3">
-                <div className="p-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg">
-                  <p className="text-sm text-blue-700 dark:text-blue-300">
-                    Edit the habit information tracked by this widget.
-                  </p>
-                </div>
-                <div>
-                  <label className="block text-sm text-[var(--text-secondary)] mb-1">
-                    Habit Name *
-                  </label>
-                  <input
-                    type="text"
-                    value={editHabitData.name}
-                    onChange={e => setEditHabitData(prev => ({ ...prev, name: e.target.value }))}
-                    placeholder="e.g., Morning Exercise"
-                    className="w-full px-3 py-2 bg-[var(--bg-secondary)] border border-[var(--border-color)] rounded-lg"
-                    required
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm text-[var(--text-secondary)] mb-1">
-                    Habit Description
-                  </label>
-                  <textarea
-                    value={editHabitData.description}
-                    onChange={e =>
-                      setEditHabitData(prev => ({ ...prev, description: e.target.value }))
-                    }
-                    placeholder="e.g., 30 minutes of cardio or strength training"
-                    rows="2"
-                    className="w-full px-3 py-2 bg-[var(--bg-secondary)] border border-[var(--border-color)] rounded-lg"
-                  />
-                </div>
-              </div>
-            )}
-
-            {/* Only show mode selection when creating new widget */}
-            {!isEditMode && (
-              <div className="flex gap-4 mb-4">
-                <label className="flex items-center cursor-pointer">
-                  <input
-                    type="radio"
-                    name="habitMode"
-                    value="existing"
-                    checked={habitCreationMode === 'existing'}
-                    onChange={e => setHabitCreationMode(e.target.value)}
-                    className="w-4 h-4 text-[var(--accent-color)] border-[var(--border-color)] focus:ring-2 focus:ring-[var(--accent-color)]"
-                  />
-                  <span className="ml-2 text-sm text-[var(--text-primary)]">
-                    Select existing habit
-                  </span>
-                </label>
-                <label className="flex items-center cursor-pointer">
-                  <input
-                    type="radio"
-                    name="habitMode"
-                    value="new"
-                    checked={habitCreationMode === 'new'}
-                    onChange={e => setHabitCreationMode(e.target.value)}
-                    className="w-4 h-4 text-[var(--accent-color)] border-[var(--border-color)] focus:ring-2 focus:ring-[var(--accent-color)]"
-                  />
-                  <span className="ml-2 text-sm text-[var(--text-primary)]">Create new habit</span>
-                </label>
-              </div>
-            )}
-
-            {/* Existing habit selection - only when creating new widget */}
-            {!isEditMode && habitCreationMode === 'existing' && (
-              <div>
-                <label className="block text-sm text-[var(--text-secondary)] mb-1">
-                  Select Habit to Track *
-                </label>
-                {habits.length === 0 ? (
-                  <div className="p-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg">
-                    <p className="text-sm text-blue-700 dark:text-blue-300">
-                      No existing habits found. Switch to &quot;Create new habit&quot; mode to create your first
-                      habit.
-                    </p>
-                  </div>
-                ) : (
-                  <select
-                    value={config.habit_id || ''}
-                    onChange={e => onChange('habit_id', e.target.value)}
-                    className="w-full px-3 py-2 bg-[var(--bg-secondary)] border border-[var(--border-color)] rounded-lg"
-                    required
-                  >
-                    <option value="">-- Select a habit --</option>
-                    {habits.map(habit => (
-                      <option key={habit.id} value={habit.id}>
-                        {habit.name} {habit.description ? `- ${habit.description}` : ''}
-                      </option>
-                    ))}
-                  </select>
-                )}
-              </div>
-            )}
-
-            {/* New habit creation */}
-            {habitCreationMode === 'new' && !isEditMode && (
-              <div className="space-y-3">
-                <div className="p-3 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg">
-                  <p className="text-sm text-green-700 dark:text-green-300">
-                    A new habit will be created and tracked by this widget.
-                  </p>
-                </div>
-                <div>
-                  <label className="block text-sm text-[var(--text-secondary)] mb-1">
-                    Habit Name *
-                  </label>
-                  <input
-                    type="text"
-                    value={newHabitData.name}
-                    onChange={e => setNewHabitData(prev => ({ ...prev, name: e.target.value }))}
-                    placeholder="e.g., Morning Exercise"
-                    className="w-full px-3 py-2 bg-[var(--bg-secondary)] border border-[var(--border-color)] rounded-lg"
-                    required
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm text-[var(--text-secondary)] mb-1">
-                    Habit Description *
-                  </label>
-                  <textarea
-                    value={newHabitData.description}
-                    onChange={e =>
-                      setNewHabitData(prev => ({ ...prev, description: e.target.value }))
-                    }
-                    placeholder="e.g., 30 minutes of cardio or strength training"
-                    rows="2"
-                    className="w-full px-3 py-2 bg-[var(--bg-secondary)] border border-[var(--border-color)] rounded-lg"
-                    required
-                  />
-                </div>
-              </div>
-            )}
-
-            <p className="text-xs text-[var(--text-secondary)] mt-2">
-              Each widget tracks one habit. Create multiple widgets to track multiple habits.
-            </p>
-          </div>
-        </>
-      );
-
-    default:
-      return (
-        <p className="text-sm text-[var(--text-secondary)]">
-          No additional configuration needed for this widget type.
-        </p>
-      );
   }
 }
 
