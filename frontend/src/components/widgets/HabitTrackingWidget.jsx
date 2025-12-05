@@ -12,8 +12,8 @@ const HabitTrackingWidget = ({ widgetId, config }) => {
     refetchInterval: (config?.refresh_interval || 300) * 1000,
   });
 
-  const handleToggleToday = useCallback(
-    async (habitId, todayDate, currentlyCompleted) => {
+  const handleToggleCompletion = useCallback(
+    async (habitId, date, currentlyCompleted) => {
       setIsSubmitting(true);
 
       // Optimistic update: immediately update the UI
@@ -29,7 +29,7 @@ const HabitTrackingWidget = ({ widgetId, config }) => {
                 ? {
                     ...habit,
                     days: habit.days.map(day =>
-                      day.date === todayDate ? { ...day, completed: newCompleted } : day
+                      day.date === date ? { ...day, completed: newCompleted } : day
                     ),
                   }
                 : habit
@@ -41,7 +41,7 @@ const HabitTrackingWidget = ({ widgetId, config }) => {
       try {
         await habitsApi.toggleCompletion({
           habit_id: habitId,
-          completion_date: todayDate,
+          completion_date: date,
           completed: newCompleted,
         });
         // Refetch to ensure server state is in sync
@@ -59,7 +59,7 @@ const HabitTrackingWidget = ({ widgetId, config }) => {
                   ? {
                       ...habit,
                       days: habit.days.map(day =>
-                        day.date === todayDate ? { ...day, completed: currentlyCompleted } : day
+                        day.date === date ? { ...day, completed: currentlyCompleted } : day
                       ),
                     }
                   : habit
@@ -131,7 +131,7 @@ const HabitTrackingWidget = ({ widgetId, config }) => {
         {/* Main action button */}
         <div className="mb-4">
           <button
-            onClick={() => handleToggleToday(habit.id, todayDate, isTodayCompleted)}
+            onClick={() => handleToggleCompletion(habit.id, todayDate, isTodayCompleted)}
             disabled={isSubmitting || !todayDate}
             className={`w-full py-3 px-4 rounded-lg font-medium transition-all ${
               isTodayCompleted
@@ -146,14 +146,16 @@ const HabitTrackingWidget = ({ widgetId, config }) => {
         {/* 7-day history circles */}
         <div className="flex justify-center gap-2">
           {days.map(day => (
-            <div
+            <button
               key={day.date}
-              className={`w-6 h-6 rounded-full border-2 transition-all ${
+              onClick={() => handleToggleCompletion(habit.id, day.date, day.completed)}
+              disabled={isSubmitting}
+              className={`w-6 h-6 rounded-full border-2 transition-all cursor-pointer ${
                 day.completed
-                  ? 'bg-[var(--accent-color)] border-[var(--accent-color)]'
-                  : 'bg-transparent border-[var(--border-color)]'
-              }`}
-              title={`${day.date} - ${day.completed ? 'Completed' : 'Not completed'}`}
+                  ? 'bg-[var(--accent-color)] border-[var(--accent-color)] hover:opacity-80'
+                  : 'bg-transparent border-[var(--border-color)] hover:border-[var(--accent-color)]'
+              } disabled:cursor-not-allowed disabled:opacity-50`}
+              title={`${day.date} - ${day.completed ? 'Completed' : 'Not completed'} - Click to toggle`}
             />
           ))}
         </div>
