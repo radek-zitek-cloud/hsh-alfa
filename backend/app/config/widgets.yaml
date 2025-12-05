@@ -40,12 +40,12 @@ widgets:
       col: 2
       width: 1
       height: 2
-    refresh_interval: 3600  # 1 hour
+    refresh_interval: 14400  # 4 hours
     config:
       base_currency: "EUR"
       target_currencies: ["CZK", "USD", "GBP"]
       show_trend: false
-      # Leave api_key empty to use free ECB data
+      # Uses Yahoo Finance (free, no API key required)
 
   # Additional Weather Widget (Different Location)
   - id: "weather-prague"

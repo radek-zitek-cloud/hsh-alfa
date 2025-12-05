@@ -4,7 +4,6 @@ from typing import Any, Dict, List
 
 import aiohttp
 
-from app.config import settings
 from app.logging_config import get_logger
 from app.widgets.base_widget import BaseWidget
 
@@ -58,77 +57,32 @@ class ExchangeRateWidget(BaseWidget):
 
     async def fetch_data(self) -> Dict[str, Any]:
         """
-        Fetch exchange rate data from exchangerate-api.com.
+        Fetch exchange rate data from Yahoo Finance.
 
         Returns:
             Dictionary containing exchange rate data
         """
         base_currency = self.config.get("base_currency", "USD")
         target_currencies = self.config.get("target_currencies", [])
-        show_trend = self.config.get("show_trend", False)
-        api_key = self.config.get("api_key") or settings.EXCHANGE_RATE_API_KEY
-
-        # Use free API if no key provided (European Central Bank)
-        if not api_key:
-            logger.info(
-                "No API key provided, using ECB free API",
-                extra={
-                    "widget_type": self.widget_type,
-                    "widget_id": self.widget_id,
-                    "base_currency": base_currency,
-                },
-            )
-            return await self._fetch_from_ecb(base_currency, target_currencies)
-
-        # Use exchangerate-api.com with API key
-        url = f"https://v6.exchangerate-api.com/v6/{api_key}/latest/{base_currency}"
 
         logger.info(
-            "Fetching exchange rates from exchangerate-api.com",
+            "Fetching exchange rates from Yahoo Finance",
             extra={
                 "widget_type": self.widget_type,
                 "widget_id": self.widget_id,
                 "base_currency": base_currency,
-                "api_url": url,
+                "num_targets": len(target_currencies),
             },
         )
 
-        async with aiohttp.ClientSession() as session:
-            async with session.get(url) as response:
-                logger.debug(
-                    "Exchange rate API response received",
-                    extra={
-                        "widget_type": self.widget_type,
-                        "widget_id": self.widget_id,
-                        "response_status": response.status,
-                        "api_url": url,
-                    },
-                )
-
-                if response.status != 200:
-                    error_text = await response.text()
-                    logger.warning(
-                        f"Exchange rate API returned error: {response.status}",
-                        extra={
-                            "widget_type": self.widget_type,
-                            "widget_id": self.widget_id,
-                            "response_status": response.status,
-                            "error_text": error_text,
-                            "api_url": url,
-                        },
-                    )
-                    raise Exception(f"Exchange rate API error: {response.status} - {error_text}")
-
-                data = await response.json()
-
-        # Transform data to widget format
+        data = await self._fetch_from_yahoo_finance(base_currency, target_currencies)
         return self.transform_data(data, target_currencies)
 
-    async def _fetch_from_ecb(
+    async def _fetch_from_yahoo_finance(
         self, base_currency: str, target_currencies: List[str]
     ) -> Dict[str, Any]:
         """
-        Fetch exchange rates from European Central Bank (free, no API key).
+        Fetch exchange rates from Yahoo Finance (free, no API key required).
 
         Args:
             base_currency: Base currency code
@@ -137,97 +91,128 @@ class ExchangeRateWidget(BaseWidget):
         Returns:
             Exchange rate data
         """
-        # ECB provides rates with EUR as base
-        url = "https://www.ecb.europa.eu/stats/eurofxref/eurofxref-daily.xml"
+        rates = {}
+        base_url = "https://query1.finance.yahoo.com/v8/finance/chart"
 
-        logger.info(
-            "Fetching exchange rates from European Central Bank (free API)",
-            extra={
-                "widget_type": self.widget_type,
-                "widget_id": self.widget_id,
-                "base_currency": base_currency,
-                "api_url": url,
-            },
-        )
+        # Add headers to avoid being blocked by Yahoo Finance
+        headers = {
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36"
+        }
 
-        async with aiohttp.ClientSession() as session:
-            async with session.get(url) as response:
-                logger.debug(
-                    "ECB API response received",
-                    extra={
-                        "widget_type": self.widget_type,
-                        "widget_id": self.widget_id,
-                        "response_status": response.status,
-                        "api_url": url,
-                    },
-                )
+        async with aiohttp.ClientSession(headers=headers) as session:
+            for target_currency in target_currencies:
+                try:
+                    # Yahoo Finance format for currency pairs: EURUSD=X
+                    symbol = f"{base_currency}{target_currency}=X"
+                    url = f"{base_url}/{symbol}"
+                    params = {
+                        "interval": "1d",
+                        "range": "1d",
+                    }
 
-                if response.status != 200:
-                    logger.warning(
-                        f"ECB API returned error: {response.status}",
+                    logger.debug(
+                        "Fetching exchange rate from Yahoo Finance",
                         extra={
                             "widget_type": self.widget_type,
                             "widget_id": self.widget_id,
-                            "response_status": response.status,
+                            "symbol": symbol,
                             "api_url": url,
                         },
                     )
-                    raise Exception(f"ECB API error: {response.status}")
 
-                xml_data = await response.text()
+                    async with session.get(url, params=params) as response:
+                        logger.debug(
+                            "Yahoo Finance response received",
+                            extra={
+                                "widget_type": self.widget_type,
+                                "widget_id": self.widget_id,
+                                "symbol": symbol,
+                                "response_status": response.status,
+                                "api_url": url,
+                            },
+                        )
 
-        # Parse XML (simple parsing for the ECB format)
-        import xml.etree.ElementTree as ET
+                        if response.status != 200:
+                            logger.warning(
+                                f"Failed to fetch {symbol}: {response.status}",
+                                extra={
+                                    "widget_type": self.widget_type,
+                                    "widget_id": self.widget_id,
+                                    "symbol": symbol,
+                                    "response_status": response.status,
+                                    "api_url": url,
+                                },
+                            )
+                            continue
 
-        root = ET.fromstring(xml_data)
+                        data = await response.json()
 
-        # Extract rates from XML
-        rates = {"EUR": 1.0}
-        for cube in root.findall(
-            ".//{http://www.ecb.int/vocabulary/2002-08-01/eurofxref}Cube[@currency]"
-        ):
-            currency = cube.get("currency")
-            rate = float(cube.get("rate"))
-            rates[currency] = rate
+                        # Extract rate from Yahoo Finance response
+                        chart = data.get("chart", {})
+                        result = chart.get("result", [])
 
-        logger.debug(
-            "ECB exchange rates parsed",
+                        if not result:
+                            logger.warning(
+                                f"No data for currency pair {symbol}",
+                                extra={
+                                    "widget_type": self.widget_type,
+                                    "widget_id": self.widget_id,
+                                    "symbol": symbol,
+                                },
+                            )
+                            continue
+
+                        quote_data = result[0]
+                        meta = quote_data.get("meta", {})
+
+                        # Get current exchange rate
+                        current_rate = meta.get("regularMarketPrice")
+
+                        if current_rate is None:
+                            logger.warning(
+                                f"No rate data for {symbol}",
+                                extra={
+                                    "widget_type": self.widget_type,
+                                    "widget_id": self.widget_id,
+                                    "symbol": symbol,
+                                },
+                            )
+                            continue
+
+                        rates[target_currency] = current_rate
+
+                        logger.debug(
+                            "Exchange rate retrieved",
+                            extra={
+                                "widget_type": self.widget_type,
+                                "widget_id": self.widget_id,
+                                "symbol": symbol,
+                                "rate": current_rate,
+                            },
+                        )
+
+                except Exception as e:
+                    logger.error(
+                        f"Error fetching {target_currency}: {str(e)}",
+                        extra={
+                            "widget_type": self.widget_type,
+                            "widget_id": self.widget_id,
+                            "target_currency": target_currency,
+                            "error_type": type(e).__name__,
+                        },
+                        exc_info=True,
+                    )
+                    continue
+
+        logger.info(
+            "Yahoo Finance data fetch completed",
             extra={
                 "widget_type": self.widget_type,
                 "widget_id": self.widget_id,
-                "num_rates": len(rates),
+                "currencies_requested": len(target_currencies),
+                "currencies_retrieved": len(rates),
             },
         )
-
-        # Convert to requested base currency
-        if base_currency != "EUR":
-            if base_currency not in rates:
-                logger.warning(
-                    f"Base currency {base_currency} not available in ECB data",
-                    extra={
-                        "widget_type": self.widget_type,
-                        "widget_id": self.widget_id,
-                        "base_currency": base_currency,
-                        "available_currencies": list(rates.keys()),
-                    },
-                )
-                raise Exception(f"Base currency {base_currency} not available in ECB data")
-
-            base_rate = rates[base_currency]
-            # Convert all rates to the new base
-            converted_rates = {}
-            for currency, rate in rates.items():
-                converted_rates[currency] = rate / base_rate
-            rates = converted_rates
-
-            logger.debug(
-                "Exchange rates converted to requested base currency",
-                extra={
-                    "widget_type": self.widget_type,
-                    "widget_id": self.widget_id,
-                    "base_currency": base_currency,
-                },
-            )
 
         # Build response in similar format to exchangerate-api
         return {
