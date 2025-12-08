@@ -119,6 +119,30 @@ const HabitTrackingWidget = ({ widgetId, config }) => {
   const isTodayCompleted = todayData?.completed || false;
   const todayDate = todayData?.date;
 
+  // Calculate current streak
+  // Streak counts consecutive completed days, ending at the most recent completed day
+  // If today is not completed, we don't count it but it doesn't break the streak
+  const calculateStreak = () => {
+    if (days.length === 0) return 0;
+
+    let streak = 0;
+    // Start from the most recent day and work backwards
+    for (let i = days.length - 1; i >= 0; i--) {
+      const day = days[i];
+      if (day.completed) {
+        streak++;
+      } else if (!day.is_today) {
+        // If a past day is not completed, the streak is broken
+        break;
+      }
+      // If it's today and not completed, we skip it but don't break the streak
+    }
+
+    return streak;
+  };
+
+  const currentStreak = calculateStreak();
+
   return (
     <div className="widget-card">
       <div className="flex flex-col h-full">
@@ -144,7 +168,7 @@ const HabitTrackingWidget = ({ widgetId, config }) => {
         </div>
 
         {/* 7-day history circles */}
-        <div className="flex justify-center gap-2">
+        <div className="flex justify-center gap-2 mb-3">
           {days.map(day => (
             <button
               key={day.date}
@@ -158,6 +182,13 @@ const HabitTrackingWidget = ({ widgetId, config }) => {
               title={`${day.date} - ${day.completed ? 'Completed' : 'Not completed'} - Click to toggle`}
             />
           ))}
+        </div>
+
+        {/* Current streak display */}
+        <div className="text-center">
+          <p className="text-xs text-[var(--text-secondary)]">
+            Current streak: <span className="font-semibold text-[var(--text-primary)]">{currentStreak} {currentStreak === 1 ? 'day' : 'days'}</span>
+          </p>
         </div>
       </div>
     </div>
