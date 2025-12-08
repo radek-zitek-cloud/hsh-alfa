@@ -97,10 +97,8 @@ const WidgetForm = ({ widget, onSuccess, onCancel }) => {
   });
 
   // State for creating new habit when creating habit_tracking widget
-  // Default to 'new' if no habits exist, otherwise 'existing'
-  const [habitCreationMode, setHabitCreationMode] = useState(() => {
-    return habits.length === 0 ? 'new' : 'existing';
-  });
+  // Always default to 'new' - always create a new habit
+  const [habitCreationMode, setHabitCreationMode] = useState('new');
   const [newHabitData, setNewHabitData] = useState({
     name: '',
     description: '',
@@ -129,12 +127,6 @@ const WidgetForm = ({ widget, onSuccess, onCancel }) => {
     }
   }, [formData.type, habits, isEditMode]);
 
-  // Update habitCreationMode when habits change (e.g., when loaded)
-  useEffect(() => {
-    if (!isEditMode && habits.length === 0 && habitCreationMode === 'existing') {
-      setHabitCreationMode('new');
-    }
-  }, [habits.length, isEditMode, habitCreationMode]);
 
   const [errors, setErrors] = useState({});
 
@@ -193,17 +185,14 @@ const WidgetForm = ({ widget, onSuccess, onCancel }) => {
     if (formData.refresh_interval < 60)
       newErrors.refresh_interval = 'Refresh interval must be at least 60 seconds';
 
-    // Validate habit_tracking widget has a habit_id or new habit data
+    // Validate habit_tracking widget has new habit data
     if (formData.type === 'habit_tracking') {
       if (!isEditMode) {
-        if (habitCreationMode === 'existing' && !widgetConfig.habit_id) {
-          newErrors.config = 'Please select a habit to track';
-        } else if (habitCreationMode === 'new') {
-          if (!newHabitData.name.trim()) {
-            newErrors.config = 'Habit name is required';
-          } else if (!newHabitData.description.trim()) {
-            newErrors.config = 'Habit description is required';
-          }
+        // Always creating a new habit
+        if (!newHabitData.name.trim()) {
+          newErrors.config = 'Habit name is required';
+        } else if (!newHabitData.description.trim()) {
+          newErrors.config = 'Habit description is required';
         }
       } else {
         // Validate edit habit data in edit mode
@@ -223,8 +212,8 @@ const WidgetForm = ({ widget, onSuccess, onCancel }) => {
       config: widgetConfig,
     };
 
-    // If creating a new habit with the widget, include the habit data
-    if (!isEditMode && formData.type === 'habit_tracking' && habitCreationMode === 'new') {
+    // If creating a habit_tracking widget, always include the new habit data
+    if (!isEditMode && formData.type === 'habit_tracking') {
       data.create_habit = {
         name: newHabitData.name.trim(),
         description: newHabitData.description.trim(),
