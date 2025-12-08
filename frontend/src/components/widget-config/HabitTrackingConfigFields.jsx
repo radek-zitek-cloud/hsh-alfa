@@ -53,11 +53,6 @@ const HabitTrackingConfigFields = ({
       {/* New habit creation - always shown when creating new widget */}
       {!isEditMode && (
         <div className="space-y-3">
-          <div className="p-3 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg">
-            <p className="text-sm text-green-700 dark:text-green-300">
-              A new habit will be created and tracked by this widget.
-            </p>
-          </div>
           <div>
             <label className="block text-sm text-[var(--text-secondary)] mb-1">
               Habit Name *
