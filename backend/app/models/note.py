@@ -3,7 +3,7 @@ from typing import Optional
 from sqlalchemy import Integer, String, Text, DateTime, ForeignKey
 from sqlalchemy.orm import Mapped, mapped_column
 from pydantic import BaseModel
-from .base import Base
+from app.services.database import Base
 
 
 class Note(Base):
