@@ -7,6 +7,7 @@ import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import rehypeRaw from 'rehype-raw';
 import { useAuth } from '../contexts/AuthContext';
+import NoteTree from './NoteTree';
 
 // Markdown syntax helper component
 function MarkdownHelper() {
@@ -152,8 +153,8 @@ function NotesPage({ theme, toggleTheme }) {
     }
   };
 
-  const handleSelectNote = note => {
-    setSelectedNoteId(note.id);
+  const handleSelectNote = noteId => {
+    setSelectedNoteId(noteId);
     setIsEditing(false);
     setIsCreating(false);
   };
@@ -228,9 +229,9 @@ function NotesPage({ theme, toggleTheme }) {
 
       {/* Main content area with two panels */}
       <div className="flex-1 flex overflow-hidden">
-        {/* Left panel - Notes list */}
+        {/* Left panel - Notes tree */}
         <div
-          className="w-80 border-r overflow-y-auto"
+          className="w-[480px] border-r overflow-y-auto"
           style={{ borderColor: 'var(--border-color)' }}
         >
           {isCreating && (
@@ -284,39 +285,14 @@ function NotesPage({ theme, toggleTheme }) {
               <p className="text-sm mt-2">Click "New Note" to create one</p>
             </div>
           ) : (
-            notes.map(note => (
-              <div
-                key={note.id}
-                onClick={() => handleSelectNote(note)}
-                className="p-4 border-b cursor-pointer transition-colors"
-                style={{
-                  backgroundColor:
-                    note.id === selectedNoteId ? 'var(--bg-secondary)' : 'transparent',
-                  borderColor: 'var(--border-color)',
-                }}
-                onMouseEnter={e =>
-                  note.id !== selectedNoteId &&
-                  (e.currentTarget.style.backgroundColor = 'var(--bg-secondary)')
-                }
-                onMouseLeave={e =>
-                  note.id !== selectedNoteId &&
-                  (e.currentTarget.style.backgroundColor = 'transparent')
-                }
-              >
-                <div className="font-semibold mb-1" style={{ color: 'var(--text-primary)' }}>
-                  {note.title}
-                </div>
-                <div
-                  className="text-sm truncate"
-                  style={{ color: 'var(--text-secondary)' }}
-                >
-                  {note.content || 'No content'}
-                </div>
-                <div className="text-xs mt-2" style={{ color: 'var(--text-secondary)' }}>
-                  {new Date(note.updated).toLocaleDateString()}
-                </div>
-              </div>
-            ))
+            <div className="p-4">
+              <NoteTree
+                notes={notes}
+                selectedNoteId={selectedNoteId}
+                onSelectNote={handleSelectNote}
+                isCreating={isCreating}
+              />
+            </div>
           )}
         </div>
 

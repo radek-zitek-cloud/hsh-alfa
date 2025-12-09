@@ -7,7 +7,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.dependencies import require_auth
 from app.logging_config import get_logger
-from app.models.note import NoteCreate, NoteResponse, NoteUpdate
+from app.models.note import NoteCreate, NoteReorder, NoteResponse, NoteUpdate
 from app.models.user import User
 from app.services.database import get_db
 from app.services.note_service import NoteService
@@ -206,3 +206,55 @@ async def delete_note(
         raise HTTPException(status_code=404, detail="Note not found")
 
     logger.info("Note deleted", extra={"note_id": note_id, "user_id": current_user.id})
+
+
+@router.patch("/{note_id}/reorder", response_model=NoteResponse)
+@limiter.limit("50/minute")
+async def reorder_note(
+    request: Request,
+    note_id: int,
+    reorder_data: NoteReorder,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(require_auth),
+):
+    """
+    Reorder a note by changing its parent and/or position.
+
+    Args:
+        note_id: Note ID
+        reorder_data: New parent and position
+        db: Database session
+        current_user: Current authenticated user
+
+    Returns:
+        Reordered note
+    """
+    logger.info(
+        "Reordering note",
+        extra={
+            "note_id": note_id,
+            "user_id": current_user.id,
+            "parent_id": reorder_data.parent_id,
+            "position": reorder_data.position,
+        },
+    )
+
+    service = NoteService(db)
+    note = await service.reorder_note(note_id, reorder_data, current_user.id)
+
+    if not note:
+        logger.warning(
+            "Note not found for reordering",
+            extra={"note_id": note_id, "user_id": current_user.id},
+        )
+        raise HTTPException(status_code=404, detail="Note not found")
+
+    logger.info(
+        "Note reordered",
+        extra={
+            "note_id": note_id,
+            "user_id": current_user.id,
+        },
+    )
+
+    return NoteResponse(**note.to_dict())
