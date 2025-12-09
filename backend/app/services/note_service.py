@@ -209,42 +209,69 @@ class NoteService:
         new_parent = reorder_data.parent_id
         new_position = reorder_data.position
 
-        # Get siblings in the new parent (excluding the note being moved)
-        query = select(Note).where(
-            and_(
-                Note.user_id == user_id,
-                Note.parent_id == new_parent,
-                Note.id != note_id
-            )
-        ).order_by(Note.position)
-        result = await self.db.execute(query)
-        siblings = result.scalars().all()
-
-        # For same-parent reordering, use a simpler swap logic
+        # For same-parent reordering (moving up/down within same level)
         if old_parent == new_parent:
-            # Find the sibling at the target position
-            target_sibling = None
-            for sibling in siblings:
-                if sibling.position == new_position:
-                    target_sibling = sibling
-                    break
+            # Get all siblings INCLUDING the note being moved
+            query = select(Note).where(
+                and_(
+                    Note.user_id == user_id,
+                    Note.parent_id == new_parent
+                )
+            ).order_by(Note.position)
+            result = await self.db.execute(query)
+            all_siblings = list(result.scalars().all())
 
-            if target_sibling:
-                # Simple swap: exchange positions
-                target_sibling.position = old_position
-                note.position = new_position
-            else:
-                # Target position is empty, just move
-                note.position = new_position
+            # Find the note being moved and the target note
+            moving_note = None
+            target_note = None
+
+            for sibling in all_siblings:
+                if sibling.id == note_id:
+                    moving_note = sibling
+                elif sibling.position == new_position:
+                    target_note = sibling
+
+            if target_note and moving_note:
+                # Swap the two notes' positions
+                moving_note.position = new_position
+                target_note.position = old_position
+
+                # Normalize all positions to be sequential (0, 1, 2, ...)
+                # Sort by current position and renumber
+                all_siblings.sort(key=lambda n: n.position)
+                for idx, sibling in enumerate(all_siblings):
+                    sibling.position = idx
+
+                logger.debug(
+                    f"Swapped positions: note {note_id} ({old_position}->{new_position}) with note {target_note.id} ({new_position}->{old_position})",
+                    extra={
+                        "operation": "reorder_note_swap",
+                        "note_id": note_id,
+                        "target_note_id": target_note.id,
+                    }
+                )
         else:
-            # Different parent: use the original insert logic
-            # Adjust positions of siblings to make room for the moved note
-            for sibling in siblings:
-                if sibling.position >= new_position:
-                    sibling.position += 1
+            # Different parent: move to new parent
+            # Get siblings in the new parent (excluding the note being moved)
+            query = select(Note).where(
+                and_(
+                    Note.user_id == user_id,
+                    Note.parent_id == new_parent,
+                    Note.id != note_id
+                )
+            ).order_by(Note.position)
+            result = await self.db.execute(query)
+            siblings = list(result.scalars().all())
 
+            # Update the note's parent and position
             note.parent_id = new_parent
             note.position = new_position
+
+            # Normalize positions for the new parent's children
+            siblings.append(note)
+            siblings.sort(key=lambda n: n.position)
+            for idx, sibling in enumerate(siblings):
+                sibling.position = idx
 
         note.updated = datetime.utcnow()
 
