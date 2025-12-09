@@ -119,29 +119,8 @@ const HabitTrackingWidget = ({ widgetId, config }) => {
   const isTodayCompleted = todayData?.completed || false;
   const todayDate = todayData?.date;
 
-  // Calculate current streak
-  // Streak counts consecutive completed days, ending at the most recent completed day
-  // If today is not completed, we don't count it but it doesn't break the streak
-  const calculateStreak = () => {
-    if (days.length === 0) return 0;
-
-    let streak = 0;
-    // Start from the most recent day and work backwards
-    for (let i = days.length - 1; i >= 0; i--) {
-      const day = days[i];
-      if (day.completed) {
-        streak++;
-      } else if (!day.is_today) {
-        // If a past day is not completed, the streak is broken
-        break;
-      }
-      // If it's today and not completed, we skip it but don't break the streak
-    }
-
-    return streak;
-  };
-
-  const currentStreak = calculateStreak();
+  // Use current streak from backend (which calculates based on all historical data)
+  const currentStreak = habit.current_streak || 0;
 
   return (
     <div className="widget-card">

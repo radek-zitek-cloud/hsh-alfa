@@ -52,6 +52,63 @@ class HabitTrackingWidget(BaseWidget):
             return False
         return True
 
+    async def _calculate_current_streak(self, db: AsyncSession) -> int:
+        """
+        Calculate the current streak for the habit by examining all historical data.
+
+        A streak counts consecutive completed days, ending at the most recent completed day.
+        If today is not completed, we don't count it but it doesn't break the streak.
+
+        Args:
+            db: Database session
+
+        Returns:
+            Current streak count
+        """
+        today = date.today()
+
+        # Fetch ALL completions for this habit, ordered by date descending
+        completions_stmt = (
+            select(HabitCompletion)
+            .where(
+                and_(
+                    HabitCompletion.user_id == self.user_id,
+                    HabitCompletion.habit_id == self.habit_id,
+                    HabitCompletion.completion_date <= today,
+                )
+            )
+            .order_by(HabitCompletion.completion_date.desc())
+        )
+        completions_result = await db.execute(completions_stmt)
+        all_completions = completions_result.scalars().all()
+
+        if not all_completions:
+            return 0
+
+        # Build a map of dates to completion status
+        completions_map: Dict[date, bool] = {}
+        for completion in all_completions:
+            completions_map[completion.completion_date] = completion.completed
+
+        # Calculate streak by going backwards from today
+        streak = 0
+        current_date = today
+
+        # Check if today is completed
+        today_completed = completions_map.get(today, False)
+
+        # If today is completed, start counting from today
+        # If today is not completed, start counting from yesterday (today doesn't break the streak)
+        if not today_completed:
+            current_date = today - timedelta(days=1)
+
+        # Count backwards while days are completed
+        while current_date in completions_map and completions_map[current_date]:
+            streak += 1
+            current_date -= timedelta(days=1)
+
+        return streak
+
     async def fetch_data(self) -> Dict[str, Any]:
         """
         Fetch habit data from database.
@@ -94,7 +151,7 @@ class HabitTrackingWidget(BaseWidget):
                     "end_date": end_date.isoformat(),
                 }
 
-            # Fetch completions for this habit in the date range
+            # Fetch completions for this habit in the date range (for display)
             completions_stmt = select(HabitCompletion).where(
                 and_(
                     HabitCompletion.user_id == self.user_id,
@@ -133,11 +190,15 @@ class HabitTrackingWidget(BaseWidget):
                 )
                 current_date += timedelta(days=1)
 
+            # Calculate the actual current streak using all historical data
+            current_streak = await self._calculate_current_streak(db)
+
             habit_data = {
                 "id": habit.habit_id,
                 "name": habit.name,
                 "description": habit.description,
                 "days": dates_data,
+                "current_streak": current_streak,
             }
 
             return {
