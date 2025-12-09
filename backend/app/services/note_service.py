@@ -8,11 +8,11 @@ separated from the API layer for better maintainability and testability.
 from datetime import datetime
 from typing import List, Optional
 
-from sqlalchemy import select
+from sqlalchemy import select, and_
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.logging_config import get_logger
-from app.models.note import Note, NoteCreate, NoteUpdate
+from app.models.note import Note, NoteCreate, NoteUpdate, NoteReorder
 
 logger = get_logger(__name__)
 
@@ -31,15 +31,19 @@ class NoteService:
 
     async def list_notes(self, user_id: int) -> List[Note]:
         """
-        List all notes for a user, ordered by last updated.
+        List all notes for a user, ordered by position within parent.
 
         Args:
             user_id: User ID to filter notes
 
         Returns:
-            List of notes
+            List of notes ordered by parent_id and position
         """
-        query = select(Note).where(Note.user_id == user_id).order_by(Note.updated.desc())
+        query = (
+            select(Note)
+            .where(Note.user_id == user_id)
+            .order_by(Note.parent_id.is_(None).desc(), Note.parent_id, Note.position)
+        )
         result = await self.db.execute(query)
         notes = result.scalars().all()
         logger.debug(
@@ -79,10 +83,26 @@ class NoteService:
         Returns:
             Created note
         """
+        # If position not specified, add to end of siblings
+        position = note_data.position
+        if position is None:
+            # Get max position for siblings
+            query = select(Note).where(
+                and_(
+                    Note.user_id == user_id,
+                    Note.parent_id == note_data.parent_id
+                )
+            )
+            result = await self.db.execute(query)
+            siblings = result.scalars().all()
+            position = len(siblings)
+
         note = Note(
             user_id=user_id,
             title=note_data.title,
             content=note_data.content or "",
+            parent_id=note_data.parent_id,
+            position=position,
         )
         self.db.add(note)
         await self.db.commit()
@@ -94,6 +114,8 @@ class NoteService:
                 "note_id": note.id,
                 "user_id": user_id,
                 "title": note.title,
+                "parent_id": note.parent_id,
+                "position": position,
             },
         )
         return note
@@ -119,6 +141,10 @@ class NoteService:
             note.title = note_data.title
         if note_data.content is not None:
             note.content = note_data.content
+        if note_data.parent_id is not None:
+            note.parent_id = note_data.parent_id
+        if note_data.position is not None:
+            note.position = note_data.position
 
         note.updated = datetime.utcnow()
 
@@ -160,3 +186,69 @@ class NoteService:
             },
         )
         return True
+
+    async def reorder_note(self, note_id: int, reorder_data: NoteReorder, user_id: int) -> Optional[Note]:
+        """
+        Reorder a note by changing its parent and/or position.
+        This method handles position adjustments for siblings.
+
+        Args:
+            note_id: Note ID
+            reorder_data: New parent and position
+            user_id: User ID
+
+        Returns:
+            Updated note if found, None otherwise
+        """
+        note = await self.get_note(note_id, user_id)
+        if not note:
+            return None
+
+        old_parent = note.parent_id
+        old_position = note.position
+        new_parent = reorder_data.parent_id
+        new_position = reorder_data.position
+
+        # Get siblings in the new parent (excluding the note being moved)
+        query = select(Note).where(
+            and_(
+                Note.user_id == user_id,
+                Note.parent_id == new_parent,
+                Note.id != note_id
+            )
+        ).order_by(Note.position)
+        result = await self.db.execute(query)
+        siblings = result.scalars().all()
+
+        # Adjust positions of siblings to make room for the moved note
+        for sibling in siblings:
+            if sibling.position >= new_position:
+                sibling.position += 1
+
+        # Update the note
+        note.parent_id = new_parent
+        note.position = new_position
+        note.updated = datetime.utcnow()
+
+        # If moving within the same parent and old position was before new position,
+        # we need to adjust positions differently
+        if old_parent == new_parent and old_position < new_position:
+            for sibling in siblings:
+                if old_position < sibling.position <= new_position:
+                    sibling.position -= 1
+
+        await self.db.commit()
+        await self.db.refresh(note)
+        logger.info(
+            "Reordered note",
+            extra={
+                "operation": "reorder_note",
+                "note_id": note_id,
+                "user_id": user_id,
+                "old_parent": old_parent,
+                "new_parent": new_parent,
+                "old_position": old_position,
+                "new_position": new_position,
+            },
+        )
+        return note

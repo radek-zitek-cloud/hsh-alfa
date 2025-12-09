@@ -146,6 +146,8 @@ export const notesApi = {
   update: (id, data) => api.put(`/notes/${id}`, data),
 
   delete: id => api.delete(`/notes/${id}`),
+
+  reorder: (id, data) => api.patch(`/notes/${id}/reorder`, data),
 };
 
 // Export/Import API
