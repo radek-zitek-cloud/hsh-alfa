@@ -17,9 +17,10 @@ import {
 import { notesApi } from '../services/api';
 import NoteTreeItem from './NoteTreeItem';
 
-const NoteTree = ({ notes, selectedNoteId, onSelectNote, isCreating }) => {
+const NoteTree = ({ notes, selectedNoteId, onSelectNote, isCreating, onCreateSubnote }) => {
   const [expandedNodes, setExpandedNodes] = useState(new Set());
   const [activeId, setActiveId] = useState(null);
+  const [overId, setOverId] = useState(null);
   const queryClient = useQueryClient();
 
   const sensors = useSensors(
@@ -112,9 +113,15 @@ const NoteTree = ({ notes, selectedNoteId, onSelectNote, isCreating }) => {
     setActiveId(event.active.id);
   };
 
+  const handleDragOver = event => {
+    const { over } = event;
+    setOverId(over ? over.id : null);
+  };
+
   const handleDragEnd = event => {
     const { active, over } = event;
     setActiveId(null);
+    setOverId(null);
 
     if (!over || active.id === over.id) {
       return;
@@ -130,24 +137,39 @@ const NoteTree = ({ notes, selectedNoteId, onSelectNote, isCreating }) => {
     const activeNote = flattenedNotes[activeIndex];
     const overNote = flattenedNotes[overIndex];
 
+    // Check if the active note is an ancestor of the over note
+    // to prevent circular references
+    const isAncestor = (noteId, potentialAncestorId) => {
+      let currentNote = notes.find(n => n.id === noteId);
+      while (currentNote && currentNote.parent_id) {
+        if (currentNote.parent_id === potentialAncestorId) {
+          return true;
+        }
+        currentNote = notes.find(n => n.id === currentNote.parent_id);
+      }
+      return false;
+    };
+
+    if (isAncestor(overNote.id, activeNote.id)) {
+      return; // Prevent circular reference
+    }
+
     // Determine new parent and position
     let newParentId = overNote.parent_id;
     let newPosition = overNote.position;
 
-    // If dropping on a note with children that is expanded, make it a child
-    const overHasChildren = overNote.children && overNote.children.length > 0;
-    const overIsExpanded = expandedNodes.has(overNote.id);
+    // If dropping on a note, make it a child (this is the key change!)
+    // Make the dragged note a child of the note it's dropped on
+    newParentId = overNote.id;
+    newPosition = 0; // Add as first child
 
-    if (overHasChildren && overIsExpanded && overIndex < activeIndex) {
-      // Make it first child of the over note
-      newParentId = overNote.id;
-      newPosition = 0;
-    } else if (activeIndex < overIndex) {
-      // Moving down - insert after
-      newPosition = overNote.position + 1;
-    } else {
-      // Moving up - insert before
-      newPosition = overNote.position;
+    // Expand the parent node so the user can see the new child
+    if (!expandedNodes.has(overNote.id)) {
+      setExpandedNodes(prev => {
+        const newSet = new Set(prev);
+        newSet.add(overNote.id);
+        return newSet;
+      });
     }
 
     // Only update if parent or position changed
@@ -162,6 +184,7 @@ const NoteTree = ({ notes, selectedNoteId, onSelectNote, isCreating }) => {
 
   const handleDragCancel = () => {
     setActiveId(null);
+    setOverId(null);
   };
 
   // Find the active note for drag overlay
@@ -172,6 +195,7 @@ const NoteTree = ({ notes, selectedNoteId, onSelectNote, isCreating }) => {
       sensors={sensors}
       collisionDetection={closestCenter}
       onDragStart={handleDragStart}
+      onDragOver={handleDragOver}
       onDragEnd={handleDragEnd}
       onDragCancel={handleDragCancel}
     >
@@ -187,7 +211,9 @@ const NoteTree = ({ notes, selectedNoteId, onSelectNote, isCreating }) => {
               isSelected={note.id === selectedNoteId}
               onToggle={() => toggleNode(note.id)}
               onSelect={() => onSelectNote(note.id)}
+              onCreateSubnote={() => onCreateSubnote(note.id)}
               isDragging={note.id === activeId}
+              isOver={note.id === overId && note.id !== activeId}
             />
           ))}
         </div>

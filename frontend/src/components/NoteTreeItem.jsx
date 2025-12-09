@@ -1,6 +1,6 @@
 import { useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
-import { ChevronRight, ChevronDown, GripVertical } from 'lucide-react';
+import { ChevronRight, ChevronDown, GripVertical, Plus } from 'lucide-react';
 
 const NoteTreeItem = ({
   note,
@@ -10,7 +10,9 @@ const NoteTreeItem = ({
   isSelected,
   onToggle,
   onSelect,
+  onCreateSubnote,
   isDragging,
+  isOver,
 }) => {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging: isSortableDragging } = useSortable({
     id: note.id,
@@ -31,9 +33,9 @@ const NoteTreeItem = ({
     <div
       ref={setNodeRef}
       style={style}
-      className={`flex items-center gap-1 p-2 rounded cursor-pointer hover:bg-hover ${
+      className={`flex items-center gap-1 p-2 rounded cursor-pointer hover:bg-hover group ${
         isSelected ? 'bg-accent/20 border-l-2 border-accent' : ''
-      }`}
+      } ${isOver ? 'ring-2 ring-accent bg-accent/10' : ''}`}
       onClick={onSelect}
     >
       {/* Indentation */}
@@ -79,6 +81,18 @@ const NoteTreeItem = ({
           {new Date(note.updated).toLocaleDateString()}
         </div>
       </div>
+
+      {/* Add subnote button - shown on hover */}
+      <button
+        onClick={e => {
+          e.stopPropagation();
+          onCreateSubnote();
+        }}
+        className="flex-shrink-0 p-1 hover:bg-accent hover:text-white rounded opacity-0 group-hover:opacity-100 transition-opacity"
+        title="Add subnote"
+      >
+        <Plus className="w-4 h-4" />
+      </button>
     </div>
   );
 };
