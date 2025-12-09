@@ -58,6 +58,7 @@ function NotesPage({ theme, toggleTheme }) {
   const [isCreating, setIsCreating] = useState(false);
   const [editTitle, setEditTitle] = useState('');
   const [editContent, setEditContent] = useState('');
+  const [newNoteParentId, setNewNoteParentId] = useState(null);
 
   // Fetch all notes
   const { data: notes = [], isLoading } = useQuery({
@@ -102,8 +103,20 @@ function NotesPage({ theme, toggleTheme }) {
 
   const handleCreateNew = () => {
     setIsCreating(true);
+    setSelectedNoteId(null);
+    setIsEditing(false);
     setEditTitle('New Note');
     setEditContent('');
+    setNewNoteParentId(null);
+  };
+
+  const handleCreateSubnote = parentId => {
+    setIsCreating(true);
+    setSelectedNoteId(null);
+    setIsEditing(false);
+    setEditTitle('New Subnote');
+    setEditContent('');
+    setNewNoteParentId(parentId);
   };
 
   const handleSaveNew = () => {
@@ -111,6 +124,7 @@ function NotesPage({ theme, toggleTheme }) {
       createNoteMutation.mutate({
         title: editTitle,
         content: editContent,
+        parent_id: newNoteParentId,
       });
     }
   };
@@ -119,6 +133,7 @@ function NotesPage({ theme, toggleTheme }) {
     setIsCreating(false);
     setEditTitle('');
     setEditContent('');
+    setNewNoteParentId(null);
   };
 
   const handleEdit = () => {
@@ -179,20 +194,6 @@ function NotesPage({ theme, toggleTheme }) {
         </h1>
         <div className="flex items-center gap-3">
           <button
-            onClick={handleCreateNew}
-            className="px-4 py-2 rounded-lg flex items-center gap-2 transition-colors"
-            style={{
-              backgroundColor: 'var(--accent-color)',
-              color: 'white',
-            }}
-            onMouseEnter={e => (e.currentTarget.style.opacity = '0.9')}
-            onMouseLeave={e => (e.currentTarget.style.opacity = '1')}
-          >
-            <Plus size={20} />
-            New Note
-          </button>
-          <div className="h-6 w-px" style={{ backgroundColor: 'var(--border-color)' }} />
-          <button
             onClick={() => navigate('/')}
             className="p-2 rounded-lg transition-colors"
             style={{ backgroundColor: 'var(--bg-secondary)' }}
@@ -231,69 +232,46 @@ function NotesPage({ theme, toggleTheme }) {
       <div className="flex-1 flex overflow-hidden">
         {/* Left panel - Notes tree */}
         <div
-          className="w-[480px] border-r overflow-y-auto"
+          className="w-[480px] border-r flex flex-col overflow-hidden"
           style={{ borderColor: 'var(--border-color)' }}
         >
-          {isCreating && (
-            <div
-              className="p-4 border-b cursor-pointer"
+          {/* New Note button */}
+          <div className="p-4 border-b" style={{ borderColor: 'var(--border-color)' }}>
+            <button
+              onClick={handleCreateNew}
+              className="w-full px-4 py-2 rounded-lg flex items-center justify-center gap-2 transition-colors"
               style={{
-                backgroundColor: 'var(--bg-secondary)',
-                borderColor: 'var(--border-color)',
+                backgroundColor: 'var(--accent-color)',
+                color: 'white',
               }}
+              onMouseEnter={e => (e.currentTarget.style.opacity = '0.9')}
+              onMouseLeave={e => (e.currentTarget.style.opacity = '1')}
             >
-              <div className="flex items-start justify-between gap-2">
-                <input
-                  type="text"
-                  value={editTitle}
-                  onChange={e => setEditTitle(e.target.value)}
-                  className="flex-1 px-2 py-1 rounded border"
-                  style={{
-                    backgroundColor: 'var(--bg-primary)',
-                    borderColor: 'var(--border-color)',
-                    color: 'var(--text-primary)',
-                  }}
-                  placeholder="Note title"
-                  autoFocus
-                />
-                <div className="flex gap-1">
-                  <button
-                    onClick={handleSaveNew}
-                    className="p-1 rounded transition-colors"
-                    style={{ color: 'var(--accent-color)' }}
-                    title="Save"
-                  >
-                    <Save size={18} />
-                  </button>
-                  <button
-                    onClick={handleCancelNew}
-                    className="p-1 rounded transition-colors"
-                    style={{ color: 'var(--text-secondary)' }}
-                    title="Cancel"
-                  >
-                    <X size={18} />
-                  </button>
-                </div>
-              </div>
-            </div>
-          )}
+              <Plus size={20} />
+              New Note
+            </button>
+          </div>
 
-          {notes.length === 0 && !isCreating ? (
-            <div className="p-8 text-center" style={{ color: 'var(--text-secondary)' }}>
-              <FileText size={48} className="mx-auto mb-4 opacity-30" />
-              <p>No notes yet</p>
-              <p className="text-sm mt-2">Click "New Note" to create one</p>
-            </div>
-          ) : (
-            <div className="p-4">
-              <NoteTree
-                notes={notes}
-                selectedNoteId={selectedNoteId}
-                onSelectNote={handleSelectNote}
-                isCreating={isCreating}
-              />
-            </div>
-          )}
+          {/* Notes list */}
+          <div className="flex-1 overflow-y-auto">
+            {notes.length === 0 && !isCreating ? (
+              <div className="p-8 text-center" style={{ color: 'var(--text-secondary)' }}>
+                <FileText size={48} className="mx-auto mb-4 opacity-30" />
+                <p>No notes yet</p>
+                <p className="text-sm mt-2">Click "New Note" to create one</p>
+              </div>
+            ) : (
+              <div className="p-4">
+                <NoteTree
+                  notes={notes}
+                  selectedNoteId={selectedNoteId}
+                  onSelectNote={handleSelectNote}
+                  onCreateSubnote={handleCreateSubnote}
+                  isCreating={isCreating}
+                />
+              </div>
+            )}
+          </div>
         </div>
 
         {/* Right panel - Note content */}
@@ -309,20 +287,68 @@ function NotesPage({ theme, toggleTheme }) {
               </div>
             </div>
           ) : isCreating ? (
-            <div className="flex-1 flex flex-col p-6 overflow-y-auto">
-              <textarea
-                value={editContent}
-                onChange={e => setEditContent(e.target.value)}
-                className="flex-1 p-4 rounded border font-mono resize-none"
-                style={{
-                  backgroundColor: 'var(--bg-primary)',
-                  borderColor: 'var(--border-color)',
-                  color: 'var(--text-primary)',
-                }}
-                placeholder="Write your note in markdown..."
-              />
-              <MarkdownHelper />
-            </div>
+            <>
+              <div
+                className="px-6 py-4 border-b flex items-center justify-between"
+                style={{ borderColor: 'var(--border-color)' }}
+              >
+                <h2 className="text-xl font-semibold" style={{ color: 'var(--text-primary)' }}>
+                  {editTitle}
+                </h2>
+                <div className="flex gap-2">
+                  <button
+                    onClick={handleSaveNew}
+                    className="px-3 py-1.5 rounded flex items-center gap-2 transition-colors"
+                    style={{
+                      backgroundColor: 'var(--accent-color)',
+                      color: 'white',
+                    }}
+                    onMouseEnter={e => (e.currentTarget.style.opacity = '0.9')}
+                    onMouseLeave={e => (e.currentTarget.style.opacity = '1')}
+                  >
+                    <Save size={16} />
+                    Save
+                  </button>
+                  <button
+                    onClick={handleCancelNew}
+                    className="px-3 py-1.5 rounded border transition-colors"
+                    style={{
+                      borderColor: 'var(--border-color)',
+                      color: 'var(--text-secondary)',
+                    }}
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </div>
+              <div className="flex-1 p-6 overflow-y-auto">
+                <input
+                  type="text"
+                  value={editTitle}
+                  onChange={e => setEditTitle(e.target.value)}
+                  className="w-full px-3 py-2 mb-4 rounded border text-lg font-semibold"
+                  style={{
+                    backgroundColor: 'var(--bg-primary)',
+                    borderColor: 'var(--border-color)',
+                    color: 'var(--text-primary)',
+                  }}
+                  placeholder="Note title"
+                  autoFocus
+                />
+                <textarea
+                  value={editContent}
+                  onChange={e => setEditContent(e.target.value)}
+                  className="w-full h-96 p-4 rounded border font-mono resize-none"
+                  style={{
+                    backgroundColor: 'var(--bg-primary)',
+                    borderColor: 'var(--border-color)',
+                    color: 'var(--text-primary)',
+                  }}
+                  placeholder="Write your note in markdown..."
+                />
+                <MarkdownHelper />
+              </div>
+            </>
           ) : isEditing ? (
             <>
               <div
