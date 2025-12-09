@@ -119,13 +119,13 @@ const NoteTree = ({ notes, selectedNoteId, onSelectNote, isCreating, onCreateSub
 
     if (currentIndex > 0) {
       const note = siblings[currentIndex];
+      const prevNote = siblings[currentIndex - 1];
 
-      // Move the note to the position index of the sibling above it
-      // The backend will handle adjusting all other positions automatically
+      // Swap positions with the sibling above by taking its position value
       reorderMutation.mutate({
         id: noteId,
         parent_id: note.parent_id,
-        position: currentIndex - 1,
+        position: prevNote.position,
       });
     }
   };
@@ -137,13 +137,13 @@ const NoteTree = ({ notes, selectedNoteId, onSelectNote, isCreating, onCreateSub
 
     if (currentIndex < siblings.length - 1) {
       const note = siblings[currentIndex];
+      const nextNote = siblings[currentIndex + 1];
 
-      // Move the note to the position index of the sibling below it
-      // The backend will handle adjusting all other positions automatically
+      // Swap positions with the sibling below by taking its position value
       reorderMutation.mutate({
         id: noteId,
         parent_id: note.parent_id,
-        position: currentIndex + 1,
+        position: nextNote.position,
       });
     }
   };
