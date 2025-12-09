@@ -1,6 +1,4 @@
-import { useSortable } from '@dnd-kit/sortable';
-import { CSS } from '@dnd-kit/utilities';
-import { ChevronRight, ChevronDown, GripVertical, Plus } from 'lucide-react';
+import { ChevronRight, ChevronDown, Plus, ArrowUp, ArrowDown, ArrowLeft, ArrowRight, Trash2 } from 'lucide-react';
 
 const NoteTreeItem = ({
   note,
@@ -11,18 +9,16 @@ const NoteTreeItem = ({
   onToggle,
   onSelect,
   onCreateSubnote,
-  isDragging,
-  isOver,
+  onMoveUp,
+  onMoveDown,
+  onPromote,
+  onDemote,
+  onDelete,
+  canMoveUp,
+  canMoveDown,
+  canPromote,
+  canDemote,
 }) => {
-  const { attributes, listeners, setNodeRef, transform, transition, isDragging: isSortableDragging } = useSortable({
-    id: note.id,
-  });
-
-  const style = {
-    transform: CSS.Transform.toString(transform),
-    transition,
-    opacity: isDragging || isSortableDragging ? 0.5 : 1,
-  };
 
   // Truncate content for preview
   const contentPreview = note.content
@@ -31,11 +27,9 @@ const NoteTreeItem = ({
 
   return (
     <div
-      ref={setNodeRef}
-      style={style}
       className={`flex items-center gap-1 p-2 rounded cursor-pointer hover:bg-hover group ${
         isSelected ? 'bg-accent/20 border-l-2 border-accent' : ''
-      } ${isOver ? 'ring-2 ring-accent bg-accent/10' : ''}`}
+      }`}
       onClick={onSelect}
     >
       {/* Indentation */}
@@ -58,13 +52,79 @@ const NoteTreeItem = ({
         )}
       </button>
 
-      {/* Drag handle */}
-      <div
-        {...attributes}
-        {...listeners}
-        className="flex-shrink-0 cursor-grab active:cursor-grabbing p-1 hover:bg-hover rounded"
-      >
-        <GripVertical className="w-4 h-4 text-muted" />
+      {/* Outline Controls */}
+      <div className="flex-shrink-0 flex gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
+        {/* Move Up */}
+        <button
+          onClick={e => {
+            e.stopPropagation();
+            onMoveUp();
+          }}
+          disabled={!canMoveUp}
+          className={`p-1 hover:bg-accent hover:text-white rounded ${
+            !canMoveUp ? 'opacity-30 cursor-not-allowed' : ''
+          }`}
+          title="Move up"
+        >
+          <ArrowUp className="w-3.5 h-3.5" />
+        </button>
+
+        {/* Move Down */}
+        <button
+          onClick={e => {
+            e.stopPropagation();
+            onMoveDown();
+          }}
+          disabled={!canMoveDown}
+          className={`p-1 hover:bg-accent hover:text-white rounded ${
+            !canMoveDown ? 'opacity-30 cursor-not-allowed' : ''
+          }`}
+          title="Move down"
+        >
+          <ArrowDown className="w-3.5 h-3.5" />
+        </button>
+
+        {/* Promote (move left) */}
+        <button
+          onClick={e => {
+            e.stopPropagation();
+            onPromote();
+          }}
+          disabled={!canPromote}
+          className={`p-1 hover:bg-accent hover:text-white rounded ${
+            !canPromote ? 'opacity-30 cursor-not-allowed' : ''
+          }`}
+          title="Promote to parent level"
+        >
+          <ArrowLeft className="w-3.5 h-3.5" />
+        </button>
+
+        {/* Demote (move right - make child of sibling above) */}
+        <button
+          onClick={e => {
+            e.stopPropagation();
+            onDemote();
+          }}
+          disabled={!canDemote}
+          className={`p-1 hover:bg-accent hover:text-white rounded ${
+            !canDemote ? 'opacity-30 cursor-not-allowed' : ''
+          }`}
+          title="Make child of sibling above"
+        >
+          <ArrowRight className="w-3.5 h-3.5" />
+        </button>
+
+        {/* Delete */}
+        <button
+          onClick={e => {
+            e.stopPropagation();
+            onDelete();
+          }}
+          className="p-1 hover:bg-destructive hover:text-white rounded"
+          title={hasChildren ? "Delete note and all subnotes" : "Delete note"}
+        >
+          <Trash2 className="w-3.5 h-3.5" />
+        </button>
       </div>
 
       {/* Note content */}
