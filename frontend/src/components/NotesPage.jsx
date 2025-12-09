@@ -4,7 +4,49 @@ import { useNavigate } from 'react-router-dom';
 import { notesApi } from '../services/api';
 import { Plus, Edit2, Save, Trash2, X, FileText, Home, Sun, Moon, LogOut } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
+import rehypeRaw from 'rehype-raw';
 import { useAuth } from '../contexts/AuthContext';
+
+// Markdown syntax helper component
+function MarkdownHelper() {
+  const examples = [
+    { label: 'Headers', syntax: '# H1 ## H2 ### H3' },
+    { label: 'Bold', syntax: '**bold text**' },
+    { label: 'Italic', syntax: '*italic text*' },
+    { label: 'Link', syntax: '[title](https://...)' },
+    { label: 'Bullet List', syntax: '- Item 1\n- Item 2' },
+    { label: 'Numbered List', syntax: '1. First\n2. Second' },
+    { label: 'Task List', syntax: '- [ ] Todo\n- [x] Done' },
+    { label: 'Code', syntax: '`inline code`' },
+    { label: 'Code Block', syntax: '```\ncode block\n```' },
+    { label: 'Quote', syntax: '> quote' },
+    { label: 'Table', syntax: '| Col1 | Col2 |\n|------|------|\n| A | B |' },
+  ];
+
+  return (
+    <div
+      className="mt-4 p-3 rounded border text-xs"
+      style={{
+        backgroundColor: 'var(--bg-secondary)',
+        borderColor: 'var(--border-color)',
+        color: 'var(--text-secondary)',
+      }}
+    >
+      <div className="font-semibold mb-2" style={{ color: 'var(--text-primary)' }}>
+        Markdown Syntax Guide
+      </div>
+      <div className="grid grid-cols-2 gap-x-4 gap-y-1">
+        {examples.map(({ label, syntax }) => (
+          <div key={label} className="flex gap-2">
+            <span className="font-medium min-w-[90px]">{label}:</span>
+            <code className="font-mono">{syntax}</code>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
 
 function NotesPage({ theme, toggleTheme }) {
   const navigate = useNavigate();
@@ -303,6 +345,7 @@ function NotesPage({ theme, toggleTheme }) {
                 }}
                 placeholder="Write your note in markdown..."
               />
+              <MarkdownHelper />
             </div>
           ) : isEditing ? (
             <>
@@ -363,6 +406,7 @@ function NotesPage({ theme, toggleTheme }) {
                   }}
                   placeholder="Write your note in markdown..."
                 />
+                <MarkdownHelper />
               </div>
             </>
           ) : (
@@ -409,8 +453,13 @@ function NotesPage({ theme, toggleTheme }) {
                 </div>
               </div>
               <div className="flex-1 p-6 overflow-y-auto">
-                <div className="prose max-w-none" style={{ color: 'var(--text-primary)' }}>
-                  <ReactMarkdown>{selectedNote.content || ''}</ReactMarkdown>
+                <div
+                  className="prose max-w-none markdown-content"
+                  style={{ color: 'var(--text-primary)' }}
+                >
+                  <ReactMarkdown remarkPlugins={[remarkGfm]} rehypePlugins={[rehypeRaw]}>
+                    {selectedNote.content || ''}
+                  </ReactMarkdown>
                 </div>
               </div>
             </>
