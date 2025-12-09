@@ -1,38 +1,12 @@
 import { useState, useMemo } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import {
-  DndContext,
-  closestCenter,
-  KeyboardSensor,
-  PointerSensor,
-  useSensor,
-  useSensors,
-  DragOverlay,
-} from '@dnd-kit/core';
-import {
-  SortableContext,
-  sortableKeyboardCoordinates,
-  verticalListSortingStrategy,
-} from '@dnd-kit/sortable';
 import { notesApi } from '../services/api';
 import NoteTreeItem from './NoteTreeItem';
 
 const NoteTree = ({ notes, selectedNoteId, onSelectNote, isCreating, onCreateSubnote }) => {
   const [expandedNodes, setExpandedNodes] = useState(new Set());
-  const [activeId, setActiveId] = useState(null);
-  const [overId, setOverId] = useState(null);
+  const [deleteConfirm, setDeleteConfirm] = useState(null);
   const queryClient = useQueryClient();
-
-  const sensors = useSensors(
-    useSensor(PointerSensor, {
-      activationConstraint: {
-        distance: 8,
-      },
-    }),
-    useSensor(KeyboardSensor, {
-      coordinateGetter: sortableKeyboardCoordinates,
-    })
-  );
 
   // Build tree structure from flat list
   const noteTree = useMemo(() => {
@@ -109,99 +83,159 @@ const NoteTree = ({ notes, selectedNoteId, onSelectNote, isCreating, onCreateSub
     },
   });
 
-  const handleDragStart = event => {
-    setActiveId(event.active.id);
+  const deleteMutation = useMutation({
+    mutationFn: (id) => notesApi.delete(id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['notes'] });
+      setDeleteConfirm(null);
+    },
+  });
+
+  // Helper to get siblings of a note
+  const getSiblings = (noteId) => {
+    const note = notes.find(n => n.id === noteId);
+    if (!note) return [];
+
+    return notes
+      .filter(n => n.parent_id === note.parent_id)
+      .sort((a, b) => a.position - b.position);
   };
 
-  const handleDragOver = event => {
-    const { over } = event;
-    setOverId(over ? over.id : null);
+  // Helper to count descendants
+  const countDescendants = (noteId) => {
+    let count = 0;
+    const children = notes.filter(n => n.parent_id === noteId);
+    count += children.length;
+    children.forEach(child => {
+      count += countDescendants(child.id);
+    });
+    return count;
   };
 
-  const handleDragEnd = event => {
-    const { active, over } = event;
-    setActiveId(null);
-    setOverId(null);
+  // Move note up in sibling list
+  const handleMoveUp = (noteId) => {
+    const siblings = getSiblings(noteId);
+    const currentIndex = siblings.findIndex(n => n.id === noteId);
 
-    if (!over || active.id === over.id) {
-      return;
+    if (currentIndex > 0) {
+      const note = siblings[currentIndex];
+      const prevNote = siblings[currentIndex - 1];
+
+      // Swap positions
+      reorderMutation.mutate({
+        id: noteId,
+        parent_id: note.parent_id,
+        position: prevNote.position,
+      });
     }
+  };
 
-    const activeIndex = flattenedNotes.findIndex(n => n.id === active.id);
-    const overIndex = flattenedNotes.findIndex(n => n.id === over.id);
+  // Move note down in sibling list
+  const handleMoveDown = (noteId) => {
+    const siblings = getSiblings(noteId);
+    const currentIndex = siblings.findIndex(n => n.id === noteId);
 
-    if (activeIndex === -1 || overIndex === -1) {
-      return;
+    if (currentIndex < siblings.length - 1) {
+      const note = siblings[currentIndex];
+      const nextNote = siblings[currentIndex + 1];
+
+      // Swap positions
+      reorderMutation.mutate({
+        id: noteId,
+        parent_id: note.parent_id,
+        position: nextNote.position,
+      });
     }
+  };
 
-    const activeNote = flattenedNotes[activeIndex];
-    const overNote = flattenedNotes[overIndex];
+  // Promote note to parent's level (move left)
+  const handlePromote = (noteId) => {
+    const note = notes.find(n => n.id === noteId);
+    if (!note || !note.parent_id) return;
 
-    // Check if the active note is an ancestor of the over note
-    // to prevent circular references
-    const isAncestor = (noteId, potentialAncestorId) => {
-      let currentNote = notes.find(n => n.id === noteId);
-      while (currentNote && currentNote.parent_id) {
-        if (currentNote.parent_id === potentialAncestorId) {
-          return true;
-        }
-        currentNote = notes.find(n => n.id === currentNote.parent_id);
-      }
-      return false;
-    };
+    const parent = notes.find(n => n.id === note.parent_id);
+    if (!parent) return;
 
-    if (isAncestor(overNote.id, activeNote.id)) {
-      return; // Prevent circular reference
-    }
+    // Get grandparent's children to determine new position
+    const newSiblings = notes
+      .filter(n => n.parent_id === parent.parent_id)
+      .sort((a, b) => a.position - b.position);
 
-    // Determine new parent and position
-    let newParentId = overNote.parent_id;
-    let newPosition = overNote.position;
+    // Place after current parent
+    const parentIndex = newSiblings.findIndex(n => n.id === parent.id);
+    const newPosition = parentIndex >= 0 ? newSiblings[parentIndex].position + 1 : 0;
 
-    // If dropping on a note, make it a child (this is the key change!)
-    // Make the dragged note a child of the note it's dropped on
-    newParentId = overNote.id;
-    newPosition = 0; // Add as first child
+    reorderMutation.mutate({
+      id: noteId,
+      parent_id: parent.parent_id,
+      position: newPosition,
+    });
+  };
 
-    // Expand the parent node so the user can see the new child
-    if (!expandedNodes.has(overNote.id)) {
+  // Demote note to be child of sibling above (move right)
+  const handleDemote = (noteId) => {
+    const siblings = getSiblings(noteId);
+    const currentIndex = siblings.findIndex(n => n.id === noteId);
+
+    if (currentIndex > 0) {
+      const prevSibling = siblings[currentIndex - 1];
+
+      // Make this note a child of the previous sibling
+      reorderMutation.mutate({
+        id: noteId,
+        parent_id: prevSibling.id,
+        position: 0, // Add as last child
+      });
+
+      // Expand the new parent so user can see the change
       setExpandedNodes(prev => {
         const newSet = new Set(prev);
-        newSet.add(overNote.id);
+        newSet.add(prevSibling.id);
         return newSet;
       });
     }
+  };
 
-    // Only update if parent or position changed
-    if (activeNote.parent_id !== newParentId || activeNote.position !== newPosition) {
-      reorderMutation.mutate({
-        id: activeNote.id,
-        parent_id: newParentId,
-        position: newPosition,
-      });
+  // Delete note with confirmation
+  const handleDelete = (noteId) => {
+    const note = notes.find(n => n.id === noteId);
+    const childCount = countDescendants(noteId);
+
+    setDeleteConfirm({
+      noteId,
+      title: note?.title || 'this note',
+      childCount,
+    });
+  };
+
+  const confirmDelete = () => {
+    if (deleteConfirm) {
+      deleteMutation.mutate(deleteConfirm.noteId);
     }
   };
 
-  const handleDragCancel = () => {
-    setActiveId(null);
-    setOverId(null);
+  // Check what operations are allowed for a note
+  const getOperationFlags = (noteId) => {
+    const note = notes.find(n => n.id === noteId);
+    if (!note) return {};
+
+    const siblings = getSiblings(noteId);
+    const currentIndex = siblings.findIndex(n => n.id === noteId);
+
+    return {
+      canMoveUp: currentIndex > 0,
+      canMoveDown: currentIndex < siblings.length - 1,
+      canPromote: note.parent_id !== null && note.parent_id !== undefined,
+      canDemote: currentIndex > 0,
+    };
   };
 
-  // Find the active note for drag overlay
-  const activeNote = activeId ? flattenedNotes.find(n => n.id === activeId) : null;
-
   return (
-    <DndContext
-      sensors={sensors}
-      collisionDetection={closestCenter}
-      onDragStart={handleDragStart}
-      onDragOver={handleDragOver}
-      onDragEnd={handleDragEnd}
-      onDragCancel={handleDragCancel}
-    >
-      <SortableContext items={flattenedNotes.map(n => n.id)} strategy={verticalListSortingStrategy}>
-        <div className="space-y-1">
-          {flattenedNotes.map(note => (
+    <>
+      <div className="space-y-1">
+        {flattenedNotes.map(note => {
+          const flags = getOperationFlags(note.id);
+          return (
             <NoteTreeItem
               key={note.id}
               note={note}
@@ -212,21 +246,53 @@ const NoteTree = ({ notes, selectedNoteId, onSelectNote, isCreating, onCreateSub
               onToggle={() => toggleNode(note.id)}
               onSelect={() => onSelectNote(note.id)}
               onCreateSubnote={() => onCreateSubnote(note.id)}
-              isDragging={note.id === activeId}
-              isOver={note.id === overId && note.id !== activeId}
+              onMoveUp={() => handleMoveUp(note.id)}
+              onMoveDown={() => handleMoveDown(note.id)}
+              onPromote={() => handlePromote(note.id)}
+              onDemote={() => handleDemote(note.id)}
+              onDelete={() => handleDelete(note.id)}
+              canMoveUp={flags.canMoveUp}
+              canMoveDown={flags.canMoveDown}
+              canPromote={flags.canPromote}
+              canDemote={flags.canDemote}
             />
-          ))}
-        </div>
-      </SortableContext>
+          );
+        })}
+      </div>
 
-      <DragOverlay>
-        {activeNote ? (
-          <div className="bg-primary p-2 rounded shadow-lg border border-accent opacity-80">
-            <div className="text-sm font-medium text-primary">{activeNote.title}</div>
+      {/* Delete Confirmation Dialog */}
+      {deleteConfirm && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+          <div className="bg-primary p-6 rounded-lg shadow-xl max-w-md w-full mx-4">
+            <h3 className="text-lg font-semibold text-primary mb-2">
+              Delete Note
+            </h3>
+            <p className="text-muted mb-4">
+              Are you sure you want to delete "{deleteConfirm.title}"?
+            </p>
+            {deleteConfirm.childCount > 0 && (
+              <p className="text-destructive font-semibold mb-4">
+                Warning: This note has {deleteConfirm.childCount} subnote{deleteConfirm.childCount > 1 ? 's' : ''} that will also be deleted.
+              </p>
+            )}
+            <div className="flex gap-2 justify-end">
+              <button
+                onClick={() => setDeleteConfirm(null)}
+                className="px-4 py-2 rounded bg-hover text-primary hover:bg-accent/20"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={confirmDelete}
+                className="px-4 py-2 rounded bg-destructive text-white hover:bg-destructive/90"
+              >
+                Delete
+              </button>
+            </div>
           </div>
-        ) : null}
-      </DragOverlay>
-    </DndContext>
+        </div>
+      )}
+    </>
   );
 };
 
