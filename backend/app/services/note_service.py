@@ -220,22 +220,33 @@ class NoteService:
         result = await self.db.execute(query)
         siblings = result.scalars().all()
 
-        # Adjust positions of siblings to make room for the moved note
-        for sibling in siblings:
-            if sibling.position >= new_position:
-                sibling.position += 1
-
-        # Update the note
-        note.parent_id = new_parent
-        note.position = new_position
-        note.updated = datetime.utcnow()
-
-        # If moving within the same parent and old position was before new position,
-        # we need to adjust positions differently
-        if old_parent == new_parent and old_position < new_position:
+        # For same-parent reordering, use a simpler swap logic
+        if old_parent == new_parent:
+            # Find the sibling at the target position
+            target_sibling = None
             for sibling in siblings:
-                if old_position < sibling.position <= new_position:
-                    sibling.position -= 1
+                if sibling.position == new_position:
+                    target_sibling = sibling
+                    break
+
+            if target_sibling:
+                # Simple swap: exchange positions
+                target_sibling.position = old_position
+                note.position = new_position
+            else:
+                # Target position is empty, just move
+                note.position = new_position
+        else:
+            # Different parent: use the original insert logic
+            # Adjust positions of siblings to make room for the moved note
+            for sibling in siblings:
+                if sibling.position >= new_position:
+                    sibling.position += 1
+
+            note.parent_id = new_parent
+            note.position = new_position
+
+        note.updated = datetime.utcnow()
 
         await self.db.commit()
         await self.db.refresh(note)
