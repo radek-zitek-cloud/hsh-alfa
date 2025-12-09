@@ -5,6 +5,7 @@ import Dashboard from './components/Dashboard';
 import Login from './components/Login';
 import OAuthCallback from './components/OAuthCallback';
 import AdminDashboard from './components/AdminDashboard';
+import NotesPage from './components/NotesPage';
 
 // Protected route wrapper that requires authentication
 const ProtectedRoute = ({ children }) => {
@@ -99,6 +100,14 @@ function AppContent() {
           element={
             <ProtectedRoute>
               <Dashboard theme={theme} toggleTheme={toggleTheme} />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/notes"
+          element={
+            <ProtectedRoute>
+              <NotesPage theme={theme} toggleTheme={toggleTheme} />
             </ProtectedRoute>
           }
         />

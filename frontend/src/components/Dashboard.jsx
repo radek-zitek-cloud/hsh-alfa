@@ -12,6 +12,7 @@ import {
   Newspaper,
   Shield,
   CheckSquare,
+  FileText,
 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { sectionsApi, widgetsApi } from '../services/api';
@@ -122,6 +123,14 @@ const Dashboard = ({ theme, toggleTheme }) => {
           {/* Divider between navigation and action icons */}
           {visibleSections.length > 0 && <div className="h-6 w-px bg-[var(--border-color)]" />}
 
+          <button
+            onClick={() => navigate('/notes')}
+            className="p-2 rounded-lg bg-[var(--bg-secondary)] hover:bg-[var(--border-color)] transition-colors"
+            aria-label="Notes"
+            title="Notes"
+          >
+            <FileText size={24} />
+          </button>
           <button
             onClick={toggleTheme}
             className="p-2 rounded-lg bg-[var(--bg-secondary)] hover:bg-[var(--border-color)] transition-colors"

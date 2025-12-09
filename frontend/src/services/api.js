@@ -135,6 +135,19 @@ export const habitsApi = {
   toggleCompletion: data => api.post('/habits/completions', data),
 };
 
+// Notes API
+export const notesApi = {
+  getAll: () => api.get('/notes/'),
+
+  getOne: id => api.get(`/notes/${id}`),
+
+  create: data => api.post('/notes/', data),
+
+  update: (id, data) => api.put(`/notes/${id}`, data),
+
+  delete: id => api.delete(`/notes/${id}`),
+};
+
 // Export/Import API
 export const exportImportApi = {
   exportData: (format = 'json') =>
