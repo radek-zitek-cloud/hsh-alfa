@@ -44,8 +44,8 @@ const HabitTrackingWidget = ({ widgetId, config }) => {
           completion_date: date,
           completed: newCompleted,
         });
-        // Refetch to ensure server state is in sync
-        refetch();
+        // Refetch to ensure server state is in sync (including recalculated streak)
+        await refetch();
       } catch (err) {
         // Revert optimistic update on error
         queryClient.setQueryData(['widget', widgetId], oldData => {
