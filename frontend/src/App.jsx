@@ -6,6 +6,7 @@ import Login from './components/Login';
 import OAuthCallback from './components/OAuthCallback';
 import AdminDashboard from './components/AdminDashboard';
 import NotesPage from './components/NotesPage';
+import AIToolsPage from './components/AIToolsPage';
 
 // Protected route wrapper that requires authentication
 const ProtectedRoute = ({ children }) => {
@@ -108,6 +109,14 @@ function AppContent() {
           element={
             <ProtectedRoute>
               <NotesPage theme={theme} toggleTheme={toggleTheme} />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/ai-tools"
+          element={
+            <ProtectedRoute>
+              <AIToolsPage theme={theme} toggleTheme={toggleTheme} />
             </ProtectedRoute>
           }
         />

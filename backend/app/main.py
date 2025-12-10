@@ -11,7 +11,7 @@ from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 from starlette.middleware.base import BaseHTTPMiddleware
 
-from app.api import admin, auth, bookmarks, export_import, habits, notes, preferences, sections, widgets
+from app.api import admin, ai_tools, auth, bookmarks, export_import, habits, notes, preferences, sections, widgets
 from app.config import settings
 from app.exceptions import AppException
 from app.logging_config import get_logger, setup_logging
@@ -245,6 +245,7 @@ async def lifespan(app: FastAPI):
         from app.migrations.add_role_to_users import run_migration as run_role_migration
         from app.migrations.add_tree_structure_to_notes import run_migration as run_tree_structure_migration
         from app.migrations.add_user_id_to_tables import run_migration as run_user_id_migration
+        from app.migrations.create_ai_tools_table import run_migration as run_ai_tools_migration
         from app.migrations.create_habits_tables import run_migration as run_habits_migration
         from app.migrations.create_notes_table import run_migration as run_notes_migration
         from app.migrations.create_preferences_table import (
@@ -263,6 +264,7 @@ async def lifespan(app: FastAPI):
         await run_notes_migration(engine)
         await run_tree_structure_migration(engine)
         await run_indexes_migration(engine)
+        await run_ai_tools_migration(engine)
         logger.info("Database migrations completed successfully")
     except Exception as e:
         logger.error(
@@ -392,6 +394,7 @@ app.include_router(bookmarks.router, prefix="/api/bookmarks", tags=["bookmarks"]
 app.include_router(widgets.router, prefix="/api/widgets", tags=["widgets"])
 app.include_router(habits.router, prefix="/api", tags=["habits"])
 app.include_router(notes.router, prefix="/api/notes", tags=["notes"])
+app.include_router(ai_tools.router, prefix="/api", tags=["ai-tools"])
 app.include_router(sections.router)
 app.include_router(preferences.router, prefix="/api/preferences", tags=["preferences"])
 app.include_router(export_import.router, prefix="/api", tags=["export-import"])

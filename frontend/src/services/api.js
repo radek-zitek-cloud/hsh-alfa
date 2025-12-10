@@ -150,6 +150,21 @@ export const notesApi = {
   reorder: (id, data) => api.patch(`/notes/${id}/reorder`, data),
 };
 
+// AI Tools API
+export const aiToolsApi = {
+  getAll: () => api.get('/ai-tools/'),
+
+  getOne: id => api.get(`/ai-tools/${id}`),
+
+  create: data => api.post('/ai-tools/', data),
+
+  update: (id, data) => api.put(`/ai-tools/${id}`, data),
+
+  delete: id => api.delete(`/ai-tools/${id}`),
+
+  apply: data => api.post('/ai-tools/apply', data),
+};
+
 // Export/Import API
 export const exportImportApi = {
   exportData: (format = 'json') =>
