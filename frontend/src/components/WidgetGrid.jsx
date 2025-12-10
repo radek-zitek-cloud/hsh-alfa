@@ -10,6 +10,7 @@ import HabitTrackingWidget from './widgets/HabitTrackingWidget';
 import SectionHeader from './SectionHeader';
 import BookmarkModal from './BookmarkModal';
 import WidgetForm from './WidgetForm';
+import { showSuccess, showError, showWarning, showInfo } from '../utils/toast';
 
 // Map widget types to components
 const WIDGET_COMPONENTS = {
@@ -41,10 +42,11 @@ const WidgetCard = ({ widget, widthMultiple }) => {
     mutationFn: () => widgetsApi.delete(widget.id),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['widgets'] });
+      showSuccess('Widget deleted successfully');
     },
     onError: error => {
       console.error('Error deleting widget:', error);
-      alert('Failed to delete widget');
+      showError('Failed to delete widget');
     },
     onSettled: () => {
       setIsDeleting(false);
