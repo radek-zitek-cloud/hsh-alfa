@@ -10,7 +10,7 @@ from slowapi.util import get_remote_address
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.auth import require_auth
-from app.database import get_db
+from app.services.database import get_db
 from app.models.ai_tool import (
     AIToolApply,
     AIToolCreate,
