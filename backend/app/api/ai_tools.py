@@ -4,7 +4,7 @@ import logging
 from typing import List
 
 import httpx
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from slowapi import Limiter
 from slowapi.util import get_remote_address
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -30,7 +30,9 @@ router = APIRouter(prefix="/ai-tools", tags=["ai-tools"])
 @router.get("/", response_model=List[AIToolResponse])
 @limiter.limit("100/minute")
 async def list_tools(
-    user_id: int = Depends(require_auth), db: AsyncSession = Depends(get_db)
+    request: Request,
+    user_id: int = Depends(require_auth),
+    db: AsyncSession = Depends(get_db),
 ):
     """List all AI tools for the current user."""
     service = AIToolService(db)
@@ -41,6 +43,7 @@ async def list_tools(
 @router.get("/{tool_id}", response_model=AIToolResponse)
 @limiter.limit("100/minute")
 async def get_tool(
+    request: Request,
     tool_id: int,
     user_id: int = Depends(require_auth),
     db: AsyncSession = Depends(get_db),
@@ -56,6 +59,7 @@ async def get_tool(
 @router.post("/", response_model=AIToolResponse, status_code=status.HTTP_201_CREATED)
 @limiter.limit("20/minute")
 async def create_tool(
+    request: Request,
     tool_data: AIToolCreate,
     user_id: int = Depends(require_auth),
     db: AsyncSession = Depends(get_db),
@@ -70,6 +74,7 @@ async def create_tool(
 @router.put("/{tool_id}", response_model=AIToolResponse)
 @limiter.limit("20/minute")
 async def update_tool(
+    request: Request,
     tool_id: int,
     tool_data: AIToolUpdate,
     user_id: int = Depends(require_auth),
@@ -87,6 +92,7 @@ async def update_tool(
 @router.delete("/{tool_id}", status_code=status.HTTP_204_NO_CONTENT)
 @limiter.limit("20/minute")
 async def delete_tool(
+    request: Request,
     tool_id: int,
     user_id: int = Depends(require_auth),
     db: AsyncSession = Depends(get_db),
@@ -103,6 +109,7 @@ async def delete_tool(
 @router.post("/apply", status_code=status.HTTP_201_CREATED)
 @limiter.limit("10/minute")
 async def apply_tool(
+    request: Request,
     apply_data: AIToolApply,
     user_id: int = Depends(require_auth),
     db: AsyncSession = Depends(get_db),
