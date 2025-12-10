@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
 import { notesApi, aiToolsApi } from '../services/api';
-import { Plus, Edit2, Save, Trash2, X, FileText, Home, Sun, Moon, LogOut, Wand2, ChevronDown, RefreshCw, Volume2, VolumeX } from 'lucide-react';
+import { Plus, Edit2, Save, Trash2, X, FileText, Home, Sun, Moon, LogOut, Wand2, ChevronDown, RefreshCw, Volume2, VolumeX, Languages } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import rehypeRaw from 'rehype-raw';
@@ -63,6 +63,76 @@ function NotesPage({ theme, toggleTheme }) {
   const [selectedToolId, setSelectedToolId] = useState(null);
   const [showToolDropdown, setShowToolDropdown] = useState(false);
   const [isSpeaking, setIsSpeaking] = useState(false);
+  const [selectedLanguage, setSelectedLanguage] = useState('en-US');
+  const [showLanguageDropdown, setShowLanguageDropdown] = useState(false);
+
+  // Available TTS languages
+  const availableLanguages = [
+    { code: 'en-US', name: 'English (US)' },
+    { code: 'en-GB', name: 'English (UK)' },
+    { code: 'cs-CZ', name: 'Czech' },
+    { code: 'de-DE', name: 'German' },
+    { code: 'es-ES', name: 'Spanish' },
+    { code: 'fr-FR', name: 'French' },
+    { code: 'it-IT', name: 'Italian' },
+    { code: 'pl-PL', name: 'Polish' },
+    { code: 'pt-PT', name: 'Portuguese' },
+    { code: 'ru-RU', name: 'Russian' },
+    { code: 'sk-SK', name: 'Slovak' },
+  ];
+
+  // Function to strip markdown and extract plain text for TTS
+  const stripMarkdown = (markdown) => {
+    if (!markdown) return '';
+
+    let text = markdown;
+
+    // Remove code blocks
+    text = text.replace(/```[\s\S]*?```/g, '');
+    text = text.replace(/`[^`]+`/g, '');
+
+    // Remove HTML tags
+    text = text.replace(/<[^>]*>/g, '');
+
+    // Remove images ![alt](url)
+    text = text.replace(/!\[([^\]]*)\]\([^\)]*\)/g, '');
+
+    // Remove links but keep text [text](url) -> text
+    text = text.replace(/\[([^\]]+)\]\([^\)]*\)/g, '$1');
+
+    // Remove headings
+    text = text.replace(/^#{1,6}\s+/gm, '');
+
+    // Remove bold and italic
+    text = text.replace(/(\*\*|__)(.*?)\1/g, '$2');
+    text = text.replace(/(\*|_)(.*?)\1/g, '$2');
+
+    // Remove strikethrough
+    text = text.replace(/~~(.*?)~~/g, '$1');
+
+    // Remove blockquotes
+    text = text.replace(/^\s*>\s+/gm, '');
+
+    // Remove list markers
+    text = text.replace(/^\s*[-*+]\s+/gm, '');
+    text = text.replace(/^\s*\d+\.\s+/gm, '');
+
+    // Remove task list markers
+    text = text.replace(/^\s*[-*+]\s+\[[ xX]\]\s+/gm, '');
+
+    // Remove horizontal rules
+    text = text.replace(/^(\*{3,}|-{3,}|_{3,})$/gm, '');
+
+    // Remove table formatting
+    text = text.replace(/\|/g, ' ');
+
+    // Remove extra whitespace and clean up
+    text = text.replace(/\n{3,}/g, '\n\n');
+    text = text.replace(/^\s+|\s+$/gm, '');
+    text = text.trim();
+
+    return text;
+  };
 
   // Fetch all notes
   const { data: notes = [], isLoading } = useQuery({
@@ -250,11 +320,18 @@ function NotesPage({ theme, toggleTheme }) {
       return;
     }
 
-    // Create speech utterance with note content
-    const text = selectedNote.content || 'This note is empty';
-    const utterance = new SpeechSynthesisUtterance(text);
+    // Strip markdown and get plain text
+    const plainText = stripMarkdown(selectedNote.content);
+    if (!plainText) {
+      showWarning('This note is empty or contains no readable text');
+      return;
+    }
+
+    // Create speech utterance with plain text
+    const utterance = new SpeechSynthesisUtterance(plainText);
 
     // Set speech properties
+    utterance.lang = selectedLanguage; // Use selected language
     utterance.rate = 1.0; // Normal speed
     utterance.pitch = 1.0; // Normal pitch
     utterance.volume = 1.0; // Full volume
@@ -631,6 +708,56 @@ function NotesPage({ theme, toggleTheme }) {
                     <RefreshCw size={16} />
                     Refresh
                   </button>
+                  {/* Language Selector for TTS */}
+                  <div className="relative">
+                    <button
+                      onClick={() => setShowLanguageDropdown(!showLanguageDropdown)}
+                      className="px-3 py-1.5 rounded flex items-center gap-2 transition-colors"
+                      style={{
+                        backgroundColor: 'var(--bg-secondary)',
+                        borderColor: 'var(--border-color)',
+                        color: 'var(--text-primary)',
+                        border: '1px solid var(--border-color)',
+                      }}
+                      onMouseEnter={e => (e.currentTarget.style.backgroundColor = 'var(--border-color)')}
+                      onMouseLeave={e => (e.currentTarget.style.backgroundColor = 'var(--bg-secondary)')}
+                      title="Select speech language"
+                    >
+                      <Languages size={16} />
+                      {availableLanguages.find(l => l.code === selectedLanguage)?.name.split(' ')[0] || 'Language'}
+                    </button>
+                    {showLanguageDropdown && (
+                      <div
+                        className="absolute right-0 mt-2 w-48 rounded-lg shadow-lg border z-10"
+                        style={{
+                          backgroundColor: 'var(--bg-secondary)',
+                          borderColor: 'var(--border-color)',
+                        }}
+                      >
+                        <div className="p-2">
+                          <div className="text-xs font-semibold mb-2 px-2" style={{ color: 'var(--text-secondary)' }}>
+                            Speech Language:
+                          </div>
+                          {availableLanguages.map(lang => (
+                            <button
+                              key={lang.code}
+                              onClick={() => {
+                                setSelectedLanguage(lang.code);
+                                setShowLanguageDropdown(false);
+                              }}
+                              className="w-full text-left px-3 py-2 rounded hover:bg-[var(--bg-tertiary)] transition-colors"
+                              style={{
+                                color: selectedLanguage === lang.code ? 'var(--accent-color)' : 'var(--text-primary)',
+                                fontWeight: selectedLanguage === lang.code ? 'bold' : 'normal',
+                              }}
+                            >
+                              {lang.name}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
                   {/* Read Note Button (Text-to-Speech) */}
                   <button
                     onClick={handleReadNote}
