@@ -24,7 +24,18 @@ const AIToolsPage = ({ theme, toggleTheme }) => {
     description: '',
     prompt: '',
     api_key: '',
+    model: 'claude-sonnet-4-5-20250929',
   });
+
+  // Available Claude models
+  const availableModels = [
+    { id: 'claude-sonnet-4-5-20250929', name: 'Claude 3.5 Sonnet v2 (Latest)' },
+    { id: 'claude-opus-4-5-20251101', name: 'Claude 3.5 Opus' },
+    { id: 'claude-haiku-4-5-20251001', name: 'Claude 3.5 Haiku' },
+    { id: 'claude-sonnet-4-20250514', name: 'Claude 3 Sonnet' },
+    { id: 'claude-opus-4-1-20250805', name: 'Claude 3 Opus' },
+    { id: 'claude-3-5-haiku-20241022', name: 'Claude 3.5 Haiku (Legacy)' },
+  ];
 
   // Fetch all AI tools
   const { data: tools = [], isLoading } = useQuery({
@@ -81,6 +92,7 @@ const AIToolsPage = ({ theme, toggleTheme }) => {
       description: '',
       prompt: '',
       api_key: '',
+      model: 'claude-sonnet-4-5-20250929',
     });
   };
 
@@ -91,6 +103,7 @@ const AIToolsPage = ({ theme, toggleTheme }) => {
       description: tool.description || '',
       prompt: tool.prompt,
       api_key: tool.api_key,
+      model: tool.model || 'claude-sonnet-4-5-20250929',
     });
   };
 
@@ -220,10 +233,30 @@ const AIToolsPage = ({ theme, toggleTheme }) => {
                   value={formData.api_key}
                   onChange={e => setFormData({ ...formData, api_key: e.target.value })}
                   className="w-full px-3 py-2 bg-[var(--bg-primary)] border border-[var(--border-color)] rounded-lg focus:outline-none focus:ring-2 focus:ring-[var(--accent-primary)] font-mono text-sm"
-                  placeholder="sk-..."
+                  placeholder="sk-ant-..."
                 />
                 <p className="text-xs text-[var(--text-secondary)] mt-1">
-                  Your OpenAI API key. This is stored securely and only used when applying this tool.
+                  Your Anthropic API key. This is stored securely and only used when applying this tool.
+                </p>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium mb-2">
+                  Model <span className="text-red-500">*</span>
+                </label>
+                <select
+                  value={formData.model}
+                  onChange={e => setFormData({ ...formData, model: e.target.value })}
+                  className="w-full px-3 py-2 bg-[var(--bg-primary)] border border-[var(--border-color)] rounded-lg focus:outline-none focus:ring-2 focus:ring-[var(--accent-primary)]"
+                >
+                  {availableModels.map(model => (
+                    <option key={model.id} value={model.id}>
+                      {model.name}
+                    </option>
+                  ))}
+                </select>
+                <p className="text-xs text-[var(--text-secondary)] mt-1">
+                  Choose which Claude model to use for processing notes with this tool.
                 </p>
               </div>
 
@@ -300,6 +333,10 @@ const AIToolsPage = ({ theme, toggleTheme }) => {
               </div>
 
               <div className="mt-3 pt-3 border-t border-[var(--border-color)]">
+                <div className="text-sm text-[var(--text-secondary)] mb-2">
+                  <span className="font-medium">Model:</span>{' '}
+                  {availableModels.find(m => m.id === tool.model)?.name || tool.model}
+                </div>
                 <details className="cursor-pointer">
                   <summary className="text-sm font-medium text-[var(--text-secondary)] hover:text-[var(--text-primary)]">
                     View Prompt

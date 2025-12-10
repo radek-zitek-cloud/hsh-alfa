@@ -241,6 +241,7 @@ async def lifespan(app: FastAPI):
     # Run migrations
     try:
         from app.migrations.add_clicks_to_bookmarks import run_migration as run_clicks_migration
+        from app.migrations.add_model_to_ai_tools import run_migration as run_model_migration
         from app.migrations.add_performance_indexes import run_migration as run_indexes_migration
         from app.migrations.add_role_to_users import run_migration as run_role_migration
         from app.migrations.add_tree_structure_to_notes import run_migration as run_tree_structure_migration
@@ -265,6 +266,7 @@ async def lifespan(app: FastAPI):
         await run_tree_structure_migration(engine)
         await run_indexes_migration(engine)
         await run_ai_tools_migration(engine)
+        await run_model_migration(engine)
         logger.info("Database migrations completed successfully")
     except Exception as e:
         logger.error(

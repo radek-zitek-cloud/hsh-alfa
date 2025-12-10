@@ -23,6 +23,7 @@ class AITool(Base):
     description = Column(Text, nullable=True)
     prompt = Column(Text, nullable=False)
     api_key = Column(Text, nullable=False)
+    model = Column(String(100), nullable=False, default="claude-sonnet-4-5-20250929")
     created = Column(DateTime, nullable=False, default=func.now())
     updated = Column(DateTime, nullable=False, default=func.now(), onupdate=func.now())
 
@@ -35,6 +36,7 @@ class AIToolCreate(BaseModel):
     description: Optional[str] = None
     prompt: str = Field(..., min_length=1)
     api_key: str = Field(..., min_length=1)
+    model: str = Field(default="claude-sonnet-4-5-20250929", min_length=1, max_length=100)
 
 
 class AIToolUpdate(BaseModel):
@@ -44,6 +46,7 @@ class AIToolUpdate(BaseModel):
     description: Optional[str] = None
     prompt: Optional[str] = Field(None, min_length=1)
     api_key: Optional[str] = Field(None, min_length=1)
+    model: Optional[str] = Field(None, min_length=1, max_length=100)
 
 
 class AIToolResponse(BaseModel):
@@ -55,6 +58,7 @@ class AIToolResponse(BaseModel):
     description: Optional[str]
     prompt: str
     api_key: str
+    model: str
     created: datetime
     updated: datetime
 
