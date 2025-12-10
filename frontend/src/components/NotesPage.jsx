@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
 import { notesApi, aiToolsApi } from '../services/api';
-import { Plus, Edit2, Save, Trash2, X, FileText, Home, Sun, Moon, LogOut, Wand2, ChevronDown, RefreshCw } from 'lucide-react';
+import { Plus, Edit2, Save, Trash2, X, FileText, Home, Sun, Moon, LogOut, Wand2, ChevronDown, RefreshCw, Volume2, VolumeX } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import rehypeRaw from 'rehype-raw';
@@ -62,6 +62,7 @@ function NotesPage({ theme, toggleTheme }) {
   const [newNoteParentId, setNewNoteParentId] = useState(null);
   const [selectedToolId, setSelectedToolId] = useState(null);
   const [showToolDropdown, setShowToolDropdown] = useState(false);
+  const [isSpeaking, setIsSpeaking] = useState(false);
 
   // Fetch all notes
   const { data: notes = [], isLoading } = useQuery({
@@ -229,6 +230,53 @@ function NotesPage({ theme, toggleTheme }) {
     }
   };
 
+  // Text-to-speech handler
+  const handleReadNote = () => {
+    if (!selectedNote) {
+      showWarning('Please select a note to read');
+      return;
+    }
+
+    // Check if browser supports speech synthesis
+    if (!('speechSynthesis' in window)) {
+      showError('Text-to-speech is not supported in your browser');
+      return;
+    }
+
+    // If already speaking, stop
+    if (isSpeaking) {
+      window.speechSynthesis.cancel();
+      setIsSpeaking(false);
+      return;
+    }
+
+    // Create speech utterance with note content
+    const text = selectedNote.content || 'This note is empty';
+    const utterance = new SpeechSynthesisUtterance(text);
+
+    // Set speech properties
+    utterance.rate = 1.0; // Normal speed
+    utterance.pitch = 1.0; // Normal pitch
+    utterance.volume = 1.0; // Full volume
+
+    // Handle speech events
+    utterance.onstart = () => {
+      setIsSpeaking(true);
+    };
+
+    utterance.onend = () => {
+      setIsSpeaking(false);
+    };
+
+    utterance.onerror = (event) => {
+      setIsSpeaking(false);
+      showError('Error reading note: ' + event.error);
+    };
+
+    // Start speaking
+    window.speechSynthesis.speak(utterance);
+  };
+
   // Auto-refresh when displayed note changes
   useEffect(() => {
     if (selectedNoteId) {
@@ -236,6 +284,15 @@ function NotesPage({ theme, toggleTheme }) {
       queryClient.invalidateQueries({ queryKey: ['notes'] });
     }
   }, [selectedNoteId, queryClient]);
+
+  // Stop speech when selected note changes or component unmounts
+  useEffect(() => {
+    return () => {
+      if (window.speechSynthesis) {
+        window.speechSynthesis.cancel();
+      }
+    };
+  }, [selectedNoteId]);
 
   if (isLoading) {
     return (
@@ -573,6 +630,31 @@ function NotesPage({ theme, toggleTheme }) {
                   >
                     <RefreshCw size={16} />
                     Refresh
+                  </button>
+                  {/* Read Note Button (Text-to-Speech) */}
+                  <button
+                    onClick={handleReadNote}
+                    className="px-3 py-1.5 rounded flex items-center gap-2 transition-colors"
+                    style={{
+                      backgroundColor: isSpeaking ? 'var(--accent-color)' : 'var(--bg-secondary)',
+                      borderColor: 'var(--border-color)',
+                      color: isSpeaking ? 'white' : 'var(--text-primary)',
+                      border: '1px solid var(--border-color)',
+                    }}
+                    onMouseEnter={e => {
+                      if (!isSpeaking) {
+                        e.currentTarget.style.backgroundColor = 'var(--border-color)';
+                      }
+                    }}
+                    onMouseLeave={e => {
+                      if (!isSpeaking) {
+                        e.currentTarget.style.backgroundColor = 'var(--bg-secondary)';
+                      }
+                    }}
+                    title={isSpeaking ? "Stop reading" : "Read note aloud"}
+                  >
+                    {isSpeaking ? <VolumeX size={16} /> : <Volume2 size={16} />}
+                    {isSpeaking ? 'Stop' : 'Read'}
                   </button>
                   <button
                     onClick={handleEdit}
