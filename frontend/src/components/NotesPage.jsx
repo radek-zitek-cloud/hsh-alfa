@@ -1,8 +1,8 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
-import { notesApi } from '../services/api';
-import { Plus, Edit2, Save, Trash2, X, FileText, Home, Sun, Moon, LogOut } from 'lucide-react';
+import { notesApi, aiToolsApi } from '../services/api';
+import { Plus, Edit2, Save, Trash2, X, FileText, Home, Sun, Moon, LogOut, Wand2, ChevronDown } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import rehypeRaw from 'rehype-raw';
@@ -59,6 +59,8 @@ function NotesPage({ theme, toggleTheme }) {
   const [editTitle, setEditTitle] = useState('');
   const [editContent, setEditContent] = useState('');
   const [newNoteParentId, setNewNoteParentId] = useState(null);
+  const [selectedToolId, setSelectedToolId] = useState(null);
+  const [showToolDropdown, setShowToolDropdown] = useState(false);
 
   // Fetch all notes
   const { data: notes = [], isLoading } = useQuery({
@@ -96,6 +98,29 @@ function NotesPage({ theme, toggleTheme }) {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['notes'] });
       setSelectedNoteId(null);
+    },
+  });
+
+  // Fetch AI tools
+  const { data: aiTools = [] } = useQuery({
+    queryKey: ['ai-tools'],
+    queryFn: async () => {
+      const response = await aiToolsApi.getAll();
+      return response.data;
+    },
+  });
+
+  // Apply AI tool mutation
+  const applyToolMutation = useMutation({
+    mutationFn: aiToolsApi.apply,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['notes'] });
+      setShowToolDropdown(false);
+      setSelectedToolId(null);
+      alert('AI tool applied successfully! Check the subnotes.');
+    },
+    onError: error => {
+      alert(`Error applying tool: ${error.response?.data?.detail || error.message}`);
     },
   });
 
@@ -172,6 +197,22 @@ function NotesPage({ theme, toggleTheme }) {
     setSelectedNoteId(noteId);
     setIsEditing(false);
     setIsCreating(false);
+    setShowToolDropdown(false);
+    setSelectedToolId(null);
+  };
+
+  const handleApplyTool = () => {
+    if (!selectedToolId || !selectedNoteId) {
+      alert('Please select a tool');
+      return;
+    }
+
+    if (confirm('Apply this AI tool to the note? This will create a new subnote with the AI analysis.')) {
+      applyToolMutation.mutate({
+        note_id: selectedNoteId,
+        tool_id: selectedToolId,
+      });
+    }
   };
 
   if (isLoading) {
@@ -421,6 +462,79 @@ function NotesPage({ theme, toggleTheme }) {
                   {selectedNote.title}
                 </h2>
                 <div className="flex gap-2">
+                  {/* AI Tools Dropdown */}
+                  {aiTools.length > 0 && (
+                    <div className="relative">
+                      <button
+                        onClick={() => setShowToolDropdown(!showToolDropdown)}
+                        disabled={applyToolMutation.isPending}
+                        className="px-3 py-1.5 rounded flex items-center gap-2 transition-colors"
+                        style={{
+                          backgroundColor: 'var(--bg-secondary)',
+                          borderColor: 'var(--border-color)',
+                          color: 'var(--text-primary)',
+                          border: '1px solid var(--border-color)',
+                        }}
+                        onMouseEnter={e => (e.currentTarget.style.backgroundColor = 'var(--border-color)')}
+                        onMouseLeave={e => (e.currentTarget.style.backgroundColor = 'var(--bg-secondary)')}
+                      >
+                        <Wand2 size={16} />
+                        {applyToolMutation.isPending ? 'Processing...' : 'AI Tools'}
+                        <ChevronDown size={16} />
+                      </button>
+                      {showToolDropdown && (
+                        <div
+                          className="absolute right-0 mt-2 w-64 rounded-lg shadow-lg border z-10"
+                          style={{
+                            backgroundColor: 'var(--bg-secondary)',
+                            borderColor: 'var(--border-color)',
+                          }}
+                        >
+                          <div className="p-2">
+                            <div className="text-xs font-semibold mb-2 px-2" style={{ color: 'var(--text-secondary)' }}>
+                              Select an AI tool:
+                            </div>
+                            {aiTools.map(tool => (
+                              <button
+                                key={tool.id}
+                                onClick={() => {
+                                  setSelectedToolId(tool.id);
+                                  setShowToolDropdown(false);
+                                  setTimeout(() => handleApplyTool(), 100);
+                                }}
+                                className="w-full text-left px-3 py-2 rounded hover:bg-[var(--bg-tertiary)] transition-colors"
+                                style={{ color: 'var(--text-primary)' }}
+                              >
+                                <div className="font-medium">{tool.name}</div>
+                                {tool.description && (
+                                  <div className="text-xs mt-1" style={{ color: 'var(--text-secondary)' }}>
+                                    {tool.description.substring(0, 80)}
+                                    {tool.description.length > 80 ? '...' : ''}
+                                  </div>
+                                )}
+                              </button>
+                            ))}
+                          </div>
+                          <div
+                            className="border-t p-2"
+                            style={{ borderColor: 'var(--border-color)' }}
+                          >
+                            <button
+                              onClick={() => navigate('/ai-tools')}
+                              className="w-full text-xs px-2 py-1 rounded transition-colors"
+                              style={{
+                                color: 'var(--text-secondary)',
+                              }}
+                              onMouseEnter={e => (e.currentTarget.style.backgroundColor = 'var(--bg-tertiary)')}
+                              onMouseLeave={e => (e.currentTarget.style.backgroundColor = 'transparent')}
+                            >
+                              Manage AI Tools →
+                            </button>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  )}
                   <button
                     onClick={handleEdit}
                     className="px-3 py-1.5 rounded flex items-center gap-2 transition-colors"

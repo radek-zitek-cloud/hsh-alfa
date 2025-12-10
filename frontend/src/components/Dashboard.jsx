@@ -13,6 +13,7 @@ import {
   Shield,
   CheckSquare,
   FileText,
+  Wand2,
 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { sectionsApi, widgetsApi } from '../services/api';
@@ -130,6 +131,14 @@ const Dashboard = ({ theme, toggleTheme }) => {
             title="Notes"
           >
             <FileText size={24} />
+          </button>
+          <button
+            onClick={() => navigate('/ai-tools')}
+            className="p-2 rounded-lg bg-[var(--bg-secondary)] hover:bg-[var(--border-color)] transition-colors"
+            aria-label="AI Tools"
+            title="AI Tools"
+          >
+            <Wand2 size={24} />
           </button>
           <button
             onClick={toggleTheme}
