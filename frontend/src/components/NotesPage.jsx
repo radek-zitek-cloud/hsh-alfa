@@ -201,8 +201,8 @@ function NotesPage({ theme, toggleTheme }) {
     setSelectedToolId(null);
   };
 
-  const handleApplyTool = () => {
-    if (!selectedToolId || !selectedNoteId) {
+  const handleApplyTool = (toolId) => {
+    if (!toolId || !selectedNoteId) {
       alert('Please select a tool');
       return;
     }
@@ -210,7 +210,7 @@ function NotesPage({ theme, toggleTheme }) {
     if (confirm('Apply this AI tool to the note? This will create a new subnote with the AI analysis.')) {
       applyToolMutation.mutate({
         note_id: selectedNoteId,
-        tool_id: selectedToolId,
+        tool_id: toolId,
       });
     }
   };
@@ -500,7 +500,7 @@ function NotesPage({ theme, toggleTheme }) {
                                 onClick={() => {
                                   setSelectedToolId(tool.id);
                                   setShowToolDropdown(false);
-                                  setTimeout(() => handleApplyTool(), 100);
+                                  handleApplyTool(tool.id);
                                 }}
                                 className="w-full text-left px-3 py-2 rounded hover:bg-[var(--bg-tertiary)] transition-colors"
                                 style={{ color: 'var(--text-primary)' }}
