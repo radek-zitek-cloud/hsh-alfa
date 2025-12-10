@@ -51,6 +51,11 @@ async def get_db() -> AsyncSession:
             logger.debug("Database session closed", extra={"operation": "session_close"})
 
 
+def get_async_session():
+    """Context manager to get database session for background tasks."""
+    return AsyncSessionLocal()
+
+
 async def init_db():
     """Initialize database tables."""
     logger.info(

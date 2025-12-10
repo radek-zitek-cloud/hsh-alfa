@@ -117,7 +117,7 @@ function NotesPage({ theme, toggleTheme }) {
       queryClient.invalidateQueries({ queryKey: ['notes'] });
       setShowToolDropdown(false);
       setSelectedToolId(null);
-      alert('AI tool applied successfully! Check the subnotes.');
+      alert('AI tool is processing asynchronously. A new subnote has been created. Check it for the result.');
     },
     onError: error => {
       alert(`Error applying tool: ${error.response?.data?.detail || error.message}`);
@@ -207,12 +207,10 @@ function NotesPage({ theme, toggleTheme }) {
       return;
     }
 
-    if (confirm('Apply this AI tool to the note? This will create a new subnote with the AI analysis.')) {
-      applyToolMutation.mutate({
-        note_id: selectedNoteId,
-        tool_id: toolId,
-      });
-    }
+    applyToolMutation.mutate({
+      note_id: selectedNoteId,
+      tool_id: toolId,
+    });
   };
 
   if (isLoading) {

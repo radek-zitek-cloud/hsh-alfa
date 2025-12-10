@@ -1,10 +1,11 @@
 """AI Tools API routes."""
 
 import logging
+from datetime import datetime
 from typing import List
 
 import httpx
-from fastapi import APIRouter, Depends, HTTPException, Request, status
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request, status
 from slowapi import Limiter
 from slowapi.util import get_remote_address
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -17,7 +18,7 @@ from app.models.ai_tool import (
     AIToolResponse,
     AIToolUpdate,
 )
-from app.models.note import NoteCreate
+from app.models.note import NoteCreate, NoteUpdate
 from app.models.user import User
 from app.services.ai_tool_service import AIToolService
 from app.services.note_service import NoteService
@@ -26,6 +27,90 @@ logger = logging.getLogger(__name__)
 limiter = Limiter(key_func=get_remote_address)
 
 router = APIRouter(prefix="/ai-tools", tags=["ai-tools"])
+
+
+async def process_ai_tool_async(
+    subnote_id: int,
+    prompt: str,
+    api_key: str,
+    tool_name: str,
+    user_id: int,
+):
+    """Background task to process AI tool application asynchronously."""
+    from app.services.database import get_async_session
+
+    try:
+        # Call Anthropic API
+        async with httpx.AsyncClient(timeout=300.0) as client:  # 5 minute timeout for long processing
+            response = await client.post(
+                "https://api.anthropic.com/v1/messages",
+                headers={
+                    "x-api-key": api_key,
+                    "anthropic-version": "2023-06-01",
+                    "Content-Type": "application/json",
+                },
+                json={
+                    "model": "claude-sonnet-4-5-20250929",
+                    "max_tokens": 4096,
+                    "messages": [{"role": "user", "content": prompt}],
+                    "temperature": 0.7,
+                },
+            )
+            response.raise_for_status()
+            result = response.json()
+            ai_response = result["content"][0]["text"]
+
+        # Update subnote with the result
+        async with get_async_session() as db:
+            try:
+                note_service = NoteService(db)
+                update_data = NoteUpdate(content=ai_response)
+                await note_service.update_note(subnote_id, update_data, user_id)
+                await db.commit()
+                logger.info(f"Successfully processed AI tool for subnote {subnote_id}")
+            except Exception as e:
+                await db.rollback()
+                logger.error(f"Error updating subnote {subnote_id}: {str(e)}")
+                raise
+
+    except httpx.HTTPStatusError as e:
+        logger.error(f"Anthropic API error for subnote {subnote_id}: {e.response.status_code} - {e.response.text}")
+        error_message = f"**Error:** AI API returned status code {e.response.status_code}\n\nPlease try again later."
+        async with get_async_session() as db:
+            try:
+                note_service = NoteService(db)
+                update_data = NoteUpdate(content=error_message)
+                await note_service.update_note(subnote_id, update_data, user_id)
+                await db.commit()
+            except Exception as update_error:
+                await db.rollback()
+                logger.error(f"Error updating subnote {subnote_id} with error message: {str(update_error)}")
+
+    except httpx.TimeoutException:
+        logger.error(f"Anthropic API timeout for subnote {subnote_id}")
+        error_message = "**Error:** AI processing timed out\n\nPlease try again later."
+        async with get_async_session() as db:
+            try:
+                note_service = NoteService(db)
+                update_data = NoteUpdate(content=error_message)
+                await note_service.update_note(subnote_id, update_data, user_id)
+                await db.commit()
+            except Exception as update_error:
+                await db.rollback()
+                logger.error(f"Error updating subnote {subnote_id} with timeout message: {str(update_error)}")
+
+    except Exception as e:
+        logger.error(f"Unexpected error processing AI tool for subnote {subnote_id}: {str(e)}")
+        error_message = f"**Error:** Failed to process AI request\n\n{str(e)}\n\nPlease try again later."
+        async with get_async_session() as db:
+            try:
+                note_service = NoteService(db)
+                update_data = NoteUpdate(content=error_message)
+                await note_service.update_note(subnote_id, update_data, user_id)
+                await db.commit()
+            except Exception as update_error:
+                await db.rollback()
+                logger.error(f"Error updating subnote {subnote_id} with error message: {str(update_error)}")
 
 
 @router.get("/", response_model=List[AIToolResponse])
@@ -112,10 +197,11 @@ async def delete_tool(
 async def apply_tool(
     request: Request,
     apply_data: AIToolApply,
+    background_tasks: BackgroundTasks,
     current_user: User = Depends(require_auth),
     db: AsyncSession = Depends(get_db),
 ):
-    """Apply an AI tool to a note and create a subnote with the result."""
+    """Apply an AI tool to a note and create a subnote with the result asynchronously."""
     tool_service = AIToolService(db)
     note_service = NoteService(db)
 
@@ -133,68 +219,53 @@ async def apply_tool(
             status_code=status.HTTP_404_NOT_FOUND, detail="Tool not found"
         )
 
-    # Prepare the prompt by replacing placeholder
-    note_content = f"Title: {note.title}\n\nContent: {note.content or ''}"
-    prompt = tool.prompt.replace("[PLACEHOLDER]", note_content)
-
-    # Call Anthropic API
-    try:
-        async with httpx.AsyncClient(timeout=60.0) as client:
-            response = await client.post(
-                "https://api.anthropic.com/v1/messages",
-                headers={
-                    "x-api-key": tool.api_key,
-                    "anthropic-version": "2023-06-01",
-                    "Content-Type": "application/json",
-                },
-                json={
-                    "model": "claude-sonnet-4-5-20250929",
-                    "max_tokens": 4096,
-                    "messages": [{"role": "user", "content": prompt}],
-                    "temperature": 0.7,
-                },
-            )
-            response.raise_for_status()
-            result = response.json()
-            ai_response = result["content"][0]["text"]
-    except httpx.HTTPStatusError as e:
-        logger.error(f"Anthropic API error: {e.response.status_code} - {e.response.text}")
-        raise HTTPException(
-            status_code=status.HTTP_502_BAD_GATEWAY,
-            detail=f"AI API error: {e.response.status_code}",
-        )
-    except httpx.TimeoutException:
-        logger.error("Anthropic API timeout")
-        raise HTTPException(
-            status_code=status.HTTP_504_GATEWAY_TIMEOUT, detail="AI API timeout"
-        )
-    except Exception as e:
-        logger.error(f"Unexpected error calling AI API: {str(e)}")
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to process AI request",
-        )
-
     # Count existing subnotes to determine position
     all_notes = await note_service.list_notes(current_user.id)
     subnotes = [n for n in all_notes if n.parent_id == apply_data.note_id]
     next_position = len(subnotes)
 
-    # Create a new subnote with the AI response
+    # Create timestamp
+    timestamp = datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S UTC")
+
+    # Create placeholder content with timestamp and status
+    placeholder_content = f"""**AI Processing Status**
+
+**Tool:** {tool.name}
+**Started:** {timestamp}
+**Status:** Processing...
+
+The AI is analyzing your note. This may take a few minutes. Refresh the page to see the updated result.
+"""
+
+    # Create a new subnote with placeholder content immediately
     subnote_data = NoteCreate(
         title=f"AI Analysis: {tool.name}",
-        content=ai_response,
+        content=placeholder_content,
         parent_id=apply_data.note_id,
         position=next_position,
     )
     subnote = await note_service.create_note(subnote_data, current_user.id)
 
+    # Prepare the prompt by replacing placeholder
+    note_content = f"Title: {note.title}\n\nContent: {note.content or ''}"
+    prompt = tool.prompt.replace("[PLACEHOLDER]", note_content)
+
+    # Schedule background task to process AI tool
+    background_tasks.add_task(
+        process_ai_tool_async,
+        subnote.id,
+        prompt,
+        tool.api_key,
+        tool.name,
+        current_user.id,
+    )
+
     logger.info(
-        f"User {current_user.id} applied tool {tool.id} to note {note.id}, created subnote {subnote.id}"
+        f"User {current_user.id} initiated AI tool {tool.id} on note {note.id}, created subnote {subnote.id}"
     )
 
     return {
-        "message": "Tool applied successfully",
+        "message": "AI processing started",
         "subnote_id": subnote.id,
         "tool_name": tool.name,
     }
