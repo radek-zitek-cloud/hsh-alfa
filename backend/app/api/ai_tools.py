@@ -137,32 +137,34 @@ async def apply_tool(
     note_content = f"Title: {note.title}\n\nContent: {note.content or ''}"
     prompt = tool.prompt.replace("[PLACEHOLDER]", note_content)
 
-    # Call OpenAI API
+    # Call Anthropic API
     try:
         async with httpx.AsyncClient(timeout=60.0) as client:
             response = await client.post(
-                "https://api.openai.com/v1/chat/completions",
+                "https://api.anthropic.com/v1/messages",
                 headers={
-                    "Authorization": f"Bearer {tool.api_key}",
+                    "x-api-key": tool.api_key,
+                    "anthropic-version": "2023-06-01",
                     "Content-Type": "application/json",
                 },
                 json={
-                    "model": "gpt-4o-mini",
+                    "model": "claude-3-5-sonnet-20241022",
+                    "max_tokens": 4096,
                     "messages": [{"role": "user", "content": prompt}],
                     "temperature": 0.7,
                 },
             )
             response.raise_for_status()
             result = response.json()
-            ai_response = result["choices"][0]["message"]["content"]
+            ai_response = result["content"][0]["text"]
     except httpx.HTTPStatusError as e:
-        logger.error(f"OpenAI API error: {e.response.status_code} - {e.response.text}")
+        logger.error(f"Anthropic API error: {e.response.status_code} - {e.response.text}")
         raise HTTPException(
             status_code=status.HTTP_502_BAD_GATEWAY,
             detail=f"AI API error: {e.response.status_code}",
         )
     except httpx.TimeoutException:
-        logger.error("OpenAI API timeout")
+        logger.error("Anthropic API timeout")
         raise HTTPException(
             status_code=status.HTTP_504_GATEWAY_TIMEOUT, detail="AI API timeout"
         )
