@@ -18,6 +18,7 @@ from app.models.ai_tool import (
     AIToolUpdate,
 )
 from app.models.note import NoteCreate
+from app.models.user import User
 from app.services.ai_tool_service import AIToolService
 from app.services.note_service import NoteService
 
@@ -31,12 +32,12 @@ router = APIRouter(prefix="/ai-tools", tags=["ai-tools"])
 @limiter.limit("100/minute")
 async def list_tools(
     request: Request,
-    user_id: int = Depends(require_auth),
+    current_user: User = Depends(require_auth),
     db: AsyncSession = Depends(get_db),
 ):
     """List all AI tools for the current user."""
     service = AIToolService(db)
-    tools = await service.list_tools(user_id)
+    tools = await service.list_tools(current_user.id)
     return tools
 
 
@@ -45,12 +46,12 @@ async def list_tools(
 async def get_tool(
     request: Request,
     tool_id: int,
-    user_id: int = Depends(require_auth),
+    current_user: User = Depends(require_auth),
     db: AsyncSession = Depends(get_db),
 ):
     """Get a specific AI tool."""
     service = AIToolService(db)
-    tool = await service.get_tool(tool_id, user_id)
+    tool = await service.get_tool(tool_id, current_user.id)
     if not tool:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Tool not found")
     return tool
@@ -61,13 +62,13 @@ async def get_tool(
 async def create_tool(
     request: Request,
     tool_data: AIToolCreate,
-    user_id: int = Depends(require_auth),
+    current_user: User = Depends(require_auth),
     db: AsyncSession = Depends(get_db),
 ):
     """Create a new AI tool."""
     service = AIToolService(db)
-    tool = await service.create_tool(tool_data, user_id)
-    logger.info(f"User {user_id} created AI tool {tool.id}")
+    tool = await service.create_tool(tool_data, current_user.id)
+    logger.info(f"User {current_user.id} created AI tool {tool.id}")
     return tool
 
 
@@ -77,15 +78,15 @@ async def update_tool(
     request: Request,
     tool_id: int,
     tool_data: AIToolUpdate,
-    user_id: int = Depends(require_auth),
+    current_user: User = Depends(require_auth),
     db: AsyncSession = Depends(get_db),
 ):
     """Update an AI tool."""
     service = AIToolService(db)
-    tool = await service.update_tool(tool_id, tool_data, user_id)
+    tool = await service.update_tool(tool_id, tool_data, current_user.id)
     if not tool:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Tool not found")
-    logger.info(f"User {user_id} updated AI tool {tool_id}")
+    logger.info(f"User {current_user.id} updated AI tool {tool_id}")
     return tool
 
 
@@ -94,15 +95,15 @@ async def update_tool(
 async def delete_tool(
     request: Request,
     tool_id: int,
-    user_id: int = Depends(require_auth),
+    current_user: User = Depends(require_auth),
     db: AsyncSession = Depends(get_db),
 ):
     """Delete an AI tool."""
     service = AIToolService(db)
-    success = await service.delete_tool(tool_id, user_id)
+    success = await service.delete_tool(tool_id, current_user.id)
     if not success:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Tool not found")
-    logger.info(f"User {user_id} deleted AI tool {tool_id}")
+    logger.info(f"User {current_user.id} deleted AI tool {tool_id}")
     return None
 
 
@@ -111,7 +112,7 @@ async def delete_tool(
 async def apply_tool(
     request: Request,
     apply_data: AIToolApply,
-    user_id: int = Depends(require_auth),
+    current_user: User = Depends(require_auth),
     db: AsyncSession = Depends(get_db),
 ):
     """Apply an AI tool to a note and create a subnote with the result."""
@@ -119,14 +120,14 @@ async def apply_tool(
     note_service = NoteService(db)
 
     # Get the note
-    note = await note_service.get_note(apply_data.note_id, user_id)
+    note = await note_service.get_note(apply_data.note_id, current_user.id)
     if not note:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail="Note not found"
         )
 
     # Get the tool
-    tool = await tool_service.get_tool(apply_data.tool_id, user_id)
+    tool = await tool_service.get_tool(apply_data.tool_id, current_user.id)
     if not tool:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail="Tool not found"
@@ -173,7 +174,7 @@ async def apply_tool(
         )
 
     # Count existing subnotes to determine position
-    all_notes = await note_service.list_notes(user_id)
+    all_notes = await note_service.list_notes(current_user.id)
     subnotes = [n for n in all_notes if n.parent_id == apply_data.note_id]
     next_position = len(subnotes)
 
@@ -184,10 +185,10 @@ async def apply_tool(
         parent_id=apply_data.note_id,
         position=next_position,
     )
-    subnote = await note_service.create_note(subnote_data, user_id)
+    subnote = await note_service.create_note(subnote_data, current_user.id)
 
     logger.info(
-        f"User {user_id} applied tool {tool.id} to note {note.id}, created subnote {subnote.id}"
+        f"User {current_user.id} applied tool {tool.id} to note {note.id}, created subnote {subnote.id}"
     )
 
     return {
