@@ -7,7 +7,7 @@ from pydantic import BaseModel, Field
 from sqlalchemy import Column, DateTime, ForeignKey, Integer, String, Text
 from sqlalchemy.sql import func
 
-from app.database import Base
+from app.services.database import Base
 
 
 class AITool(Base):
