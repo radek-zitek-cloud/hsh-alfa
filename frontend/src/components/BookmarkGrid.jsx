@@ -4,6 +4,7 @@ import { bookmarksApi, preferencesApi } from '../services/api';
 import { ExternalLink, Loader, Edit2, Trash2 } from 'lucide-react';
 import BookmarkModal from './BookmarkModal';
 import BookmarkForm from './BookmarkForm';
+import { showSuccess, showError, showWarning, showInfo } from '../utils/toast';
 
 const BookmarkCard = ({ bookmark }) => {
   const queryClient = useQueryClient();
@@ -29,10 +30,11 @@ const BookmarkCard = ({ bookmark }) => {
     mutationFn: () => bookmarksApi.delete(bookmark.id),
     onSuccess: () => {
       queryClient.invalidateQueries(['bookmarks']);
+      showSuccess('Bookmark deleted successfully');
     },
     onError: error => {
       console.error('Error deleting bookmark:', error);
-      alert('Failed to delete bookmark');
+      showError('Failed to delete bookmark');
     },
     onSettled: () => {
       setIsDeleting(false);

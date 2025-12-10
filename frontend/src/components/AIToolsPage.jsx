@@ -11,6 +11,7 @@ import {
   Wand2,
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
+import { showSuccess, showError, showWarning, showInfo } from '../utils/toast';
 
 const AIToolsPage = ({ theme, toggleTheme }) => {
   const navigate = useNavigate();
@@ -41,9 +42,10 @@ const AIToolsPage = ({ theme, toggleTheme }) => {
       queryClient.invalidateQueries(['ai-tools']);
       resetForm();
       setIsCreating(false);
+      showSuccess('AI tool created successfully');
     },
     onError: error => {
-      alert(`Error creating tool: ${error.response?.data?.detail || error.message}`);
+      showError(`Error creating tool: ${error.response?.data?.detail || error.message}`);
     },
   });
 
@@ -54,9 +56,10 @@ const AIToolsPage = ({ theme, toggleTheme }) => {
       queryClient.invalidateQueries(['ai-tools']);
       resetForm();
       setEditingTool(null);
+      showSuccess('AI tool updated successfully');
     },
     onError: error => {
-      alert(`Error updating tool: ${error.response?.data?.detail || error.message}`);
+      showError(`Error updating tool: ${error.response?.data?.detail || error.message}`);
     },
   });
 
@@ -65,9 +68,10 @@ const AIToolsPage = ({ theme, toggleTheme }) => {
     mutationFn: aiToolsApi.delete,
     onSuccess: () => {
       queryClient.invalidateQueries(['ai-tools']);
+      showSuccess('AI tool deleted successfully');
     },
     onError: error => {
-      alert(`Error deleting tool: ${error.response?.data?.detail || error.message}`);
+      showError(`Error deleting tool: ${error.response?.data?.detail || error.message}`);
     },
   });
 

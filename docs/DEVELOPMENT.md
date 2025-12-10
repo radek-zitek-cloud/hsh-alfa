@@ -485,6 +485,119 @@ export const AuthProvider = ({ children }) => {
 }
 ```
 
+#### 4. Toast Notifications for User Feedback
+
+**IMPORTANT**: All user-facing messages, errors, and warnings must use toast notifications instead of modal dialogs or `alert()` calls.
+
+**Toast Notification System**:
+- Uses `react-toastify` library
+- Positioned at top-right of the window
+- Theme-aware (automatically adapts to light/dark mode)
+
+**Configuration**:
+```javascript
+// Already configured in App.jsx
+<ToastContainer
+  position="top-right"
+  autoClose={5000}
+  hideProgressBar={false}
+  newestOnTop
+  closeOnClick
+  rtl={false}
+  pauseOnFocusLoss
+  draggable
+  pauseOnHover
+  theme="colored"
+/>
+```
+
+**Usage Guidelines**:
+
+1. **Import the toast utilities**:
+```javascript
+import { showSuccess, showError, showWarning, showInfo } from '../utils/toast';
+```
+
+2. **Success Messages** (auto-dismiss after 5 seconds):
+```javascript
+// Use for successful operations
+showSuccess('Note saved successfully');
+showSuccess('AI tool created successfully');
+showSuccess('Bookmark deleted successfully');
+```
+
+3. **Error Messages** (require user dismissal):
+```javascript
+// Use for errors that need user attention
+showError('Failed to save note');
+showError(`Error creating tool: ${error.message}`);
+showError('Network connection failed');
+```
+
+4. **Warning Messages** (auto-dismiss after 5 seconds):
+```javascript
+// Use for warnings and validation messages
+showWarning('Please select a note first');
+showWarning('This action cannot be undone');
+showWarning('Maximum file size exceeded');
+```
+
+5. **Info Messages** (auto-dismiss after 5 seconds):
+```javascript
+// Use for informational messages
+showInfo('AI tool is processing asynchronously');
+showInfo('Your changes are being saved');
+showInfo('Loading data from server...');
+```
+
+6. **Advanced Usage** (loading states):
+```javascript
+// For long-running operations with updates
+import { showLoading, updateToast } from '../utils/toast';
+
+const toastId = showLoading('Processing your request...');
+
+// Later, update the toast based on result
+try {
+  await longRunningOperation();
+  updateToast(toastId, 'Operation completed successfully!', 'success');
+} catch (error) {
+  updateToast(toastId, `Operation failed: ${error.message}`, 'error');
+}
+```
+
+**Best Practices**:
+- **DO** use toast notifications for all user feedback
+- **DO** use error type for failures that need user attention
+- **DO** use success type for confirmations of completed actions
+- **DO** use warning type for validation messages
+- **DO** use info type for progress updates
+- **DON'T** use `alert()` or `confirm()` for user messages
+- **DON'T** use modal dialogs for simple notifications
+- **DON'T** show multiple toasts for the same event
+- **DON'T** use toasts for critical errors that require immediate action (use modals)
+
+**Migration from alert()**:
+```javascript
+// ❌ OLD (Don't use)
+alert('Note saved successfully');
+alert(`Error: ${error.message}`);
+if (confirm('Are you sure?')) { ... }
+
+// ✅ NEW (Use this)
+showSuccess('Note saved successfully');
+showError(`Error: ${error.message}`);
+// For confirmations, use a proper modal dialog component
+```
+
+**Auto-dismiss Behavior**:
+- **Success**: 5 seconds (auto-dismiss)
+- **Info**: 5 seconds (auto-dismiss)
+- **Warning**: 5 seconds (auto-dismiss)
+- **Error**: No auto-dismiss (requires user to click X or close button)
+
+This ensures users don't miss critical error messages while keeping the UI clean for informational updates.
+
 ## Development Tools
 
 ### Backend Tools

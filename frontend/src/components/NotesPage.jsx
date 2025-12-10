@@ -1,13 +1,14 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
 import { notesApi, aiToolsApi } from '../services/api';
-import { Plus, Edit2, Save, Trash2, X, FileText, Home, Sun, Moon, LogOut, Wand2, ChevronDown } from 'lucide-react';
+import { Plus, Edit2, Save, Trash2, X, FileText, Home, Sun, Moon, LogOut, Wand2, ChevronDown, RefreshCw } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import rehypeRaw from 'rehype-raw';
 import { useAuth } from '../contexts/AuthContext';
 import NoteTree from './NoteTree';
+import { showSuccess, showError, showWarning, showInfo } from '../utils/toast';
 
 // Markdown syntax helper component
 function MarkdownHelper() {
@@ -117,10 +118,10 @@ function NotesPage({ theme, toggleTheme }) {
       queryClient.invalidateQueries({ queryKey: ['notes'] });
       setShowToolDropdown(false);
       setSelectedToolId(null);
-      alert('AI tool is processing asynchronously. A new subnote has been created. Check it for the result.');
+      showInfo('AI tool is processing asynchronously. A new subnote has been created. Check it for the result.');
     },
     onError: error => {
-      alert(`Error applying tool: ${error.response?.data?.detail || error.message}`);
+      showError(`Error applying tool: ${error.response?.data?.detail || error.message}`);
     },
   });
 
@@ -203,7 +204,7 @@ function NotesPage({ theme, toggleTheme }) {
 
   const handleApplyTool = (toolId) => {
     if (!toolId || !selectedNoteId) {
-      alert('Please select a tool');
+      showWarning('Please select a tool');
       return;
     }
 
@@ -212,6 +213,29 @@ function NotesPage({ theme, toggleTheme }) {
       tool_id: toolId,
     });
   };
+
+  // Refresh note mutation - fetches the latest version from database
+  const handleRefreshNote = async () => {
+    if (!selectedNoteId) {
+      showWarning('Please select a note to refresh');
+      return;
+    }
+
+    try {
+      await queryClient.invalidateQueries({ queryKey: ['notes'] });
+      showSuccess('Note refreshed successfully');
+    } catch (error) {
+      showError('Failed to refresh note');
+    }
+  };
+
+  // Auto-refresh when displayed note changes
+  useEffect(() => {
+    if (selectedNoteId) {
+      // Invalidate queries to fetch fresh data from database
+      queryClient.invalidateQueries({ queryKey: ['notes'] });
+    }
+  }, [selectedNoteId, queryClient]);
 
   if (isLoading) {
     return (
@@ -533,6 +557,23 @@ function NotesPage({ theme, toggleTheme }) {
                       )}
                     </div>
                   )}
+                  {/* Refresh Note Button */}
+                  <button
+                    onClick={handleRefreshNote}
+                    className="px-3 py-1.5 rounded flex items-center gap-2 transition-colors"
+                    style={{
+                      backgroundColor: 'var(--bg-secondary)',
+                      borderColor: 'var(--border-color)',
+                      color: 'var(--text-primary)',
+                      border: '1px solid var(--border-color)',
+                    }}
+                    onMouseEnter={e => (e.currentTarget.style.backgroundColor = 'var(--border-color)')}
+                    onMouseLeave={e => (e.currentTarget.style.backgroundColor = 'var(--bg-secondary)')}
+                    title="Refresh note from database"
+                  >
+                    <RefreshCw size={16} />
+                    Refresh
+                  </button>
                   <button
                     onClick={handleEdit}
                     className="px-3 py-1.5 rounded flex items-center gap-2 transition-colors"
