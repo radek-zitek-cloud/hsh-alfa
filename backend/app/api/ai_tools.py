@@ -35,6 +35,7 @@ async def process_ai_tool_async(
     api_key: str,
     tool_name: str,
     user_id: int,
+    model: str = "claude-sonnet-4-5-20250929",
 ):
     """Background task to process AI tool application asynchronously."""
     from app.services.database import get_async_session
@@ -50,7 +51,7 @@ async def process_ai_tool_async(
                     "Content-Type": "application/json",
                 },
                 json={
-                    "model": "claude-sonnet-4-5-20250929",
+                    "model": model,
                     "max_tokens": 4096,
                     "messages": [{"role": "user", "content": prompt}],
                     "temperature": 0.7,
@@ -258,6 +259,7 @@ The AI is analyzing your note. This may take a few minutes. Refresh the page to 
         tool.api_key,
         tool.name,
         current_user.id,
+        tool.model,
     )
 
     logger.info(
