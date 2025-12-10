@@ -147,6 +147,7 @@ class SchedulerService:
             args=[widget_id],
             replace_existing=True,
             max_instances=1,
+            misfire_grace_time=60,  # Allow 60 seconds grace for missed run times
         )
 
         logger.info(
@@ -169,6 +170,7 @@ class SchedulerService:
             id="auth_cleanup",
             replace_existing=True,
             max_instances=1,
+            misfire_grace_time=60,  # Allow 60 seconds grace for missed run times
         )
 
         logger.info(
